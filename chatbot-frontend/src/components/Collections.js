@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_ENDPOINTS } from "../config";
 
 export default function Collections() {
   const [books, setBooks] = useState([]);
@@ -27,7 +28,7 @@ export default function Collections() {
   useEffect(() => {
     const fetchBooks = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/api/books");
+        const response = await axios.get(API_ENDPOINTS.GET_BOOKS);
         setBooks(response.data);
       } catch (error) {
         console.error("Error fetching books:", error);
@@ -94,7 +95,7 @@ const handleSubscribe = async (bookId) => {
               </button>
               <button
                 className="bg-green-500 text-white px-4 py-2 rounded-lg"
-                onClick={() => handleSubscribe(book._id, book.title)}
+                onClick={() => handleSubscribe(book._id)}
               >
                 Subscribe
               </button>

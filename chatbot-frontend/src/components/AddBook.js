@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { API_ENDPOINTS } from "../config";
 
 const AddBook = () => {
   const [bookData, setBookData] = useState({
@@ -19,7 +20,7 @@ const AddBook = () => {
     e.preventDefault();
     
     try {
-      const response = await axios.post("http://localhost:5000/api/books", bookData);
+      const response = await axios.post(API_ENDPOINTS.ADD_BOOK, bookData);
 
       if (response.status === 201) {
         setSuccessMessage("✅ Book details have been added successfully!");

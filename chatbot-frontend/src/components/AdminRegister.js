@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_ENDPOINTS } from "../config";
 
 const AdminRegister = () => {
   const [formData, setFormData] = useState({
@@ -26,8 +27,8 @@ const AdminRegister = () => {
     }
 
     try {
-      const response = await axios.post("http://localhost:5000/api/admins/register", {
-        name: formData.fullName,
+      const response = await axios.post(API_ENDPOINTS.ADMIN_REGISTER, {
+        username: formData.fullName,
         email: formData.email,
         contactNumber: formData.contactNumber,
         designation: formData.designation,

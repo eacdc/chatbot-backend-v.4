@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_ENDPOINTS } from "../config";
 
 const AddChapter = () => {
   const [books, setBooks] = useState([]);
@@ -153,7 +154,7 @@ ${chapterData.qnaOutput}
     };
     
     try {
-      const response = await axios.post("http://localhost:5000/api/chapters", dataToSubmit);
+      const response = await axios.post(API_ENDPOINTS.ADD_CHAPTER, dataToSubmit);
       
       if (response.status === 201) {
         // Show confirmation popup

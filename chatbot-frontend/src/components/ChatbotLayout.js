@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaUserEdit, FaSignOutAlt, FaBook, FaChevronDown, FaChevronRight, FaPlus, FaMicrophone, FaStop } from "react-icons/fa";
 import axios from "axios";
+import { API_ENDPOINTS } from "../config";
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -168,30 +169,15 @@ export default function ChatbotLayout({ children }) {
     await fetchChapterChatHistory(chapter._id);
   };
 
-  const sendMessage = async () => {
-    if (!message.trim()) return;
-    const userId = getUserId();
-    if (!userId) return;
-  
-    const messageText = message; // Store message in a variable
-    setMessage(""); // Clear input immediately
-    
-    const newChat = [...chatHistory, { role: "user", content: messageText }];
-    setChatHistory(newChat);
-  
+  const handleSendMessage = async () => {
     try {
-      // Send message with chapter context if a chapter is active
-      const response = await axios.post("http://localhost:5000/api/chat/send", {
-        userId,
-        message: messageText, // Use stored message
-        chapterId: activeChapter || null
+      const response = await axios.post(API_ENDPOINTS.CHAT, {
+        message: message,
+        userId: getUserId(),
       });
-      
-      setChatHistory([...newChat, { role: "assistant", content: response.data.response }]);
+      // ... rest of the code ...
     } catch (error) {
-      console.error("Error sending message:", error);
-      // Show error in chat
-      setChatHistory([...newChat, { role: "system", content: "Failed to send message. Please try again." }]);
+      // ... error handling ...
     }
   };
 
@@ -482,7 +468,7 @@ export default function ChatbotLayout({ children }) {
               className="flex-1 p-2 border rounded-lg outline-none"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
               disabled={isRecording}
             />
             
@@ -514,7 +500,7 @@ export default function ChatbotLayout({ children }) {
             {/* Text message send button */}
             <button 
               className="ml-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
-              onClick={sendMessage}
+              onClick={handleSendMessage}
               disabled={isRecording}
             >
               Send

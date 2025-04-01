@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_ENDPOINTS } from "../config";
 
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
@@ -14,7 +15,7 @@ const AdminLogin = () => {
     setLoading(true); // Show loading
 
     try {
-      const response = await axios.post("http://localhost:5000/api/admins/login", {
+      const response = await axios.post(API_ENDPOINTS.ADMIN_LOGIN, {
         email,
         password,
       });

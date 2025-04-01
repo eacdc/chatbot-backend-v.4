@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom"; // For navigation
+import { API_ENDPOINTS } from "../config";
 
 const Signup = () => {
     const navigate = useNavigate();
@@ -23,7 +24,7 @@ const Signup = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        console.log("📡 Sending request to:", "http://localhost:5000/api/users/register");
+        console.log("📡 Sending request to:", API_ENDPOINTS.USER_SIGNUP);
         console.log("📝 Data:", formData); // Debugging
 
         if (formData.password !== formData.confirmPassword) {
@@ -32,7 +33,12 @@ const Signup = () => {
         }
 
         try {
-            const response = await axios.post("http://localhost:5000/api/users/register", formData);
+            const response = await axios.post(API_ENDPOINTS.USER_SIGNUP, {
+                username: formData.username,
+                email: formData.email,
+                password: formData.password,
+                confirmPassword: formData.confirmPassword,
+            });
             console.log("✅ Server Response:", response.data);
             alert("Signup successful! Redirecting to login...");
             navigate("/login"); // Redirect to login page
