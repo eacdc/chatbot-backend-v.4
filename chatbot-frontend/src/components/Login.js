@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_ENDPOINTS } from "../config";
 
 const Login = () => {
   const [email, setEmail] = useState("");  
@@ -24,7 +25,7 @@ const Login = () => {
     console.log("Login request data:", loginData); // ✅ Logs the final email and password before sending
 
     try {
-      const response = await axios.post("http://localhost:5000/api/users/login", loginData);
+      const response = await axios.post(API_ENDPOINTS.LOGIN, loginData);
 
       if (response.data && response.data.token && response.data.userId) {
         console.log("Login successful! Token:", response.data.token); // ✅ Logs the received token
