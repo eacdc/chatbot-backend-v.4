@@ -2,6 +2,7 @@ services:
   - type: web
     name: chatbot-frontend
     env: static
+    rootDir: chatbot-frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./build
     envVars:
