@@ -50,30 +50,29 @@ export default function Collections() {
   };
 
   // Subscribe to a book
-const handleSubscribe = async (bookId) => {
-  const token = localStorage.getItem("token"); // Retrieve token from storage
+  const handleSubscribe = async (bookId) => {
+    const token = localStorage.getItem("token");
 
-  if (!token) {
-    alert("Please log in to subscribe to books.");
-    return;
-  }
+    if (!token) {
+      alert("Please log in to subscribe to books.");
+      return;
+    }
 
-  try {
-    const response = await axios.post(
-      "http://localhost:5000/api/subscriptions",
-      { bookId }, // Send only bookId, user details are fetched in backend
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
+    try {
+      const response = await axios.post(
+        API_ENDPOINTS.SUBSCRIPTIONS,
+        { bookId },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-    alert(response.data.message); // Show success message
-  } catch (error) {
-    console.error("Subscription error:", error.response?.data?.error || error.message);
-    alert(error.response?.data?.error || "Subscription failed");
-  }
-};
-
+      alert(response.data.message);
+    } catch (error) {
+      console.error("Subscription error:", error.response?.data?.error || error.message);
+      alert(error.response?.data?.error || "Subscription failed");
+    }
+  };
 
   //end
 

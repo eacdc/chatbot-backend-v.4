@@ -269,7 +269,7 @@ export default function ChatbotLayout({ children }) {
       
       // Send the audio file to the server
       const response = await axios.post(
-        "http://localhost:5000/api/chat/send-audio",
+        `${API_ENDPOINTS.API_URL}/api/chat/send-audio`,
         formData,
         {
           headers: {
