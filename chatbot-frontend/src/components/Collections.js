@@ -12,10 +12,10 @@ export default function Collections() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/api/users/me", {
-          withCredentials: true, // Ensures cookies/session are sent
+        const response = await axios.get(API_ENDPOINTS.GET_USER, {
+          withCredentials: true,
         });
-        setUser(response.data); // Expected response: { _id, name }
+        setUser(response.data);
       } catch (error) {
         console.error("Error fetching user:", error);
       }
@@ -40,7 +40,7 @@ export default function Collections() {
   // Fetch chapters when a book is selected
   const fetchChapters = async (bookId) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/books/${bookId}/chapters`);
+      const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId));
       setChapters(response.data);
       setSelectedBook(bookId);
     } catch (error) {

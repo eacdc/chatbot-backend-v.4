@@ -37,7 +37,7 @@ export default function ChatbotLayout({ children }) {
       
       try {
         setLoading(true);
-        const response = await axios.get("http://localhost:5000/api/subscriptions/my-subscriptions", {
+        const response = await axios.get(API_ENDPOINTS.GET_SUBSCRIPTIONS, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -70,10 +70,10 @@ export default function ChatbotLayout({ children }) {
       setLoading(true);
       console.log(`Fetching chat history for chapter: ${chapterId}`);
       
-      const response = await axios.get(`http://localhost:5000/api/chat/chapter-history/${chapterId}`, {
+      const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_HISTORY.replace(':chapterId', chapterId), {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'user-id': userId // Add userId to headers
+          'user-id': userId
         }
       });
       
@@ -98,7 +98,7 @@ export default function ChatbotLayout({ children }) {
   // General chat history (used when no chapter is selected)
   useEffect(() => {
     const fetchGeneralChatHistory = async () => {
-      if (activeChapter) return; // Skip if a chapter is selected
+      if (activeChapter) return;
       
       const userId = getUserId();
       if (!userId) {
@@ -106,7 +106,7 @@ export default function ChatbotLayout({ children }) {
         return;
       }
       try {
-        const response = await axios.get(`http://localhost:5000/api/chat/history/${userId}`);
+        const response = await axios.get(API_ENDPOINTS.GET_CHAT_HISTORY.replace(':userId', userId));
         console.log("General Chat History Response:", response.data);
         setChatHistory(Array.isArray(response.data) ? response.data : []);
       } catch (error) {
@@ -129,7 +129,7 @@ export default function ChatbotLayout({ children }) {
     }
     
     try {
-      const response = await axios.get(`http://localhost:5000/api/books/${bookId}/chapters`, {
+      const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -306,7 +306,7 @@ export default function ChatbotLayout({ children }) {
     if (!userId) return;
     
     try {
-      const response = await axios.get(`http://localhost:5000/api/chat/history/${userId}`);
+      const response = await axios.get(API_ENDPOINTS.GET_CHAT_HISTORY.replace(':userId', userId));
       setChatHistory(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Error fetching chat history:", error);
