@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: chatbot-backend
+    env: node
+    buildCommand: cd chatbot-backend && npm install
+    startCommand: cd chatbot-backend && npm start
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production 
