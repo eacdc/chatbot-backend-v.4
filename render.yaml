@@ -22,7 +22,7 @@ services:
     headers:
       - path: /*
         name: Cache-Control
-        value: no-cache
+        value: no-cache, no-store, must-revalidate
       - path: /*
         name: X-Frame-Options
         value: DENY
@@ -36,6 +36,9 @@ services:
         name: Content-Security-Policy
         value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; font-src 'self' data: https:;"
     routes:
+      - type: rewrite
+        source: /api/*
+        destination: /api/$1
       - type: rewrite
         source: /*
         destination: /index.html
