@@ -19,6 +19,10 @@ services:
     rootDir: chatbot-frontend
     buildCommand: chmod +x build.sh && ./build.sh
     staticPublishPath: ./build
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
     envVars:
       - key: REACT_APP_API_URL
         sync: false
