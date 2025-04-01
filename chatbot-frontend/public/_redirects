@@ -1,1 +1,12 @@
-/* /index.html 200 
+# Handle client-side routing
+/* /index.html 200
+
+# Handle 404 errors
+/404.html /index.html 200
+
+# Handle specific routes
+/signup /index.html 200
+/login /index.html 200
+/admin /index.html 200
+/chat /index.html 200
+/collections /index.html 200 
