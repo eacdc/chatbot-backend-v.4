@@ -2,9 +2,9 @@ services:
   - type: web
     name: chatbot-frontend
     env: static
-    rootDir: chatbot-frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./build
+    rootDir: .
+    buildCommand: cd chatbot-frontend && npm install && npm run build
+    staticPublishPath: chatbot-frontend/build
     envVars:
       - key: REACT_APP_API_URL
         sync: false
