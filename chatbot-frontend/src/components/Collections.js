@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
+import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
+import { useNavigate } from "react-router-dom"; // Import for navigation
 
 export default function Collections() {
   const [books, setBooks] = useState([]);
@@ -9,6 +11,18 @@ export default function Collections() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate(); // For navigation
+
+  // Update activity timestamp on component mount
+  useEffect(() => {
+    // Check if user is authenticated and update activity timestamp
+    if (isAuthenticated()) {
+      updateLastActivity();
+    } else {
+      // Redirect to login if not authenticated
+      navigate("/login");
+    }
+  }, [navigate]);
 
   // Fetch logged-in user details from API
   useEffect(() => {

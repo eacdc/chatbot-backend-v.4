@@ -1,6 +1,9 @@
 import axiosInstance from './axios';
 import { API_ENDPOINTS } from '../config';
 
+// 30 minutes in milliseconds
+const SESSION_TIMEOUT = 30 * 60 * 1000;
+
 /**
  * Handles user login
  * @param {Object} credentials - User credentials
@@ -21,6 +24,9 @@ export const login = async (credentials) => {
       localStorage.setItem('userId', response.data.userId);
       localStorage.setItem('isAuthenticated', 'true');
       
+      // Set last activity timestamp
+      updateLastActivity();
+      
       if (response.data.refreshToken) {
         localStorage.setItem('refreshToken', response.data.refreshToken);
       }
@@ -40,6 +46,66 @@ export const login = async (credentials) => {
     }
     throw error;
   }
+};
+
+/**
+ * Updates the last activity timestamp
+ */
+export const updateLastActivity = () => {
+  localStorage.setItem('lastActivityTime', Date.now().toString());
+};
+
+/**
+ * Checks if the session has timed out
+ * @returns {boolean} True if session has timed out
+ */
+export const hasSessionTimedOut = () => {
+  const lastActivity = localStorage.getItem('lastActivityTime');
+  if (!lastActivity) return false;
+  
+  const now = Date.now();
+  const lastActivityTime = parseInt(lastActivity, 10);
+  return now - lastActivityTime > SESSION_TIMEOUT;
+};
+
+/**
+ * Setup activity listeners to track user activity
+ */
+export const setupActivityTracking = () => {
+  const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+  
+  const resetTimer = () => {
+    if (isAuthenticated()) {
+      updateLastActivity();
+    }
+  };
+  
+  // Add event listeners for user activity
+  activityEvents.forEach(event => {
+    document.addEventListener(event, resetTimer, { passive: true });
+  });
+  
+  // Check for session timeout every minute
+  const checkSessionTimeout = () => {
+    if (isAuthenticated() && hasSessionTimedOut()) {
+      console.log('Session timed out due to inactivity');
+      logout();
+    }
+  };
+  
+  // Set interval to check session timeout
+  const intervalId = setInterval(checkSessionTimeout, 60000); // Check every minute
+  
+  // Store intervalId to clear it when needed
+  window._sessionTimeoutInterval = intervalId;
+  
+  return () => {
+    // Cleanup function
+    activityEvents.forEach(event => {
+      document.removeEventListener(event, resetTimer);
+    });
+    clearInterval(intervalId);
+  };
 };
 
 /**
@@ -70,6 +136,7 @@ export const refreshToken = async () => {
       if (response.data.refreshToken) {
         localStorage.setItem('refreshToken', response.data.refreshToken);
       }
+      updateLastActivity(); // Update activity time on token refresh
       return response.data.token;
     }
     throw new Error('No token in refresh response');
@@ -87,15 +154,28 @@ export const logout = () => {
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('userId');
   localStorage.removeItem('isAuthenticated');
+  localStorage.removeItem('lastActivityTime');
+  
+  // Clear session timeout interval
+  if (window._sessionTimeoutInterval) {
+    clearInterval(window._sessionTimeoutInterval);
+  }
+  
   window.location.href = '/login';
 };
 
 /**
- * Checks if user is authenticated
+ * Checks if user is authenticated and session is valid
  * @returns {boolean}
  */
 export const isAuthenticated = () => {
-  return localStorage.getItem('isAuthenticated') === 'true' && !!localStorage.getItem('token');
+  const isAuth = localStorage.getItem('isAuthenticated') === 'true' && !!localStorage.getItem('token');
+  if (isAuth && hasSessionTimedOut()) {
+    console.log('Session expired during authentication check');
+    logout();
+    return false;
+  }
+  return isAuth;
 };
 
 /**

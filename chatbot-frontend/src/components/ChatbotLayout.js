@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaUserEdit, FaSignOutAlt, FaBook, FaChevronDown, FaChevronRight, FaPlus, FaMicrophone, FaStop } from "react-icons/fa";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
+import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -25,6 +26,17 @@ export default function ChatbotLayout({ children }) {
 
   const getUserId = () => localStorage.getItem("userId");
   const getToken = () => localStorage.getItem("token");
+
+  // Update activity timestamp on component mount
+  useEffect(() => {
+    // Check if user is authenticated and update activity timestamp
+    if (isAuthenticated()) {
+      updateLastActivity();
+    } else {
+      // Redirect to login if not authenticated
+      navigate("/login");
+    }
+  }, [navigate]);
 
   useEffect(() => {
     const fetchUserSubscriptions = async () => {
