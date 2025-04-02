@@ -170,14 +170,45 @@ export default function ChatbotLayout({ children }) {
   };
 
   const handleSendMessage = async () => {
+    if (!message.trim()) return;
+    
     try {
-      const response = await axios.post(API_ENDPOINTS.CHAT, {
+      const userId = getUserId();
+      const token = getToken();
+      
+      if (!userId || !token) {
+        navigate("/login");
+        return;
+      }
+      
+      // Add user message to chat history immediately for better UX
+      const newMessage = { role: "user", content: message };
+      setChatHistory([...chatHistory, newMessage]);
+      setMessage("");
+      
+      const response = await axios.post(`${API_ENDPOINTS.CHAT}/send`, {
         message: message,
         userId: getUserId(),
+        ...(activeChapter && { chapterId: activeChapter }),
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
-      // ... rest of the code ...
+      
+      // Add AI response to chat history
+      if (response.data && response.data.response) {
+        setChatHistory(prev => [...prev, { 
+          role: "assistant", 
+          content: response.data.response 
+        }]);
+      }
     } catch (error) {
-      // ... error handling ...
+      console.error("Error sending message:", error);
+      setChatHistory(prev => [...prev, { 
+        role: "system", 
+        content: "Failed to send message. Please try again." 
+      }]);
     }
   };
 
