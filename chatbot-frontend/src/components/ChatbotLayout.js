@@ -363,130 +363,163 @@ export default function ChatbotLayout({ children }) {
   };
 
   return (
-    <div className="flex h-screen flex-col">
-      <div className="w-full bg-blue-300 text-gray-900 p-4 flex justify-between items-center shadow-md">
-        <div className="text-xl font-semibold">BookChat</div>
-        {/* Mobile menu toggle button - Only visible on small screens */}
+    <div className="flex h-screen flex-col bg-gray-50">
+      <div className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-3 sm:p-4 flex justify-between items-center shadow-md">
+        <div className="flex items-center space-x-2">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+            <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+          </svg>
+          <span className="text-xl font-bold tracking-wide">BookChat</span>
+        </div>
+        {/* Mobile menu toggle button */}
         <button 
-          className="lg:hidden flex items-center justify-center p-2 rounded-md text-gray-900 hover:bg-blue-400"
+          className="lg:hidden flex items-center justify-center p-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          aria-label="Toggle menu"
         >
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
       </div>
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar - Hidden on mobile by default, toggled with the menu button */}
-        <div className={`${isSidebarOpen ? 'block' : 'hidden'} lg:block lg:w-64 bg-gray-900 text-white p-4 flex flex-col overflow-y-auto fixed lg:relative w-full z-10 h-full lg:h-auto`}>
-          <div className="flex justify-between items-center mb-4 lg:hidden">
-            <h2 className="text-lg font-semibold">My Books</h2>
-            <button 
-              className="p-2 rounded-md text-white hover:bg-gray-800"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          <h2 className="text-lg font-semibold mb-4 hidden lg:block">My Books</h2>
-          {loading ? (
-            <div className="text-gray-400">Loading books...</div>
-          ) : subscribedBooks.length > 0 ? (
-            <ul className="mb-4 overflow-y-auto">
-              {subscribedBooks.map((sub) => (
-                <li key={sub._id} className="mb-2">
-                  <div className="flex items-center justify-between">
-                    <span className="truncate flex-1">{sub.bookTitle}</span>
-                    <button 
-                      onClick={() => toggleBookExpansion(sub.bookId)}
-                      className="p-1 hover:bg-gray-700 rounded"
-                    >
-                      {expandedBook === sub.bookId ? <FaChevronDown /> : <FaChevronRight />}
-                    </button>
-                  </div>
-                  
-                  {expandedBook === sub.bookId && (
-                    <div className="pl-4 mt-1 border-l border-gray-700">
-                      {bookChapters[sub.bookId] ? (
-                        bookChapters[sub.bookId].length > 0 ? (
-                          bookChapters[sub.bookId].map((chapter) => (
-                            <div 
-                              key={chapter._id} 
-                              className={`text-sm py-1 cursor-pointer pl-2 ${
-                                activeChapter === chapter._id 
-                                  ? "bg-blue-700 text-white rounded" 
-                                  : "hover:bg-gray-800"
-                              }`}
-                              onClick={() => {
-                                handleChapterSelect(chapter);
-                                setIsSidebarOpen(false); // Close sidebar on mobile after selection
-                              }}
-                            >
-                              {chapter.title}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-sm text-gray-400 py-1">No chapters available</div>
-                        )
-                      ) : (
-                        <div className="text-sm text-gray-400 py-1">Loading chapters...</div>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="flex flex-col items-center">
-              <p className="text-gray-400 mb-3">No subscribed books yet</p>
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Sidebar overlay for mobile - only shows when sidebar is open */}
+        {isSidebarOpen && (
+          <div 
+            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-10"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-hidden="true"
+          ></div>
+        )}
+        
+        {/* Sidebar */}
+        <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-gray-800 text-white fixed lg:relative z-20 h-full lg:h-auto overflow-y-auto shadow-lg`}>
+          <div className="p-4">
+            <div className="flex justify-between items-center lg:hidden mb-4">
+              <h2 className="text-lg font-semibold">My Library</h2>
               <button 
-                className="flex items-center bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md"
-                onClick={() => {
-                  navigate("/collections");
-                  setIsSidebarOpen(false); // Close sidebar on mobile
-                }}
+                className="p-2 rounded-full text-white hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
+                onClick={() => setIsSidebarOpen(false)}
+                aria-label="Close menu"
               >
-                <FaPlus className="mr-2" /> Add Books
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-          )}
-          
-          <div className="mt-auto space-y-2">
-            <button className="w-full flex items-center gap-2 bg-gray-800 p-2 rounded-md hover:bg-gray-700">
-              <FaUserEdit /> Profile
-            </button>
-            <button
-              className="w-full flex items-center gap-2 bg-gray-800 p-2 rounded-md hover:bg-gray-700"
-              onClick={() => {
-                navigate("/collections");
-                setIsSidebarOpen(false); // Close sidebar on mobile
-              }}
-            >
-              <FaBook /> Collections
-            </button>
-            <button
-              className="w-full flex items-center gap-2 bg-red-600 p-2 rounded-md hover:bg-red-500"
-              onClick={handleLogout}
-            >
-              <FaSignOutAlt /> Logout
-            </button>
+            
+            <h2 className="text-lg font-semibold mb-4 hidden lg:block">My Library</h2>
+            
+            {loading ? (
+              <div className="py-10 flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : subscribedBooks.length > 0 ? (
+              <div className="space-y-2 mb-6">
+                {subscribedBooks.map((sub) => (
+                  <div key={sub._id} className="bg-gray-700 rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-600 transition-colors duration-200" onClick={() => toggleBookExpansion(sub.bookId)}>
+                      <span className="font-medium truncate flex-1">{sub.bookTitle}</span>
+                      <span className="text-gray-300 transform transition-transform duration-200">
+                        {expandedBook === sub.bookId ? 
+                          <FaChevronDown className="h-4 w-4" /> : 
+                          <FaChevronRight className="h-4 w-4" />
+                        }
+                      </span>
+                    </div>
+                    
+                    {expandedBook === sub.bookId && (
+                      <div className="border-t border-gray-600">
+                        {bookChapters[sub.bookId] ? (
+                          bookChapters[sub.bookId].length > 0 ? (
+                            <div className="max-h-64 overflow-y-auto">
+                              {bookChapters[sub.bookId].map((chapter) => (
+                                <div 
+                                  key={chapter._id} 
+                                  className={`p-2 pl-6 cursor-pointer transition-colors duration-200 text-sm ${
+                                    activeChapter === chapter._id 
+                                      ? "bg-blue-600 text-white" 
+                                      : "text-gray-300 hover:bg-gray-600 hover:text-white"
+                                  }`}
+                                  onClick={() => {
+                                    handleChapterSelect(chapter);
+                                    setIsSidebarOpen(false);
+                                  }}
+                                >
+                                  {chapter.title}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-3 text-sm text-gray-400">No chapters available</div>
+                          )
+                        ) : (
+                          <div className="p-3 flex justify-center">
+                            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-gray-700 rounded-lg p-4 text-center">
+                <p className="text-gray-300 mb-4">No books in your library</p>
+                <button 
+                  className="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                  onClick={() => {
+                    navigate("/collections");
+                    setIsSidebarOpen(false);
+                  }}
+                >
+                  <FaPlus className="mr-2 h-4 w-4" /> Add Books
+                </button>
+              </div>
+            )}
+            
+            <div className="pt-4 mt-6 border-t border-gray-700">
+              <nav className="space-y-2">
+                <button 
+                  className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <FaUserEdit className="h-5 w-5 text-gray-400" /> 
+                  <span>Profile</span>
+                </button>
+                <button
+                  className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onClick={() => {
+                    navigate("/collections");
+                    setIsSidebarOpen(false);
+                  }}
+                >
+                  <FaBook className="h-5 w-5 text-gray-400" /> 
+                  <span>Collections</span>
+                </button>
+                <button
+                  className="w-full flex items-center gap-2 p-3 rounded-lg bg-red-600 hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  onClick={handleLogout}
+                >
+                  <FaSignOutAlt className="h-5 w-5" /> 
+                  <span>Logout</span>
+                </button>
+              </nav>
+            </div>
           </div>
         </div>
         
         {/* Chat Area */}
-        <div className="flex flex-col flex-1 bg-gray-100 overflow-hidden">
+        <div className="flex flex-col flex-1 bg-white overflow-hidden ml-0 lg:ml-72 transition-all duration-300 ease-in-out">
           {/* Current chapter indicator */}
           {activeChapter && (
-            <div className="bg-blue-600 text-white p-2 px-4 flex justify-between items-center">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-3 shadow-sm flex justify-between items-center">
               <div>
-                <span className="text-xs text-blue-200">Active Chapter:</span>
-                <h3 className="text-sm sm:font-medium">{currentChapterTitle}</h3>
+                <span className="text-xs font-medium uppercase tracking-wider text-blue-200">Active Chapter</span>
+                <h3 className="text-sm sm:text-base font-medium">{currentChapterTitle}</h3>
               </div>
               <button 
-                className="text-xs bg-blue-700 hover:bg-blue-800 px-2 py-1 rounded"
+                className="text-xs bg-indigo-800 hover:bg-indigo-900 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
                 onClick={clearActiveChapter}
               >
                 Exit Chapter
@@ -494,79 +527,112 @@ export default function ChatbotLayout({ children }) {
             </div>
           )}
           
-          {/* Messages Container - Fixed height with scrolling */}
-          <div className="flex-1 p-3 sm:p-4 overflow-y-auto" style={{ scrollBehavior: 'smooth' }}>
+          {/* Messages Container */}
+          <div 
+            className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" 
+            style={{ scrollBehavior: 'smooth' }}
+          >
             {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
-              chatHistory.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`max-w-[90%] sm:max-w-[70%] p-2 sm:p-3 rounded-lg text-white shadow-md ${
-                    msg.role === "user" 
-                      ? "bg-blue-500 ml-auto text-right" 
-                      : msg.role === "system" 
-                        ? "bg-gray-500 mr-auto text-left" 
-                        : "bg-gray-700 mr-auto text-left"
-                  } mt-2 text-sm sm:text-base`}
-                >
-                  {msg.content}
-                </div>
-              ))
+              <div className="space-y-4">
+                {chatHistory.map((msg, index) => (
+                  <div
+                    key={index}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg shadow-sm p-3 ${
+                      msg.role === "user" 
+                        ? "bg-blue-600 text-white rounded-tr-none" 
+                        : msg.role === "system" 
+                          ? "bg-yellow-100 text-yellow-800 rounded-tl-none border border-yellow-200" 
+                          : "bg-gray-100 text-gray-800 rounded-tl-none border border-gray-200"
+                    } text-sm sm:text-base`}
+                    >
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className="text-gray-500 text-center text-sm sm:text-base">
-                {activeChapter 
-                  ? "No messages yet for this chapter. Start a conversation!" 
-                  : "No messages yet. Select a chapter to start a conversation."}
-              </p>
+              <div className="h-full flex flex-col items-center justify-center text-gray-500 p-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <p className="text-center font-medium mb-1">
+                  {activeChapter 
+                    ? "No messages yet for this chapter" 
+                    : "Select a chapter to start chatting"}
+                </p>
+                <p className="text-center text-sm text-gray-400">
+                  {activeChapter 
+                    ? "Ask a question to start a conversation" 
+                    : "Choose a book and chapter from your library"}
+                </p>
+              </div>
             )}
-            <div ref={chatEndRef} />
+            <div ref={chatEndRef} className="h-4" />
             {children}
           </div>
           
           {/* Message Input */}
-          <div className="p-2 sm:p-3 bg-white border-t border-gray-300 flex flex-wrap sm:flex-nowrap gap-2">
-            <input
-              type="text"
-              placeholder={activeChapter ? "Ask about this chapter..." : "Type a message..."}
-              className="flex-1 p-2 border rounded-lg outline-none text-sm sm:text-base"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              disabled={isRecording}
-            />
-            
-            {/* Audio recording buttons */}
-            {!isRecording ? (
-              <button 
-                className={`${audioBlob ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-500 hover:bg-blue-600'} text-white px-3 sm:px-4 py-2 rounded-lg flex items-center text-sm sm:text-base`}
-                onClick={audioBlob ? sendAudioMessage : startRecording}
-              >
-                {audioBlob ? (
-                  <>Send Audio</>
-                ) : (
-                  <>
-                    <FaMicrophone className="mr-1" /> 
-                    Voice
-                  </>
-                )}
-              </button>
-            ) : (
-              <button 
-                className="bg-red-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-600 flex items-center text-sm sm:text-base"
-                onClick={stopRecording}
-              >
-                <FaStop className="mr-1" /> 
-                Stop
-              </button>
+          <div className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder={activeChapter ? "Ask about this chapter..." : "Type a message..."}
+                  className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                  disabled={isRecording || !activeChapter}
+                />
+                <button 
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500 p-2 rounded-full focus:outline-none"
+                  onClick={handleSendMessage}
+                  disabled={isRecording || !message.trim() || !activeChapter}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Audio recording button */}
+              {!isRecording ? (
+                <button 
+                  className={`${audioBlob ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto ${!activeChapter ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={audioBlob ? sendAudioMessage : startRecording}
+                  disabled={!activeChapter}
+                >
+                  {audioBlob ? (
+                    <span className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                      </svg>
+                      Send Audio
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      <FaMicrophone className="mr-2" /> 
+                      Voice
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <button 
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                  onClick={stopRecording}
+                >
+                  <FaStop className="mr-2" /> 
+                  Stop Recording
+                </button>
+              )}
+            </div>
+            {!activeChapter && (
+              <p className="mt-2 text-xs text-center text-red-500">
+                Please select a chapter to start a conversation
+              </p>
             )}
-            
-            {/* Text message send button */}
-            <button 
-              className="bg-blue-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-600 text-sm sm:text-base"
-              onClick={handleSendMessage}
-              disabled={isRecording}
-            >
-              Send
-            </button>
           </div>
         </div>
       </div>
@@ -574,18 +640,18 @@ export default function ChatbotLayout({ children }) {
       {/* Logout Confirmation Dialog */}
       {showLogoutPopup && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-medium mb-4">Confirm Logout</h3>
-            <p className="text-gray-700 mb-4">Are you sure you want to log out?</p>
-            <div className="flex justify-end space-x-2">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Logout</h3>
+            <p className="text-gray-600 mb-6">Are you sure you want to log out of your account?</p>
+            <div className="flex justify-end space-x-3">
               <button
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
                 onClick={() => setShowLogoutPopup(false)}
               >
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                className="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
                 onClick={confirmLogout}
               >
                 Logout
