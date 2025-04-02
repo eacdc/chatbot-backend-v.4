@@ -236,222 +236,309 @@ const AddChapter = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-4 sm:py-8">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-8">Add New Chapter</h1>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 sm:px-4 sm:py-3 rounded relative mb-4 text-sm sm:text-base" role="alert">
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-2 sm:px-4 sm:py-3 rounded relative mb-4 text-sm sm:text-base" role="alert">
-          <span className="block sm:inline">{successMessage}</span>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Book</label>
-            <select
-              name="bookId"
-              value={chapterData.bookId}
-              onChange={handleChange}
-              className="w-full p-2 border rounded-lg text-sm sm:text-base"
-              required
-            >
-              <option value="">Select a book</option>
-              {books.map((book) => (
-                <option key={book._id} value={book._id}>
-                  {book.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Chapter Title</label>
-            <input
-              type="text"
-              name="title"
-              value={chapterData.title}
-              onChange={handleChange}
-              className="w-full p-2 border rounded-lg text-sm sm:text-base"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Subject</label>
-            <input
-              type="text"
-              name="subject"
-              value={chapterData.subject}
-              onChange={handleChange}
-              className="w-full p-2 border rounded-lg text-sm sm:text-base"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Grade</label>
-            <select
-              name="grade"
-              value={chapterData.grade}
-              onChange={handleChange}
-              className="w-full p-2 border rounded-lg text-sm sm:text-base"
-              required
-            >
-              {gradeOptions.map((grade) => (
-                <option key={grade} value={grade}>
-                  Grade {grade}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
-          <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Raw Text</label>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-            <textarea
-              name="rawText"
-              placeholder="Enter Raw Text Content"
-              value={chapterData.rawText}
-              onChange={handleChange}
-              className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 sm:h-48 resize-none text-sm sm:text-base"
-              required
-            />
-            <button 
-              type="button" 
-              onClick={handleGoodText}
-              disabled={loading}
-              className={`${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-3 sm:px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap self-start flex items-center justify-center text-sm sm:text-base`}
-            >
-              {loading ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-6 sm:py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="px-4 py-5 sm:px-6 bg-gradient-to-r from-blue-600 to-indigo-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-white">Add New Chapter</h1>
+                <p className="mt-1 text-sm text-blue-100">Create educational content for students</p>
+              </div>
+              <div className="hidden sm:block">
+                <a href="/collections" className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-indigo-100 bg-indigo-800 hover:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:shadow-outline-indigo transition duration-150 ease-in-out">
+                  <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
-                  Processing...
-                </span>
-              ) : (
-                'Get Good Text'
-              )}
-            </button>
-          </div>
-        </div>
-
-        <div className="transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
-          <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Good Text</label>
-          <textarea
-            name="goodText"
-            placeholder="Processed text will appear here"
-            value={chapterData.goodText}
-            onChange={handleChange}
-            className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 sm:h-48 resize-none text-sm sm:text-base"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-          <div className="col-span-1 sm:col-span-2 flex flex-col transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Special Instructions</label>
-            <div className="flex flex-col space-y-2 h-full">
-              <textarea
-                name="specialInstructions"
-                placeholder="100 chars max"
-                value={chapterData.specialInstructions}
-                onChange={handleChange}
-                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex-grow resize-none text-sm sm:text-base"
-                maxLength="100"
-              />
-              <button 
-                type="button" 
-                onClick={handleMakeQnA}
-                disabled={qnaLoading}
-                className={`${qnaLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white px-3 sm:px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap text-sm sm:text-base`}
-              >
-                {qnaLoading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Generating...
-                  </span>
-                ) : (
-                  'Make QnA'
-                )}
-              </button>
+                  Back to Collections
+                </a>
+              </div>
             </div>
           </div>
-
-          <div className="col-span-1 sm:col-span-2 transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">QnA Output</label>
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-              <textarea
-                name="qnaOutput"
-                placeholder="QnA Output will appear here"
-                value={chapterData.qnaOutput}
-                onChange={handleChange}
-                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 resize-none text-sm sm:text-base"
-              />
-              <button 
-                type="button" 
-                onClick={handleGetFinalPrompt}
-                disabled={finalPromptLoading}
-                className={`${finalPromptLoading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white px-3 sm:px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap self-start text-sm sm:text-base`}
-              >
-                {finalPromptLoading ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          
+          <div className="px-4 py-5 sm:p-6">
+            {error && (
+              <div className="rounded-md bg-red-50 p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
-                    Generating...
-                  </span>
-                ) : (
-                  'Get Final Prompt'
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="col-span-1 sm:col-span-2 transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Final Prompt</label>
-            <textarea
-              name="finalPrompt"
-              placeholder="Final prompt to be sent to backend"
-              value={chapterData.finalPrompt}
-              onChange={handleChange}
-              className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 resize-none text-sm sm:text-base"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={loading}
-            className={`${loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 sm:px-6 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium text-sm sm:text-base`}
-          >
-            {loading ? (
-              <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Adding Chapter...
-              </span>
-            ) : (
-              'Add Chapter'
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm leading-5 text-red-700">{error}</p>
+                  </div>
+                </div>
+              </div>
             )}
-          </button>
+            
+            {successMessage && (
+              <div className="rounded-md bg-green-50 p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm leading-5 text-green-700">{successMessage}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h2 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h2>
+                <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                  <div className="sm:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700">Book</label>
+                    <div className="mt-1">
+                      <select
+                        name="bookId"
+                        value={chapterData.bookId}
+                        onChange={handleChange}
+                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200"
+                        required
+                      >
+                        <option value="">Select a book</option>
+                        {books.map((book) => (
+                          <option key={book._id} value={book._id}>
+                            {book.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="sm:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700">Chapter Title</label>
+                    <div className="mt-1">
+                      <input
+                        type="text"
+                        name="title"
+                        value={chapterData.title}
+                        onChange={handleChange}
+                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="sm:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700">Subject</label>
+                    <div className="mt-1">
+                      <input
+                        type="text"
+                        name="subject"
+                        value={chapterData.subject}
+                        onChange={handleChange}
+                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="sm:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700">Grade</label>
+                    <div className="mt-1">
+                      <select
+                        name="grade"
+                        value={chapterData.grade}
+                        onChange={handleChange}
+                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200"
+                        required
+                      >
+                        {gradeOptions.map((grade) => (
+                          <option key={grade} value={grade}>
+                            Grade {grade}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-6">
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-medium text-gray-900">Raw Text</h2>
+                    <div className="flex-shrink-0">
+                      <button 
+                        type="button" 
+                        onClick={handleGoodText}
+                        disabled={loading}
+                        className={`${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
+                      >
+                        {loading ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Processing...
+                          </span>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                            </svg>
+                            Get Good Text
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <textarea
+                      name="rawText"
+                      placeholder="Enter raw text content here..."
+                      value={chapterData.rawText}
+                      onChange={handleChange}
+                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-40 transition-colors duration-200"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Good Text</h2>
+                  <div>
+                    <textarea
+                      name="goodText"
+                      placeholder="Processed text will appear here..."
+                      value={chapterData.goodText}
+                      onChange={handleChange}
+                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-40 transition-colors duration-200"
+                    />
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-medium text-gray-900">Special Instructions</h2>
+                    <div className="flex-shrink-0">
+                      <button 
+                        type="button" 
+                        onClick={handleMakeQnA}
+                        disabled={qnaLoading}
+                        className={`${qnaLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
+                      >
+                        {qnaLoading ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Generating...
+                          </span>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Make QnA
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <textarea
+                      name="specialInstructions"
+                      placeholder="Enter special instructions for generation (100 chars max)"
+                      value={chapterData.specialInstructions}
+                      onChange={handleChange}
+                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md transition-colors duration-200"
+                      maxLength="100"
+                      rows="3"
+                    />
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-medium text-gray-900">QnA Output</h2>
+                    <div className="flex-shrink-0">
+                      <button 
+                        type="button" 
+                        onClick={handleGetFinalPrompt}
+                        disabled={finalPromptLoading}
+                        className={`${finalPromptLoading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
+                      >
+                        {finalPromptLoading ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Generating...
+                          </span>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            Get Final Prompt
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <textarea
+                      name="qnaOutput"
+                      placeholder="QnA output will appear here..."
+                      value={chapterData.qnaOutput}
+                      onChange={handleChange}
+                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-40 transition-colors duration-200"
+                    />
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Final Prompt</h2>
+                  <div>
+                    <textarea
+                      name="finalPrompt"
+                      placeholder="Final prompt to be sent to backend..."
+                      value={chapterData.finalPrompt}
+                      onChange={handleChange}
+                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-40 transition-colors duration-200"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`${loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-6 py-3 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-sm font-medium inline-flex items-center`}
+                >
+                  {loading ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Adding Chapter...
+                    </span>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Chapter
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 };
