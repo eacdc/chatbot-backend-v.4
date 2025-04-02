@@ -14,7 +14,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        value: https://chatbot-frontend-v-4.onrender.com
+        value: https://chatbot-backend-v-4-1.onrender.com
   - type: web
     name: chatbot-frontend
     env: static
@@ -36,7 +36,7 @@ services:
         value: 1; mode=block
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; font-src 'self' data: https:;"
+        value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https://chatbot-backend-v-4.onrender.com;"
     routes:
       - type: rewrite
         source: /api/*

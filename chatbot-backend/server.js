@@ -15,11 +15,13 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "https://your-frontend-domain.onrender.com",
+      "https://chatbot-frontend-v-4.onrender.com",
+      "https://chatbot-backend-v-4-1.onrender.com",
       process.env.FRONTEND_URL || "http://localhost:3000"
     ].filter(Boolean),
-    methods: "GET,POST,PUT,DELETE",
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "user-id", "x-requested-with"]
   })
 );
 
@@ -29,6 +31,9 @@ app.use((req, res, next) => {
   if (Object.keys(req.body).length) console.log("Request Body:", req.body);
   next();
 });
+
+// Handle OPTIONS preflight requests
+app.options('*', cors());
 
 // ✅ Import Routes
 const chatRoutes = require("./routes/chatRoutes");
