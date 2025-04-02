@@ -286,22 +286,18 @@ export default function ChatbotLayout({ children }) {
     // Create message indicating audio is being processed
     const newChat = [...chatHistory, { 
       role: "user", 
-      content: "🎤 Audio message sent" 
+      content: "🎤 Processing audio message..." 
     }];
     setChatHistory(newChat);
     
     try {
-      // Create form data to send the audio file
+      // Create form data to send the audio file for transcription
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
-      formData.append('userId', userId);
-      if (activeChapter) {
-        formData.append('chapterId', activeChapter);
-      }
       
-      // Send the audio file to the server
-      const response = await axios.post(
-        `${API_ENDPOINTS.CHAT}/send-audio`,
+      // Use our secure backend endpoint for transcription
+      const transcriptionResponse = await axios.post(
+        API_ENDPOINTS.TRANSCRIBE_AUDIO,
         formData,
         {
           headers: {
@@ -311,16 +307,42 @@ export default function ChatbotLayout({ children }) {
         }
       );
       
-      // Add the response to chat history
-      setChatHistory([...newChat, { 
-        role: "assistant", 
-        content: response.data.response 
-      }]);
+      // Get the transcribed text
+      const transcribedText = transcriptionResponse.data.text;
+      
+      // Update chat with transcribed text
+      const updatedChat = [...newChat.slice(0, -1), { 
+        role: "user", 
+        content: transcribedText 
+      }];
+      setChatHistory(updatedChat);
+      
+      // Now send the transcribed text to the chat API
+      const response = await axios.post(`${API_ENDPOINTS.CHAT}/send`, {
+        message: transcribedText,
+        userId: getUserId(),
+        ...(activeChapter && { chapterId: activeChapter }),
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Add AI response to chat history
+      if (response.data && response.data.response) {
+        setChatHistory([...updatedChat, { 
+          role: "assistant", 
+          content: response.data.response 
+        }]);
+      }
     } catch (error) {
-      console.error("Error sending audio message:", error);
+      console.error("Error processing audio message:", error);
+      
+      // Check if it's a transcription error or a chat API error
+      const errorMessage = error.response?.data?.error || "Failed to process audio message. Please try again.";
       setChatHistory([...newChat, { 
         role: "system", 
-        content: "Failed to process audio message. Please try again." 
+        content: errorMessage
       }]);
     }
     

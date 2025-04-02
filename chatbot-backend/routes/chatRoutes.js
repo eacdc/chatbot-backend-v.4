@@ -3,6 +3,9 @@ const router = express.Router();
 const Chat = require("../models/Chat");
 const Chapter = require("../models/Chapter");
 const OpenAI = require("openai");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -10,6 +13,37 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_D, baseURL: 'https://api.deepseek.com' });
+const openaiStandard = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Configure multer storage for audio files
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, "../uploads");
+        // Create the directory if it doesn't exist
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        // Create unique filename with timestamp
+        const uniqueFilename = `${Date.now()}-${file.originalname}`;
+        cb(null, uniqueFilename);
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: function (req, file, cb) {
+        // Accept audio files only
+        if (file.mimetype.startsWith('audio/')) {
+            cb(null, true);
+        } else {
+            cb(new Error("Only audio files are allowed!"), false);
+        }
+    }
+});
 
 // Send Message & Get AI Response
 router.post("/send", async (req, res) => {
@@ -97,6 +131,41 @@ router.post("/send", async (req, res) => {
     } catch (error) {
         console.error("Error in chatbot API:", error);
         res.status(500).json({ message: "Error getting response from OpenAI", error: error.message });
+    }
+});
+
+// Transcribe audio to text
+router.post("/transcribe", upload.single('audio'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No audio file provided" });
+        }
+        
+        console.log(`Transcribing audio file: ${req.file.path}`);
+        
+        const audioFilePath = req.file.path;
+        
+        // Call OpenAI's Whisper API to transcribe audio
+        const transcription = await openaiStandard.audio.transcriptions.create({
+            file: fs.createReadStream(audioFilePath),
+            model: "whisper-1",
+            response_format: "text"
+        });
+        
+        // Clean up the uploaded file
+        fs.unlinkSync(audioFilePath);
+        
+        console.log(`Transcription successful: ${transcription.substring(0, 30)}...`);
+        
+        res.json({ text: transcription });
+        
+    } catch (error) {
+        console.error("Error transcribing audio:", error);
+        // Clean up the file if it exists and there was an error
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+        res.status(500).json({ error: "Failed to transcribe audio", message: error.message });
     }
 });
 
