@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs"); // For hashing passwords
 
 const userSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true, trim: true }, // ✅ Trim added
+    username: { type: String, required: true, unique: true, trim: true }, // ✅ Primary identifier
     fullname: { type: String, required: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true }, // ✅ Lowercase & trim
+    email: { type: String, required: false, unique: false, lowercase: true, trim: true }, // ✅ Made optional
     phone: { type: String, required: true },
     role: { 
         type: String, 
@@ -14,6 +14,9 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }
 });
+
+// Add an index to ensure username uniqueness
+userSchema.index({ username: 1 }, { unique: true });
 
 // ✅ Hash password before saving (only if modified)
 userSchema.pre("save", async function (next) {

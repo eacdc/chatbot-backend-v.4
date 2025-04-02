@@ -14,12 +14,24 @@ router.post("/register", async (req, res) => {
 
         const { username, fullname, email, phone, role, password } = req.body;
 
-        if (!username || !fullname || !email || !phone || !role || !password) {
-            return res.status(400).json({ message: "All fields are required" });
+        // Check required fields
+        if (!username || !fullname || !phone || !role || !password) {
+            return res.status(400).json({ message: "Username, full name, phone, role, and password are required" });
         }
 
-        let existingUser = await User.findOne({ email: email.toLowerCase().trim() });
-        if (existingUser) return res.status(400).json({ message: "Email already registered" });
+        // Check if username already exists
+        let existingUser = await User.findOne({ username: username.trim() });
+        if (existingUser) {
+            return res.status(400).json({ message: "Username already taken" });
+        }
+
+        // Check if email exists and is already registered (if provided)
+        if (email) {
+            existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+            if (existingUser) {
+                return res.status(400).json({ message: "Email already registered" });
+            }
+        }
 
         // ✅ Generate salt and hash the password consistently
         const saltRounds = 10;
@@ -33,7 +45,7 @@ router.post("/register", async (req, res) => {
         const newUser = new User({
             username: username.trim(),
             fullname,
-            email: email.toLowerCase().trim(),
+            email: email ? email.toLowerCase().trim() : "", // Handle optional email
             phone,
             role,
             password: hashedPassword, // Ensure we store the hashed password
@@ -42,7 +54,7 @@ router.post("/register", async (req, res) => {
         await newUser.save();
         
         // Verify that the saved password hash works with the original password
-        const savedUser = await User.findOne({ email: email.toLowerCase().trim() });
+        const savedUser = await User.findOne({ username: username.trim() });
         const verifyPassword = await bcrypt.compare(password, savedUser.password);
         console.log("🔍 Verification after save:", verifyPassword);
 
@@ -58,14 +70,18 @@ router.post("/register", async (req, res) => {
 // ✅ User Login
 router.post("/login", async (req, res) => {
     try {
-        const { email, password } = req.body;
-        console.log("🛠 Received login request:", { email, password: password.trim() });
+        const { username, password } = req.body;
+        console.log("🛠 Received login request:", { username, password: password ? password.trim() : 'undefined' });
 
-        // ✅ Find user
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!username || !password) {
+            return res.status(400).json({ message: "Username and password are required" });
+        }
+
+        // ✅ Find user by username
+        const user = await User.findOne({ username: username.trim() });
         if (!user) {
             console.log("❌ User not found in DB");
-            return res.status(400).json({ message: "Invalid email or password" });
+            return res.status(400).json({ message: "Invalid username or password" });
         }
 
         console.log("🔑 Stored Password Hash:", user.password);
@@ -110,7 +126,7 @@ router.post("/login", async (req, res) => {
                 });
             }
             
-            return res.status(400).json({ message: "Invalid email or password" });
+            return res.status(400).json({ message: "Invalid username or password" });
         }
 
         // ✅ Generate token
@@ -145,9 +161,13 @@ router.get("/me", authenticateUser, async (req, res) => {
 // ✅ Update User Password (for fixing hashing issues)
 router.post("/reset-password", async (req, res) => {
     try {
-        const { email, oldPassword, newPassword } = req.body;
+        const { username, oldPassword, newPassword } = req.body;
         
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!username || !newPassword) {
+            return res.status(400).json({ message: "Username and new password are required" });
+        }
+        
+        const user = await User.findOne({ username: username.trim() });
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
