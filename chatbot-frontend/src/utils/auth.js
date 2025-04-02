@@ -7,16 +7,39 @@ import { API_ENDPOINTS } from '../config';
  * @returns {Promise} Response from the server
  */
 export const login = async (credentials) => {
-  const response = await axiosInstance.post(API_ENDPOINTS.LOGIN, credentials);
-  if (response.data.token) {
-    localStorage.setItem('token', response.data.token);
-    localStorage.setItem('userId', response.data.userId);
-    localStorage.setItem('isAuthenticated', 'true');
-    if (response.data.refreshToken) {
-      localStorage.setItem('refreshToken', response.data.refreshToken);
+  console.log("Login attempt with:", { email: credentials.email, password: '******' });
+  
+  try {
+    console.log("Calling login endpoint:", API_ENDPOINTS.LOGIN);
+    const response = await axiosInstance.post(API_ENDPOINTS.LOGIN, credentials);
+    
+    console.log("Login response:", response.status, response.data ? 'Data received' : 'No data');
+    
+    if (response.data && response.data.token) {
+      console.log("Token received, storing in localStorage");
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('userId', response.data.userId);
+      localStorage.setItem('isAuthenticated', 'true');
+      
+      if (response.data.refreshToken) {
+        localStorage.setItem('refreshToken', response.data.refreshToken);
+      }
+      
+      return response.data;
+    } else {
+      console.error("Login response missing token:", response.data);
+      throw new Error("Invalid response from server - missing token");
     }
+  } catch (error) {
+    console.error("Login error:", error.message);
+    if (error.response) {
+      console.error("Status:", error.response.status);
+      console.error("Data:", error.response.data);
+    } else if (error.request) {
+      console.error("No response received");
+    }
+    throw error;
   }
-  return response.data;
 };
 
 /**
