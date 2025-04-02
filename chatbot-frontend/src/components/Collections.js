@@ -122,29 +122,33 @@ export default function Collections() {
   }
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6">Collections</h1>
+    <div className="p-4 sm:p-6 bg-gray-100 min-h-screen">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Collections</h1>
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {books.map((book) => (
-            <div key={book._id} className="bg-white shadow-lg rounded-lg p-4">
-              <img src={book.bookCoverImgLink} alt={book.title} className="w-full h-40 object-cover rounded-md" />
-              <h2 className="text-lg font-semibold mt-3">{book.title}</h2>
-              <p className="text-gray-600">{book.publisher}</p>
-              <div className="mt-3 flex space-x-2">
+            <div key={book._id} className="bg-white shadow-lg rounded-lg p-3 sm:p-4">
+              <img 
+                src={book.bookCoverImgLink} 
+                alt={book.title} 
+                className="w-full h-32 sm:h-40 object-cover rounded-md" 
+              />
+              <h2 className="text-base sm:text-lg font-semibold mt-2 sm:mt-3">{book.title}</h2>
+              <p className="text-sm text-gray-600">{book.publisher}</p>
+              <div className="mt-2 sm:mt-3 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                 <button
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+                  className="bg-blue-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-600 text-sm sm:text-base"
                   onClick={() => fetchChapters(book._id)}
                   disabled={loading}
                 >
                   View Chapters
                 </button>
                 <button
-                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
+                  className="bg-green-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-green-600 text-sm sm:text-base"
                   onClick={() => handleSubscribe(book._id)}
                   disabled={loading}
                 >
@@ -157,20 +161,20 @@ export default function Collections() {
       )}
 
       {selectedBook && (
-        <div className="mt-8 p-4 bg-white shadow-lg rounded-lg">
-          <h2 className="text-xl font-bold">Chapters</h2>
+        <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-white shadow-lg rounded-lg">
+          <h2 className="text-lg sm:text-xl font-bold">Chapters</h2>
           {loading ? (
-            <div className="flex justify-center items-center h-32">
+            <div className="flex justify-center items-center h-24 sm:h-32">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
           ) : chapters.length > 0 ? (
             <ul className="mt-2">
               {chapters.map((chapter) => (
-                <li key={chapter._id} className="p-2 border-b border-gray-300">{chapter.title}</li>
+                <li key={chapter._id} className="p-2 border-b border-gray-300 text-sm sm:text-base">{chapter.title}</li>
               ))}
             </ul>
           ) : (
-            <p className="text-gray-500">No chapters found for this book.</p>
+            <p className="text-gray-500 text-sm sm:text-base">No chapters found for this book.</p>
           )}
         </div>
       )}

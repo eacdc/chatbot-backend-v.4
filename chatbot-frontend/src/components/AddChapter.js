@@ -236,30 +236,30 @@ const AddChapter = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Add New Chapter</h1>
+    <div className="container mx-auto px-4 py-4 sm:py-8">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-8">Add New Chapter</h1>
       
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 sm:px-4 sm:py-3 rounded relative mb-4 text-sm sm:text-base" role="alert">
           <span className="block sm:inline">{error}</span>
         </div>
       )}
 
       {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-2 sm:px-4 sm:py-3 rounded relative mb-4 text-sm sm:text-base" role="alert">
           <span className="block sm:inline">{successMessage}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Book</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Book</label>
             <select
               name="bookId"
               value={chapterData.bookId}
               onChange={handleChange}
-              className="w-full p-2 border rounded-lg"
+              className="w-full p-2 border rounded-lg text-sm sm:text-base"
               required
             >
               <option value="">Select a book</option>
@@ -272,36 +272,36 @@ const AddChapter = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Chapter Title</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Chapter Title</label>
             <input
               type="text"
               name="title"
               value={chapterData.title}
               onChange={handleChange}
-              className="w-full p-2 border rounded-lg"
+              className="w-full p-2 border rounded-lg text-sm sm:text-base"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Subject</label>
             <input
               type="text"
               name="subject"
               value={chapterData.subject}
               onChange={handleChange}
-              className="w-full p-2 border rounded-lg"
+              className="w-full p-2 border rounded-lg text-sm sm:text-base"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Grade</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Grade</label>
             <select
               name="grade"
               value={chapterData.grade}
               onChange={handleChange}
-              className="w-full p-2 border rounded-lg"
+              className="w-full p-2 border rounded-lg text-sm sm:text-base"
               required
             >
               {gradeOptions.map((grade) => (
@@ -313,22 +313,22 @@ const AddChapter = () => {
           </div>
         </div>
 
-        <div className="transition-all duration-200 hover:shadow-md p-3 rounded-lg">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Raw Text</label>
-          <div className="flex space-x-2">
+        <div className="transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
+          <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Raw Text</label>
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
             <textarea
               name="rawText"
               placeholder="Enter Raw Text Content"
               value={chapterData.rawText}
               onChange={handleChange}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-48 resize-none"
+              className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 sm:h-48 resize-none text-sm sm:text-base"
               required
             />
             <button 
               type="button" 
               onClick={handleGoodText}
               disabled={loading}
-              className={`${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap self-start flex items-center`}
+              className={`${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-3 sm:px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap self-start flex items-center justify-center text-sm sm:text-base`}
             >
               {loading ? (
                 <span className="flex items-center">
@@ -345,34 +345,34 @@ const AddChapter = () => {
           </div>
         </div>
 
-        <div className="transition-all duration-200 hover:shadow-md p-3 rounded-lg">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Good Text</label>
+        <div className="transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
+          <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Good Text</label>
           <textarea
             name="goodText"
             placeholder="Processed text will appear here"
             value={chapterData.goodText}
             onChange={handleChange}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-48 resize-none"
+            className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 sm:h-48 resize-none text-sm sm:text-base"
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="col-span-4 flex flex-col transition-all duration-200 hover:shadow-md p-3 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Special Instructions</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="col-span-1 sm:col-span-2 flex flex-col transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Special Instructions</label>
             <div className="flex flex-col space-y-2 h-full">
               <textarea
                 name="specialInstructions"
                 placeholder="100 chars max"
                 value={chapterData.specialInstructions}
                 onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex-grow resize-none"
+                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex-grow resize-none text-sm sm:text-base"
                 maxLength="100"
               />
               <button 
                 type="button" 
                 onClick={handleMakeQnA}
                 disabled={qnaLoading}
-                className={`${qnaLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap`}
+                className={`${qnaLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white px-3 sm:px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap text-sm sm:text-base`}
               >
                 {qnaLoading ? (
                   <span className="flex items-center justify-center">
@@ -389,21 +389,21 @@ const AddChapter = () => {
             </div>
           </div>
 
-          <div className="col-span-4 transition-all duration-200 hover:shadow-md p-3 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-2">QnA Output</label>
-            <div className="flex space-x-2">
+          <div className="col-span-1 sm:col-span-2 transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">QnA Output</label>
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
               <textarea
                 name="qnaOutput"
                 placeholder="QnA Output will appear here"
                 value={chapterData.qnaOutput}
                 onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 resize-none"
+                className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 resize-none text-sm sm:text-base"
               />
               <button 
                 type="button" 
                 onClick={handleGetFinalPrompt}
                 disabled={finalPromptLoading}
-                className={`${finalPromptLoading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap self-start`}
+                className={`${finalPromptLoading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white px-3 sm:px-4 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium whitespace-nowrap self-start text-sm sm:text-base`}
               >
                 {finalPromptLoading ? (
                   <span className="flex items-center">
@@ -420,14 +420,14 @@ const AddChapter = () => {
             </div>
           </div>
 
-          <div className="col-span-4 transition-all duration-200 hover:shadow-md p-3 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Final Prompt</label>
+          <div className="col-span-1 sm:col-span-2 transition-all duration-200 hover:shadow-md p-2 sm:p-3 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Final Prompt</label>
             <textarea
               name="finalPrompt"
               placeholder="Final prompt to be sent to backend"
               value={chapterData.finalPrompt}
               onChange={handleChange}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 resize-none"
+              className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 resize-none text-sm sm:text-base"
             />
           </div>
         </div>
@@ -436,7 +436,7 @@ const AddChapter = () => {
           <button
             type="submit"
             disabled={loading}
-            className={`${loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-6 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium`}
+            className={`${loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 sm:px-6 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg font-medium text-sm sm:text-base`}
           >
             {loading ? (
               <span className="flex items-center">

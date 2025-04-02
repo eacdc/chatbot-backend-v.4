@@ -21,6 +21,7 @@ export default function ChatbotLayout({ children }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const getUserId = () => localStorage.getItem("userId");
   const getToken = () => localStorage.getItem("token");
@@ -365,12 +366,32 @@ export default function ChatbotLayout({ children }) {
     <div className="flex h-screen flex-col">
       <div className="w-full bg-blue-300 text-gray-900 p-4 flex justify-between items-center shadow-md">
         <div className="text-xl font-semibold">BookChat</div>
-        {/* Removed the Collections button from here */}
+        {/* Mobile menu toggle button - Only visible on small screens */}
+        <button 
+          className="lg:hidden flex items-center justify-center p-2 rounded-md text-gray-900 hover:bg-blue-400"
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
       </div>
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-64 bg-gray-900 text-white p-4 flex flex-col overflow-y-auto">
-          <h2 className="text-lg font-semibold mb-4">My Books</h2>
+        {/* Sidebar - Hidden on mobile by default, toggled with the menu button */}
+        <div className={`${isSidebarOpen ? 'block' : 'hidden'} lg:block lg:w-64 bg-gray-900 text-white p-4 flex flex-col overflow-y-auto fixed lg:relative w-full z-10 h-full lg:h-auto`}>
+          <div className="flex justify-between items-center mb-4 lg:hidden">
+            <h2 className="text-lg font-semibold">My Books</h2>
+            <button 
+              className="p-2 rounded-md text-white hover:bg-gray-800"
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <h2 className="text-lg font-semibold mb-4 hidden lg:block">My Books</h2>
           {loading ? (
             <div className="text-gray-400">Loading books...</div>
           ) : subscribedBooks.length > 0 ? (
@@ -399,7 +420,10 @@ export default function ChatbotLayout({ children }) {
                                   ? "bg-blue-700 text-white rounded" 
                                   : "hover:bg-gray-800"
                               }`}
-                              onClick={() => handleChapterSelect(chapter)}
+                              onClick={() => {
+                                handleChapterSelect(chapter);
+                                setIsSidebarOpen(false); // Close sidebar on mobile after selection
+                              }}
                             >
                               {chapter.title}
                             </div>
@@ -420,24 +444,31 @@ export default function ChatbotLayout({ children }) {
               <p className="text-gray-400 mb-3">No subscribed books yet</p>
               <button 
                 className="flex items-center bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md"
-                onClick={() => navigate("/collections")}
+                onClick={() => {
+                  navigate("/collections");
+                  setIsSidebarOpen(false); // Close sidebar on mobile
+                }}
               >
                 <FaPlus className="mr-2" /> Add Books
               </button>
             </div>
           )}
-          <div className="mt-auto flex flex-col space-y-2">
-            <button className="flex items-center gap-2 bg-gray-800 p-2 rounded-md hover:bg-gray-700">
+          
+          <div className="mt-auto space-y-2">
+            <button className="w-full flex items-center gap-2 bg-gray-800 p-2 rounded-md hover:bg-gray-700">
               <FaUserEdit /> Profile
             </button>
             <button
-              className="flex items-center gap-2 bg-gray-800 p-2 rounded-md hover:bg-gray-700"
-              onClick={() => navigate("/collections")}
+              className="w-full flex items-center gap-2 bg-gray-800 p-2 rounded-md hover:bg-gray-700"
+              onClick={() => {
+                navigate("/collections");
+                setIsSidebarOpen(false); // Close sidebar on mobile
+              }}
             >
               <FaBook /> Collections
             </button>
             <button
-              className="flex items-center gap-2 bg-red-600 p-2 rounded-md hover:bg-red-500"
+              className="w-full flex items-center gap-2 bg-red-600 p-2 rounded-md hover:bg-red-500"
               onClick={handleLogout}
             >
               <FaSignOutAlt /> Logout
@@ -452,7 +483,7 @@ export default function ChatbotLayout({ children }) {
             <div className="bg-blue-600 text-white p-2 px-4 flex justify-between items-center">
               <div>
                 <span className="text-xs text-blue-200">Active Chapter:</span>
-                <h3 className="font-medium">{currentChapterTitle}</h3>
+                <h3 className="text-sm sm:font-medium">{currentChapterTitle}</h3>
               </div>
               <button 
                 className="text-xs bg-blue-700 hover:bg-blue-800 px-2 py-1 rounded"
@@ -464,24 +495,24 @@ export default function ChatbotLayout({ children }) {
           )}
           
           {/* Messages Container - Fixed height with scrolling */}
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+          <div className="flex-1 p-3 sm:p-4 overflow-y-auto" style={{ scrollBehavior: 'smooth' }}>
             {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
               chatHistory.map((msg, index) => (
                 <div
                   key={index}
-                  className={`max-w-[70%] p-3 rounded-lg text-white shadow-md ${
+                  className={`max-w-[90%] sm:max-w-[70%] p-2 sm:p-3 rounded-lg text-white shadow-md ${
                     msg.role === "user" 
                       ? "bg-blue-500 ml-auto text-right" 
                       : msg.role === "system" 
                         ? "bg-gray-500 mr-auto text-left" 
                         : "bg-gray-700 mr-auto text-left"
-                  } mt-2`}
+                  } mt-2 text-sm sm:text-base`}
                 >
                   {msg.content}
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 text-center">
+              <p className="text-gray-500 text-center text-sm sm:text-base">
                 {activeChapter 
                   ? "No messages yet for this chapter. Start a conversation!" 
                   : "No messages yet. Select a chapter to start a conversation."}
@@ -492,11 +523,11 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* Message Input */}
-          <div className="w-full bg-white p-3 border-t border-gray-300 flex items-center">
+          <div className="p-2 sm:p-3 bg-white border-t border-gray-300 flex flex-wrap sm:flex-nowrap gap-2">
             <input
               type="text"
               placeholder={activeChapter ? "Ask about this chapter..." : "Type a message..."}
-              className="flex-1 p-2 border rounded-lg outline-none"
+              className="flex-1 p-2 border rounded-lg outline-none text-sm sm:text-base"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
@@ -506,7 +537,7 @@ export default function ChatbotLayout({ children }) {
             {/* Audio recording buttons */}
             {!isRecording ? (
               <button 
-                className={`ml-2 ${audioBlob ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-500 hover:bg-blue-600'} text-white px-4 py-2 rounded-lg flex items-center`}
+                className={`${audioBlob ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-500 hover:bg-blue-600'} text-white px-3 sm:px-4 py-2 rounded-lg flex items-center text-sm sm:text-base`}
                 onClick={audioBlob ? sendAudioMessage : startRecording}
               >
                 {audioBlob ? (
@@ -520,7 +551,7 @@ export default function ChatbotLayout({ children }) {
               </button>
             ) : (
               <button 
-                className="ml-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 flex items-center"
+                className="bg-red-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-600 flex items-center text-sm sm:text-base"
                 onClick={stopRecording}
               >
                 <FaStop className="mr-1" /> 
@@ -530,7 +561,7 @@ export default function ChatbotLayout({ children }) {
             
             {/* Text message send button */}
             <button 
-              className="ml-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+              className="bg-blue-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-600 text-sm sm:text-base"
               onClick={handleSendMessage}
               disabled={isRecording}
             >
@@ -542,15 +573,22 @@ export default function ChatbotLayout({ children }) {
       
       {/* Logout Confirmation Dialog */}
       {showLogoutPopup && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <p className="text-lg font-semibold">Are you sure you want to log out?</p>
-            <div className="flex justify-end mt-4 space-x-2">
-              <button className="bg-gray-300 px-4 py-2 rounded-lg hover:bg-gray-400" onClick={() => setShowLogoutPopup(false)}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-medium mb-4">Confirm Logout</h3>
+            <p className="text-gray-700 mb-4">Are you sure you want to log out?</p>
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                onClick={() => setShowLogoutPopup(false)}
+              >
                 Cancel
               </button>
-              <button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600" onClick={confirmLogout}>
-                Yes, Logout
+              <button
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                onClick={confirmLogout}
+              >
+                Logout
               </button>
             </div>
           </div>
