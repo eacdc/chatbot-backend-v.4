@@ -1,99 +1,119 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { API_ENDPOINTS } from "../config";
+import { login } from "../utils/auth";
+import { handleAuthError } from "../utils/errorHandler";
 
 const Login = () => {
-  const [email, setEmail] = useState("");  
-  const [password, setPassword] = useState("");
+  const [formData, setFormData] = useState({
+    email: "",
+    password: ""
+  });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleEmailChange = (e) => {
-    setEmail(e.target.value);
-    console.log("Email entered:", e.target.value); // ✅ Logs the email on every change
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError(""); // Clear error when user types
   };
 
-  const handlePasswordChange = (e) => {
-    setPassword(e.target.value);
-    console.log("Password entered:", e.target.value); // ✅ Logs the password on every change
-  };
-
-  const handleLogin = async () => {
-    const loginData = { email, password };
-
-    console.log("Login request data:", loginData); // ✅ Logs the final email and password before sending
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
-      const response = await axios.post(API_ENDPOINTS.LOGIN, loginData);
-
-      if (response.data && response.data.token && response.data.userId) {
-        console.log("Login successful! Token:", response.data.token); // ✅ Logs the received token
-        console.log("User ID:", response.data.userId); // ✅ Logs the received userId
-
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("userId", response.data.userId); // ✅ Store userId
-        localStorage.setItem("isAuthenticated", "true");
-
-        navigate("/chat");
-      } else {
-        setError("Login failed. Please try again.");
-      }
+      await login(formData);
+      navigate("/chat");
     } catch (err) {
-      console.error("Login error:", err.response || err);
-
-      if (err.response) {
-        if (err.response.status === 404) {
-          setError("Server not found. Make sure the backend is running.");
-        } else {
-          setError(err.response.data.message || "Invalid Email or Password");
-        }
-      } else {
-        setError("Network error. Please check your connection.");
-      }
+      setError(handleAuthError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-        <h2 className="text-2xl font-semibold text-center mb-4">Login</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-lg">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Sign in to your account
+          </h2>
+        </div>
 
-        {error && <p className="text-red-500 text-center mb-2">{error}</p>}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
 
-        <input
-          type="email"
-          placeholder="Email ID"
-          className="w-full p-2 border rounded-lg mb-3"
-          value={email}
-          onChange={handleEmailChange}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full p-2 border rounded-lg mb-3"
-          value={password}
-          onChange={handlePasswordChange}
-          required
-        />
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm space-y-4">
+            <div>
+              <label htmlFor="email" className="sr-only">Email address</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Email address"
+                value={formData.email}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+              />
+            </div>
+          </div>
 
-        <button
-          onClick={handleLogin}
-          className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition duration-300"
-        >
-          Login
-        </button>
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
+                loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'
+              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </div>
 
-        <p className="text-center mt-3">
-          New here? <a href="/signup" className="text-blue-500 hover:underline">Sign up</a>
-        </p>
+          <div className="flex flex-col space-y-4 text-center text-sm">
+            <p className="text-gray-600">
+              New here?{' '}
+              <a href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+                Create an account
+              </a>
+            </p>
 
-        <p className="text-center mt-2">
-          <a href="/admin-login" className="text-red-500 font-semibold hover:underline">
-            Login as Admin
-          </a>
-        </p>
+            <p>
+              <a href="/admin-login" className="font-medium text-red-600 hover:text-red-500">
+                Sign in as Admin
+              </a>
+            </p>
+          </div>
+        </form>
       </div>
     </div>
   );
