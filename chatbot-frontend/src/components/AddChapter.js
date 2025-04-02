@@ -56,11 +56,26 @@ const AddChapter = () => {
 
     setLoading(true);
     setError("");
+    setSuccessMessage("");
     try {
-      const response = await axios.post(API_ENDPOINTS.PROCESS_TEXT, {
-        rawText: chapterData.rawText
-      });
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Please log in to continue");
+        setLoading(false);
+        return;
+      }
+
+      console.log("Sending request to process text...");
+      const response = await axios.post(API_ENDPOINTS.PROCESS_TEXT, 
+        { rawText: chapterData.rawText },
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}` 
+          } 
+        }
+      );
       
+      console.log("Response received:", response.status);
       setChapterData({
         ...chapterData,
         goodText: response.data.processedText
@@ -68,6 +83,10 @@ const AddChapter = () => {
       setSuccessMessage("Text processed successfully!");
     } catch (error) {
       console.error("Error processing text:", error);
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", error.response.data);
+      }
       setError(error.response?.data?.message || "Failed to process text. Please try again.");
     } finally {
       setLoading(false);
@@ -87,14 +106,31 @@ const AddChapter = () => {
 
     setQnaLoading(true);
     setError("");
+    setSuccessMessage("");
     try {
-      const response = await axios.post(API_ENDPOINTS.GENERATE_QNA, {
-        subject: chapterData.subject,
-        grade: chapterData.grade,
-        text: chapterData.goodText || chapterData.rawText,
-        specialInstructions: chapterData.specialInstructions
-      });
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Please log in to continue");
+        setQnaLoading(false);
+        return;
+      }
+
+      console.log("Sending request to generate QnA...");
+      const response = await axios.post(API_ENDPOINTS.GENERATE_QNA, 
+        {
+          subject: chapterData.subject,
+          grade: chapterData.grade,
+          text: chapterData.goodText || chapterData.rawText,
+          specialInstructions: chapterData.specialInstructions
+        },
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}` 
+          } 
+        }
+      );
       
+      console.log("Response received:", response.status);
       setChapterData({
         ...chapterData,
         qnaOutput: response.data.qnaOutput
@@ -102,6 +138,10 @@ const AddChapter = () => {
       setSuccessMessage("QnA generated successfully!");
     } catch (error) {
       console.error("Error generating QnA:", error);
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", error.response.data);
+      }
       setError(error.response?.data?.message || "Failed to generate QnA. Please try again.");
     } finally {
       setQnaLoading(false);
@@ -116,14 +156,31 @@ const AddChapter = () => {
 
     setFinalPromptLoading(true);
     setError("");
+    setSuccessMessage("");
     try {
-      const response = await axios.post(API_ENDPOINTS.GENERATE_FINAL_PROMPT, {
-        subject: chapterData.subject,
-        grade: chapterData.grade,
-        specialInstructions: chapterData.specialInstructions,
-        qnaOutput: chapterData.qnaOutput
-      });
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Please log in to continue");
+        setFinalPromptLoading(false);
+        return;
+      }
+
+      console.log("Sending request to generate final prompt...");
+      const response = await axios.post(API_ENDPOINTS.GENERATE_FINAL_PROMPT, 
+        {
+          subject: chapterData.subject,
+          grade: chapterData.grade,
+          specialInstructions: chapterData.specialInstructions,
+          qnaOutput: chapterData.qnaOutput
+        },
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}` 
+          } 
+        }
+      );
       
+      console.log("Response received:", response.status);
       setChapterData({
         ...chapterData,
         finalPrompt: response.data.finalPrompt
@@ -131,6 +188,10 @@ const AddChapter = () => {
       setSuccessMessage("Final prompt generated successfully!");
     } catch (error) {
       console.error("Error generating final prompt:", error);
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", error.response.data);
+      }
       setError(error.response?.data?.message || "Failed to generate final prompt. Please try again.");
     } finally {
       setFinalPromptLoading(false);

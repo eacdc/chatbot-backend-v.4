@@ -18,7 +18,12 @@ export const API_ENDPOINTS = {
   GET_SUBSCRIPTIONS: `${API_URL}/api/subscriptions/my-subscriptions`,
   GET_CHAPTER_HISTORY: `${API_URL}/api/chat/chapter-history/:chapterId`,
   GET_CHAT_HISTORY: `${API_URL}/api/chat/history/:userId`,
-  SEND_AUDIO: `${API_URL}/api/chat/send-audio`
+  SEND_AUDIO: `${API_URL}/api/chat/send-audio`,
+  
+  // Chapter preparation endpoints
+  PROCESS_TEXT: `${API_URL}/api/chapters/process-text`,
+  GENERATE_QNA: `${API_URL}/api/chapters/generate-qna`,
+  GENERATE_FINAL_PROMPT: `${API_URL}/api/chapters/generate-final-prompt`
 };
 
 export default API_URL; 
