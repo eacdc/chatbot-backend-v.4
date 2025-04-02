@@ -21,5 +21,11 @@ mkdir -p build/static/css
 mkdir -p build/static/js
 mkdir -p build/static/media
 
-# Ensure index.html has the correct content type
-echo "<!-- This is a static file. It will be served from the root directory. -->" > build/index.html 
+# Add a comment to index.html for verification without overwriting
+sed -i '1s/^/<!-- This is a static file served by Render. -->\n/' build/index.html
+
+# Add spa=true file for Render
+echo 'true' > build/spa
+
+# Log completion
+echo "Build completed successfully!" 

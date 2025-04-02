@@ -40,10 +40,12 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: /api/$1
+        destination: https://chatbot-backend-v-4.onrender.com/api/$1
       - type: rewrite
         source: /*
         destination: /index.html
+      - type: spa
+        fallback: index.html
     envVars:
       - key: REACT_APP_API_URL
         value: https://chatbot-backend-v-4.onrender.com

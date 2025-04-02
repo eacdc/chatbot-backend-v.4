@@ -1,21 +1,22 @@
-# Handle API routes
-/api/* /api/:splat 200
+# Redirects for Render static sites
 
-# Handle client-side routing
-/* /index.html 200
+# SPA fallback
+/*    /index.html   200
 
-# Handle 404 errors
-/404.html /index.html 200
-
-# Handle specific routes
-/signup /index.html 200
-/login /index.html 200
-/admin /index.html 200
-/chat /index.html 200
-/collections /index.html 200
-/profile /index.html 200
-/settings /index.html 200
+# Handle specific routes explicitly
+/login    /index.html   200
+/signup   /index.html   200
+/chat     /index.html   200
+/collections  /index.html  200
+/admin    /index.html   200
+/admin/*  /index.html   200
+/profile  /index.html   200
+/settings /index.html   200
 
 # Handle static assets
-/static/* /static/:splat 200
-/media/* /media/:splat 200 
+/static/*  /static/:splat  200
+/assets/*  /assets/:splat  200
+/media/*   /media/:splat   200
+
+# Handle API proxy (if needed)
+/api/*  https://chatbot-backend-v-4.onrender.com/api/:splat  200 

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import ChatbotLayout from "./components/ChatbotLayout"; // ✅ Keeping ChatbotLayout
 import Chat from "./components/Chat";
@@ -14,6 +14,15 @@ import "./App.css";
 
 function App() {
   const isAuthenticated = localStorage.getItem("isAuthenticated") === "true"; // ✅ Fixing key name
+
+  // Handle redirects from 404.html
+  useEffect(() => {
+    const redirectPath = sessionStorage.getItem('redirectPath');
+    if (redirectPath) {
+      sessionStorage.removeItem('redirectPath');
+      window.history.replaceState(null, '', redirectPath);
+    }
+  }, []);
 
   return (
     <Router>
@@ -44,6 +53,9 @@ function App() {
 
         {/* Redirect '/' to Chat if logged in, otherwise go to Login */}
         <Route path="/" element={<Navigate to={isAuthenticated ? "/chat" : "/login"} />} />
+
+        {/* Catch-all route for 404s */}
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
   );
