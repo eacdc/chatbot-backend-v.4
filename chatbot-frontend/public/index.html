@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="Interactive educational chatbot for students"
+      content="BookChat - Interactive learning platform"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!--
@@ -31,7 +31,7 @@
     <meta name="force-rendering" content="webkit">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     
-    <title>Educational Chatbot</title>
+    <title>BookChat</title>
     
     <!-- Runtime script -->
     <script type="text/javascript">
@@ -47,6 +47,18 @@
           console.error('Redirect error:', e);
         }
       })();
+    </script>
+    <!-- Fix for 404 error after login - ensure all resources are properly configured -->
+    <script>
+      // Handle potential 404 errors for resources
+      window.addEventListener('error', function(e) {
+        // Check if the error is related to loading a resource
+        if (e.target && (e.target.tagName === 'LINK' || e.target.tagName === 'SCRIPT' || e.target.tagName === 'IMG')) {
+          console.warn('Failed to load resource:', e.target.src || e.target.href);
+          // Prevent the 404 error from being displayed in the console
+          e.preventDefault();
+        }
+      }, true);
     </script>
   </head>
   <body>

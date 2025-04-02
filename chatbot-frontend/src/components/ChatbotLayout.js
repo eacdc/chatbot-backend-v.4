@@ -61,8 +61,15 @@ export default function ChatbotLayout({ children }) {
         setLoading(false);
       } catch (error) {
         console.error("Error fetching subscriptions:", error);
+        // Don't redirect on error, just show empty state
         setSubscribedBooks([]);
         setLoading(false);
+        
+        // If there's an authorization error, redirect to login
+        if (error.response && error.response.status === 401) {
+          console.log("Unauthorized - redirecting to login");
+          navigate("/login");
+        }
       }
     };
     
