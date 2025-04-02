@@ -92,7 +92,7 @@ const Signup = () => {
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-4 rounded-md">
                         <div>
-                            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">Username <span className="text-blue-600 font-medium">(Used for login)</span></label>
                             <input
                                 id="username"
                                 name="username"
@@ -103,6 +103,7 @@ const Signup = () => {
                                 value={formData.username}
                                 onChange={handleChange}
                             />
+                            <p className="mt-1 text-xs text-gray-500">You'll use this username to log in to your account.</p>
                         </div>
                         <div>
                             <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
@@ -118,14 +119,13 @@ const Signup = () => {
                             />
                         </div>
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email address <span className="text-gray-500 font-normal">(Optional)</span></label>
                             <input
                                 id="email"
                                 name="email"
                                 type="email"
-                                required
                                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-lg placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="you@example.com"
+                                placeholder="you@example.com (optional)"
                                 value={formData.email}
                                 onChange={handleChange}
                             />

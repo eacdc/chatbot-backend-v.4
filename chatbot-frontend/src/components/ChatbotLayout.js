@@ -416,8 +416,8 @@ export default function ChatbotLayout({ children }) {
         )}
         
         {/* Sidebar */}
-        <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-gray-800 text-white fixed lg:relative z-20 h-full lg:h-auto overflow-y-auto shadow-lg`}>
-          <div className="p-4">
+        <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-gray-800 text-white fixed lg:relative z-20 h-full lg:h-auto overflow-y-auto shadow-lg flex flex-col`}>
+          <div className="p-4 flex-1">
             <div className="flex justify-between items-center lg:hidden mb-4">
               <h2 className="text-lg font-semibold">My Library</h2>
               <button 
@@ -501,7 +501,8 @@ export default function ChatbotLayout({ children }) {
               </div>
             )}
             
-            <div className="pt-4 mt-6 border-t border-gray-700">
+            {/* For mobile only - showing controls in the main sidebar area */}
+            <div className="pt-4 mt-6 border-t border-gray-700 lg:hidden">
               <nav className="space-y-2">
                 <button 
                   className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -528,6 +529,35 @@ export default function ChatbotLayout({ children }) {
                 </button>
               </nav>
             </div>
+          </div>
+          
+          {/* For desktop only - controls fixed at the bottom */}
+          <div className="hidden lg:block border-t border-gray-700 mt-auto">
+            <nav className="p-4 space-y-2">
+              <button 
+                className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <FaUserEdit className="h-5 w-5 text-gray-400" /> 
+                <span>Profile</span>
+              </button>
+              <button
+                className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onClick={() => {
+                  navigate("/collections");
+                  setIsSidebarOpen(false);
+                }}
+              >
+                <FaBook className="h-5 w-5 text-gray-400" /> 
+                <span>Collections</span>
+              </button>
+              <button
+                className="w-full flex items-center gap-2 p-3 rounded-lg bg-red-600 hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+                onClick={handleLogout}
+              >
+                <FaSignOutAlt className="h-5 w-5" /> 
+                <span>Logout</span>
+              </button>
+            </nav>
           </div>
         </div>
         

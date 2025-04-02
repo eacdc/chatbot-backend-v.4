@@ -7,7 +7,7 @@ import { API_ENDPOINTS } from '../config';
  * @returns {Promise} Response from the server
  */
 export const login = async (credentials) => {
-  console.log("Login attempt with:", { email: credentials.email, password: '******' });
+  console.log("Login attempt with:", { username: credentials.username, password: '******' });
   
   try {
     console.log("Calling login endpoint:", API_ENDPOINTS.LOGIN);
