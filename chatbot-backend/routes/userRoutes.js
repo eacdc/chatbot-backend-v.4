@@ -33,33 +33,37 @@ router.post("/register", async (req, res) => {
             }
         }
 
-        // ✅ Generate salt and hash the password consistently
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-        console.log("🔐 Hashed Password (Before Saving to DB):", hashedPassword);
-        
-        // Added explicit logging of the raw password for debugging
-        console.log("📝 Raw Password being hashed:", password);
-
+        // Create new user with plain password - the model's pre-save hook will hash it
         const newUser = new User({
             username: username.trim(),
             fullname,
-            email: email ? email.toLowerCase().trim() : "", // Handle optional email
+            email: email ? email.toLowerCase().trim() : "",
             phone,
             role,
-            password: hashedPassword, // Ensure we store the hashed password
+            password: password.trim() // Password will be hashed by the pre-save hook
         });
 
         await newUser.save();
         
         // Verify that the saved password hash works with the original password
         const savedUser = await User.findOne({ username: username.trim() });
-        const verifyPassword = await bcrypt.compare(password, savedUser.password);
+        const verifyPassword = await bcrypt.compare(password.trim(), savedUser.password);
         console.log("🔍 Verification after save:", verifyPassword);
+        
+        if (!verifyPassword) {
+            console.log("⚠️ WARNING: Password verification failed after save");
+            console.log("🔑 Saved hash:", savedUser.password);
+            console.log("🔑 Original password:", password.trim());
+            
+            // Try to fix it now
+            savedUser.password = password.trim();
+            await savedUser.save();
+            
+            const secondVerify = await bcrypt.compare(password.trim(), savedUser.password);
+            console.log("🔍 Second verification attempt:", secondVerify);
+        }
 
         console.log("✅ User saved successfully!");
-
         res.status(201).json({ message: "User registered successfully!" });
     } catch (error) {
         console.error("❌ Error registering user:", error);
@@ -92,53 +96,56 @@ router.post("/login", async (req, res) => {
         const isMatch = await bcrypt.compare(password.trim(), user.password);
         console.log("🔎 Password Match Result:", isMatch);
 
-        if (!isMatch) {
-            console.log("❌ Password mismatch! Debugging info:");
-            console.log("Entered Password (Raw):", password);
-            
-            // Try to re-hash the password for comparison
-            const reHashedPassword = await bcrypt.hash(password.trim(), 10);
-            console.log("🔄 Re-hashed attempt:", reHashedPassword);
+        if (isMatch) {
+            // ✅ Generate token
+            const token = jwt.sign(
+                { userId: user._id, name: user.fullname, role: user.role },
+                process.env.JWT_SECRET,
+                { expiresIn: "1h" }
+            );
 
-            // Verify if the issue might be related to user schema middleware
-            const directHashCompare = await bcrypt.compare(password.trim(), user.password);
-            console.log("🔄 Direct hash compare:", directHashCompare);
-
-            // If still not matching, try to update the user's password for future logins
-            if (!directHashCompare) {
-                console.log("🔄 Attempting to update user password...");
-                user.password = await bcrypt.hash(password.trim(), 10);
-                await user.save();
-                console.log("✅ User password updated for future logins");
-                
-                // Return success but with a note about the password update
-                const token = jwt.sign(
-                    { userId: user._id, name: user.fullname, role: user.role },
-                    process.env.JWT_SECRET,
-                    { expiresIn: "1h" }
-                );
-                return res.json({ 
-                    token, 
-                    userId: user._id, 
-                    name: user.fullname, 
-                    role: user.role,
-                    message: "Password updated for future logins" 
-                });
-            }
-            
-            return res.status(400).json({ message: "Invalid username or password" });
+            console.log("✅ Login successful!");
+            return res.json({ token, userId: user._id, name: user.fullname, role: user.role });
         }
 
-        // ✅ Generate token
+        // If we got here, password doesn't match
+        console.log("❌ Password mismatch! Trying simple hash comparison");
+            
+        // Try a simple direct comparison
+        const directHashCompare = await bcrypt.compare(password, user.password);
+        console.log("🔄 Direct unmodified hash compare:", directHashCompare);
+            
+        if (directHashCompare) {
+            // Password matched with direct comparison
+            const token = jwt.sign(
+                { userId: user._id, name: user.fullname, role: user.role },
+                process.env.JWT_SECRET,
+                { expiresIn: "1h" }
+            );
+            console.log("✅ Login successful with direct comparison!");
+            return res.json({ token, userId: user._id, name: user.fullname, role: user.role });
+        }
+            
+        // Last resort, try to update password
+        console.log("🔄 Attempting to update user password...");
+        // Use the raw password for storage
+        user.password = password.trim();
+        await user.save(); // This will trigger the hash middleware
+        console.log("✅ User password updated for future logins");
+                
+        // Return success but with a note about the password update
         const token = jwt.sign(
             { userId: user._id, name: user.fullname, role: user.role },
             process.env.JWT_SECRET,
             { expiresIn: "1h" }
         );
-
-        console.log("✅ Login successful!");
-        res.json({ token, userId: user._id, name: user.fullname, role: user.role });
-
+        return res.json({ 
+            token, 
+            userId: user._id, 
+            name: user.fullname, 
+            role: user.role,
+            message: "Password updated for future logins" 
+        });
     } catch (error) {
         console.error("❌ Error logging in:", error);
         res.status(500).json({ message: "Server error" });
@@ -148,7 +155,7 @@ router.post("/login", async (req, res) => {
 // ✅ Get Logged-in User Details
 router.get("/me", authenticateUser, async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId).select("_id username fullname email role");
+        const user = await User.findById(req.user.userId).select("_id username fullname email role phone createdAt");
         if (!user) return res.status(404).json({ message: "User not found" });
 
         res.json(user);

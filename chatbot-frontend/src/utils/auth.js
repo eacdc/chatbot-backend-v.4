@@ -170,11 +170,15 @@ export const logout = () => {
  */
 export const isAuthenticated = () => {
   const isAuth = localStorage.getItem('isAuthenticated') === 'true' && !!localStorage.getItem('token');
+  
+  // Instead of automatically logging out, just return false when session timed out
+  // This allows mobile users to attempt login even after session timeout
   if (isAuth && hasSessionTimedOut()) {
     console.log('Session expired during authentication check');
-    logout();
+    // Don't immediately logout - just return false
     return false;
   }
+  
   return isAuth;
 };
 
