@@ -10,6 +10,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import AddBook from "./components/AddBook";  // Create this later
 import AddChapter from "./components/AddChapter";  // Create this later
 import Collections from "./components/Collections"; // Import the Collections page
+import Profile from "./components/Profile"; // Import the Profile page
 import { isAuthenticated, setupActivityTracking } from "./utils/auth"; // Import auth utilities
 import "./App.css";
 
@@ -49,6 +50,9 @@ function App() {
         <Route path="/admin/add-chapter" element={<AddChapter />} />
         <Route path="/collections" element={
           userIsAuthenticated ? <Collections /> : <Navigate to="/login" />
+        } />
+        <Route path="/profile" element={
+          userIsAuthenticated ? <Profile /> : <Navigate to="/login" />
         } />
 
         {/* Protected Chat Route with ChatbotLayout */}

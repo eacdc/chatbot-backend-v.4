@@ -525,6 +525,10 @@ export default function ChatbotLayout({ children }) {
               <nav className="space-y-2">
                 <button 
                   className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onClick={() => {
+                    navigate("/profile");
+                    setIsSidebarOpen(false);
+                  }}
                 >
                   <FaUserEdit className="h-5 w-5 text-gray-400" /> 
                   <span>Profile</span>
@@ -555,6 +559,7 @@ export default function ChatbotLayout({ children }) {
             <nav className="p-4 space-y-2">
               <button 
                 className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onClick={() => navigate("/profile")}
               >
                 <FaUserEdit className="h-5 w-5 text-gray-400" /> 
                 <span>Profile</span>
