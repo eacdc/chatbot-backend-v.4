@@ -1,8 +1,17 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if admin is logged in
+    const adminToken = localStorage.getItem("adminToken");
+    if (!adminToken) {
+      // Redirect to admin login if not logged in
+      navigate("/admin-login");
+    }
+  }, [navigate]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
@@ -27,6 +36,17 @@ const AdminDashboard = () => {
           <p className="text-sm mt-2">Click to add chapters</p>
         </div>
       </div>
+
+      {/* Logout Button */}
+      <button 
+        className="mt-8 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-300"
+        onClick={() => {
+          localStorage.removeItem("adminToken");
+          navigate("/admin-login");
+        }}
+      >
+        Logout
+      </button>
     </div>
   );
 };

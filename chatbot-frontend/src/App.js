@@ -14,6 +14,12 @@ import Profile from "./components/Profile"; // Import the Profile page
 import { isAuthenticated, setupActivityTracking } from "./utils/auth"; // Import auth utilities
 import "./App.css";
 
+// Custom component for admin routes protection
+const ProtectedAdminRoute = ({ element }) => {
+  const adminToken = localStorage.getItem("adminToken");
+  return adminToken ? element : <Navigate to="/admin-login" />;
+};
+
 function App() {
   // Check if user is authenticated with timeout validation
   const userIsAuthenticated = isAuthenticated();
@@ -45,9 +51,13 @@ function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/admin-register" element={<AdminRegister />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin/add-book" element={<AddBook />} />
-        <Route path="/admin/add-chapter" element={<AddChapter />} />
+        
+        {/* Protected Admin Routes */}
+        <Route path="/admin/dashboard" element={<ProtectedAdminRoute element={<AdminDashboard />} />} />
+        <Route path="/admin/add-book" element={<ProtectedAdminRoute element={<AddBook />} />} />
+        <Route path="/admin/add-chapter" element={<ProtectedAdminRoute element={<AddChapter />} />} />
+        
+        {/* Protected User Routes */}
         <Route path="/collections" element={
           userIsAuthenticated ? <Collections /> : <Navigate to="/login" />
         } />

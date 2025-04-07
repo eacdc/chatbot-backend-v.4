@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaUserEdit, FaSignOutAlt, FaBook, FaChevronDown, FaChevronRight, FaPlus, FaMicrophone, FaStop } from "react-icons/fa";
+import { FaUserEdit, FaSignOutAlt, FaBook, FaChevronDown, FaChevronRight, FaPlus, FaMicrophone, FaStop, FaTimes } from "react-icons/fa";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
 import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
@@ -23,6 +23,7 @@ export default function ChatbotLayout({ children }) {
   const audioChunksRef = useRef([]);
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [notification, setNotification] = useState({ show: false, type: "", message: "" });
 
   const getUserId = () => localStorage.getItem("userId");
   const getToken = () => localStorage.getItem("token");
@@ -403,6 +404,67 @@ export default function ChatbotLayout({ children }) {
     navigate("/login");
   };
 
+  // Unsubscribe from a book
+  const handleUnsubscribe = async (bookId, event) => {
+    // Prevent the click from triggering the book expansion
+    event.stopPropagation();
+    
+    try {
+      const token = getToken();
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+      
+      await axios.delete(
+        API_ENDPOINTS.UNSUBSCRIBE_BOOK.replace(':bookId', bookId),
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      
+      // Remove the book from state
+      setSubscribedBooks(subscribedBooks.filter(book => book.bookId !== bookId));
+      
+      // Remove book chapters from state if they exist
+      if (bookChapters[bookId]) {
+        const updatedChapters = { ...bookChapters };
+        delete updatedChapters[bookId];
+        setBookChapters(updatedChapters);
+      }
+      
+      // Clear active chapter if it belongs to the unsubscribed book
+      if (expandedBook === bookId) {
+        setExpandedBook(null);
+        if (activeChapter) {
+          const chapterBelongsToBook = bookChapters[bookId]?.some(
+            chapter => chapter._id === activeChapter
+          );
+          
+          if (chapterBelongsToBook) {
+            clearActiveChapter();
+          }
+        }
+      }
+      
+      setNotification({
+        show: true,
+        type: "success",
+        message: "Successfully unsubscribed from the book"
+      });
+      
+    } catch (error) {
+      console.error("Error unsubscribing:", error);
+      setNotification({
+        show: true,
+        type: "error",
+        message: "Failed to unsubscribe: " + (error.response?.data?.error || error.message)
+      });
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col bg-gray-50">
       <div className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-3 sm:p-4 flex justify-between items-center shadow-md">
@@ -462,12 +524,21 @@ export default function ChatbotLayout({ children }) {
                   <div key={sub._id} className="bg-gray-700 rounded-lg overflow-hidden">
                     <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-600 transition-colors duration-200" onClick={() => toggleBookExpansion(sub.bookId)}>
                       <span className="font-medium truncate flex-1">{sub.bookTitle}</span>
-                      <span className="text-gray-300 transform transition-transform duration-200">
-                        {expandedBook === sub.bookId ? 
-                          <FaChevronDown className="h-4 w-4" /> : 
-                          <FaChevronRight className="h-4 w-4" />
-                        }
-                      </span>
+                      <div className="flex items-center">
+                        <button
+                          className="mr-2 text-gray-400 hover:text-red-500 focus:outline-none"
+                          onClick={(e) => handleUnsubscribe(sub.bookId, e)}
+                          title="Unsubscribe"
+                        >
+                          <FaTimes className="h-4 w-4" />
+                        </button>
+                        <span className="text-gray-300 transform transition-transform duration-200">
+                          {expandedBook === sub.bookId ? 
+                            <FaChevronDown className="h-4 w-4" /> : 
+                            <FaChevronRight className="h-4 w-4" />
+                          }
+                        </span>
+                      </div>
                     </div>
                     
                     {expandedBook === sub.bookId && (
@@ -733,6 +804,49 @@ export default function ChatbotLayout({ children }) {
                 Logout
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification popup */}
+      {notification.show && (
+        <div className="fixed top-5 right-5 z-50 max-w-sm w-full bg-white rounded-xl shadow-lg p-4 border border-gray-200">
+          <div className="flex items-start justify-between">
+            <div className="flex">
+              <div className={`flex-shrink-0 h-6 w-6 mr-3 ${
+                notification.type === "success" ? "text-green-500" : 
+                notification.type === "info" ? "text-blue-500" : "text-red-500"
+              }`}>
+                {notification.type === "success" ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : notification.type === "info" ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">
+                  {notification.type === "success" ? "Success" : 
+                   notification.type === "info" ? "Information" : "Error"}
+                </p>
+                <p className="mt-1 text-gray-600">{notification.message}</p>
+              </div>
+            </div>
+            <button 
+              className="text-gray-400 hover:text-gray-600 focus:outline-none"
+              onClick={() => setNotification({ ...notification, show: false })}
+            >
+              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}

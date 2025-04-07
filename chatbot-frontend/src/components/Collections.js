@@ -10,7 +10,8 @@ export default function Collections() {
   const [chapters, setChapters] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
+  const [notification, setNotification] = useState({ show: false, type: "", message: "" });
   const navigate = useNavigate(); // For navigation
 
   // Update activity timestamp on component mount
@@ -109,10 +110,24 @@ export default function Collections() {
         }
       );
 
-      alert(response.data.message);
+      setNotification({
+        show: true,
+        type: "success",
+        message: response.data.message
+      });
     } catch (error) {
       console.error("Subscription error:", error.response?.data?.error || error.message);
-      setError(error.response?.data?.error || "Subscription failed");
+      
+      // Handle "Already subscribed" message differently
+      if (error.response?.data?.error === "Already subscribed to this book") {
+        setNotification({
+          show: true,
+          type: "info",
+          message: "You are already subscribed to this book"
+        });
+      } else {
+        setError(error.response?.data?.error || "Subscription failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -144,6 +159,49 @@ export default function Collections() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+      {/* Notification popup */}
+      {notification.show && (
+        <div className="fixed top-5 right-5 z-50 max-w-sm w-full bg-white rounded-xl shadow-lg p-4 border border-gray-200">
+          <div className="flex items-start justify-between">
+            <div className="flex">
+              <div className={`flex-shrink-0 h-6 w-6 mr-3 ${
+                notification.type === "success" ? "text-green-500" : 
+                notification.type === "info" ? "text-blue-500" : "text-red-500"
+              }`}>
+                {notification.type === "success" ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : notification.type === "info" ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">
+                  {notification.type === "success" ? "Success" : 
+                   notification.type === "info" ? "Information" : "Error"}
+                </p>
+                <p className="mt-1 text-gray-600">{notification.message}</p>
+              </div>
+            </div>
+            <button 
+              className="text-gray-400 hover:text-gray-600 focus:outline-none"
+              onClick={() => setNotification({ ...notification, show: false })}
+            >
+              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-10">
           <div>

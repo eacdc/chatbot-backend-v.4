@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
   GET_USER: `${API_URL}/api/users/me`,
   GET_BOOK_CHAPTERS: `${API_URL}/api/books/:bookId/chapters`,
   GET_SUBSCRIPTIONS: `${API_URL}/api/subscriptions/my-subscriptions`,
+  UNSUBSCRIBE_BOOK: `${API_URL}/api/subscriptions/:bookId`,
   GET_CHAPTER_HISTORY: `${API_URL}/api/chat/chapter-history/:chapterId`,
   GET_CHAT_HISTORY: `${API_URL}/api/chat/history/:userId`,
   SEND_AUDIO: `${API_URL}/api/chat/send-audio`,

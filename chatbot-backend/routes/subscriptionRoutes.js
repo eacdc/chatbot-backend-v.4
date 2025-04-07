@@ -73,4 +73,25 @@ router.get("/:userId", async (req, res) => {
   }
 });
 
+// ✅ Unsubscribe from a book
+router.delete("/:bookId", authenticateUser, async (req, res) => {
+  try {
+    // Get logged-in user's ID from middleware
+    const userId = req.user.userId;
+    const { bookId } = req.params;
+    
+    // Find and delete the subscription
+    const subscription = await Subscription.findOneAndDelete({ userId, bookId });
+    
+    if (!subscription) {
+      return res.status(404).json({ message: "Subscription not found" });
+    }
+    
+    res.status(200).json({ message: "Unsubscribed successfully" });
+  } catch (err) {
+    console.error("Error unsubscribing:", err.message);
+    res.status(500).json({ error: `Failed to unsubscribe: ${err.message}` });
+  }
+});
+
 module.exports = router;

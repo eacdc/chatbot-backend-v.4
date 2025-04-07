@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
+import { useNavigate } from "react-router-dom";
 
 const AddBook = () => {
   const [bookData, setBookData] = useState({
@@ -13,6 +14,15 @@ const AddBook = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  // Check if admin is logged in
+  useEffect(() => {
+    const adminToken = localStorage.getItem("adminToken");
+    if (!adminToken) {
+      navigate("/admin-login");
+    }
+  }, [navigate]);
 
   const handleChange = (e) => {
     setBookData({ ...bookData, [e.target.name]: e.target.value });
@@ -25,7 +35,23 @@ const AddBook = () => {
     setLoading(true);
     
     try {
-      const response = await axios.post(API_ENDPOINTS.ADD_BOOK, bookData);
+      // Check for admin token 
+      const adminToken = localStorage.getItem("adminToken");
+      if (!adminToken) {
+        setError("Please log in as an admin to continue");
+        setLoading(false);
+        return;
+      }
+
+      const response = await axios.post(
+        API_ENDPOINTS.ADD_BOOK, 
+        bookData,
+        {
+          headers: {
+            'Authorization': `Bearer ${adminToken}`
+          }
+        }
+      );
 
       if (response.status === 201) {
         setSuccessMessage("✅ Book details have been added successfully!");

@@ -58,9 +58,9 @@ const AddChapter = () => {
     setError("");
     setSuccessMessage("");
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Please log in to continue");
+      const adminToken = localStorage.getItem("adminToken");
+      if (!adminToken) {
+        setError("Please log in as an admin to continue");
         setLoading(false);
         return;
       }
@@ -70,7 +70,7 @@ const AddChapter = () => {
         { rawText: chapterData.rawText },
         { 
           headers: { 
-            'Authorization': `Bearer ${token}` 
+            'Authorization': `Bearer ${adminToken}` 
           } 
         }
       );
@@ -108,9 +108,9 @@ const AddChapter = () => {
     setError("");
     setSuccessMessage("");
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Please log in to continue");
+      const adminToken = localStorage.getItem("adminToken");
+      if (!adminToken) {
+        setError("Please log in as an admin to continue");
         setQnaLoading(false);
         return;
       }
@@ -125,7 +125,7 @@ const AddChapter = () => {
         },
         { 
           headers: { 
-            'Authorization': `Bearer ${token}` 
+            'Authorization': `Bearer ${adminToken}` 
           } 
         }
       );
@@ -158,9 +158,9 @@ const AddChapter = () => {
     setError("");
     setSuccessMessage("");
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Please log in to continue");
+      const adminToken = localStorage.getItem("adminToken");
+      if (!adminToken) {
+        setError("Please log in as an admin to continue");
         setFinalPromptLoading(false);
         return;
       }
@@ -175,7 +175,7 @@ const AddChapter = () => {
         },
         { 
           headers: { 
-            'Authorization': `Bearer ${token}` 
+            'Authorization': `Bearer ${adminToken}` 
           } 
         }
       );
@@ -210,7 +210,22 @@ const AddChapter = () => {
     };
     
     try {
-      const response = await axios.post(API_ENDPOINTS.ADD_CHAPTER, dataToSubmit);
+      const adminToken = localStorage.getItem("adminToken");
+      if (!adminToken) {
+        setError("Please log in as an admin to continue");
+        setLoading(false);
+        return;
+      }
+
+      const response = await axios.post(
+        API_ENDPOINTS.ADD_CHAPTER, 
+        dataToSubmit,
+        {
+          headers: {
+            'Authorization': `Bearer ${adminToken}`
+          }
+        }
+      );
       
       if (response.status === 201) {
         setSuccessMessage("Chapter added successfully!");

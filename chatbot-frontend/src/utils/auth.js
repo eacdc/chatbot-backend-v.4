@@ -20,6 +20,14 @@ export const login = async (credentials) => {
     
     if (response.data && response.data.token) {
       console.log("Token received, storing in localStorage");
+      
+      // Ensure we clear any previous values first
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('refreshToken');
+      
+      // Set new values
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('userId', response.data.userId);
       localStorage.setItem('isAuthenticated', 'true');
@@ -30,6 +38,9 @@ export const login = async (credentials) => {
       if (response.data.refreshToken) {
         localStorage.setItem('refreshToken', response.data.refreshToken);
       }
+      
+      // Add a slight delay to ensure localStorage is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       return response.data;
     } else {
@@ -169,17 +180,25 @@ export const logout = () => {
  * @returns {boolean}
  */
 export const isAuthenticated = () => {
-  const isAuth = localStorage.getItem('isAuthenticated') === 'true' && !!localStorage.getItem('token');
+  const token = localStorage.getItem('token');
+  const isAuth = localStorage.getItem('isAuthenticated') === 'true' && !!token;
   
-  // Instead of automatically logging out, just return false when session timed out
-  // This allows mobile users to attempt login even after session timeout
-  if (isAuth && hasSessionTimedOut()) {
-    console.log('Session expired during authentication check');
-    // Don't immediately logout - just return false
+  if (!isAuth) {
     return false;
   }
   
-  return isAuth;
+  // Check for session timeout
+  if (hasSessionTimedOut()) {
+    console.log('Session expired during authentication check');
+    return false;
+  }
+  
+  // Check if token looks valid (simple check)
+  if (token && typeof token === 'string' && token.length > 20) {
+    return true;
+  }
+  
+  return false;
 };
 
 /**
@@ -196,4 +215,23 @@ export const getCurrentUserId = () => {
  */
 export const getToken = () => {
   return localStorage.getItem('token');
+};
+
+/**
+ * Checks if admin is authenticated
+ * @returns {boolean}
+ */
+export const isAdminAuthenticated = () => {
+  const adminToken = localStorage.getItem('adminToken');
+  
+  if (!adminToken) {
+    return false;
+  }
+  
+  // Check if token looks valid (simple check)
+  if (adminToken && typeof adminToken === 'string' && adminToken.length > 20) {
+    return true;
+  }
+  
+  return false;
 }; 
