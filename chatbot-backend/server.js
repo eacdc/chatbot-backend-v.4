@@ -3,12 +3,14 @@ require("dotenv").config(); // ✅ Load environment variables first
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const compression = require("compression"); // Add compression middleware
 
 console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "Not Found");
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' })); // Increase JSON body size limit
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Increase URL-encoded body size limit
+app.use(compression()); // Use compression for all responses
 
 // ✅ Improved CORS
 app.use(

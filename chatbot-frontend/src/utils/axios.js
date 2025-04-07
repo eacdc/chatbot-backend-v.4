@@ -8,7 +8,7 @@ console.log('API URL:', API_URL); // Debug log
 
 const axiosInstance = axios.create({
   baseURL: API_URL, // Just use the root URL, not a specific endpoint
-  timeout: 30000, // 30 seconds timeout
+  timeout: 300000, // 5 minutes timeout for long operations
   headers: {
     'Content-Type': 'application/json'
   }
