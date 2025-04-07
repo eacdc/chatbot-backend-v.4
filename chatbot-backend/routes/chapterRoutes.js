@@ -84,7 +84,7 @@ router.post("/send", async (req, res) => {
 
         // Get AI response
         const response = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
+            model: "gpt-4o",
             messages: messagesForOpenAI,
         });
 
@@ -320,7 +320,7 @@ After each question mention the difficulty level {easy, medium, hard}. This will
   
       // Get AI response
       const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o",
         messages: messagesForOpenAI,
       });
   
