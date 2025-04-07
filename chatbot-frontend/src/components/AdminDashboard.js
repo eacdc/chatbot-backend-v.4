@@ -41,7 +41,7 @@ const AdminDashboard = () => {
           {/* View Collections Button */}
           <div 
             className="bg-purple-500 text-white px-6 py-4 rounded-lg shadow-lg cursor-pointer hover:bg-purple-600 transition duration-300"
-            onClick={() => navigate("/collections")}
+            onClick={() => navigate("/admin/collections")}
           >
             <h2 className="text-xl font-semibold">🔍 View Collections</h2>
             <p className="text-sm mt-2">Browse all books and chapters</p>

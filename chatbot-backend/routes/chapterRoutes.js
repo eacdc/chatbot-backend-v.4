@@ -203,17 +203,44 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
 
     // Add a timeout for the OpenAI request
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('OpenAI request timed out')), 60000); // 60 seconds timeout
+      setTimeout(() => reject(new Error('OpenAI request timed out')), 180000); // 3 minutes timeout
     });
     
-    // Send request to OpenAI with timeout
-    const openAIPromise = openai.chat.completions.create({
-      model: "gpt-4o",
-      temperature: 0,
-      messages: messagesForOpenAI,
-    });
+    // Function to make OpenAI request with retry logic
+    const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
+      try {
+        console.log(`OpenAI request attempt ${retryCount + 1}/${maxRetries + 1}`);
+        
+        // Send request to OpenAI
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          temperature: 0,
+          messages: messagesForOpenAI,
+        });
+        
+        if (!response || !response.choices || response.choices.length === 0) {
+          throw new Error("Invalid response from OpenAI");
+        }
+        
+        return response;
+      } catch (error) {
+        // If we've reached max retries, throw the error
+        if (retryCount >= maxRetries) {
+          throw error;
+        }
+        
+        console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+        
+        // Wait before retrying (exponential backoff: 2s, 4s)
+        await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+        
+        // Try again with incremented retry count
+        return makeOpenAIRequest(retryCount + 1, maxRetries);
+      }
+    };
     
-    // Race the promises
+    // Race the promises with retry logic
+    const openAIPromise = makeOpenAIRequest();
     const response = await Promise.race([openAIPromise, timeoutPromise]);
 
     if (!response || !response.choices || response.choices.length === 0) {
@@ -231,7 +258,7 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
     // Add specific error messages based on the error type
     if (error.message === 'OpenAI request timed out') {
       return res.status(504).json({ 
-        error: "Processing timed out. The text may be too complex. Please try with a smaller text segment." 
+        error: "Processing timed out. The text may be too complex. Please try with a smaller text segment or try again later." 
       });
     }
     

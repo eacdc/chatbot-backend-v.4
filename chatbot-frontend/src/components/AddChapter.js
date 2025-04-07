@@ -103,13 +103,18 @@ const AddChapter = () => {
           return;
         }
         
+        if (error.response.status === 504) {
+          setError("Processing timed out. The text may be too complex or too large. Try with a smaller text segment or wait a few minutes and try again.");
+          return;
+        }
+        
         if (error.response.status === 500) {
           setError("Server error processing text. The text may be too long or contain invalid characters.");
           return;
         }
       } else if (error.request) {
         console.error("No response received from server");
-        setError("No response received from server. Please check your connection and try again.");
+        setError("No response received from server. The server may be overwhelmed with the size of your text. Please check your connection, reduce the text size, or try again later.");
         return;
       }
       

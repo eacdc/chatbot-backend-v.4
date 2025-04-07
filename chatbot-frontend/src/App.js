@@ -10,6 +10,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import AddBook from "./components/AddBook";  // Create this later
 import AddChapter from "./components/AddChapter";  // Create this later
 import Collections from "./components/Collections"; // Import the Collections page
+import AdminCollections from "./components/AdminCollections"; // Import the AdminCollections page
 import Profile from "./components/Profile"; // Import the Profile page
 import { isAuthenticated, setupActivityTracking } from "./utils/auth"; // Import auth utilities
 import "./App.css";
@@ -56,6 +57,7 @@ function App() {
         <Route path="/admin/dashboard" element={<ProtectedAdminRoute element={<AdminDashboard />} />} />
         <Route path="/admin/add-book" element={<ProtectedAdminRoute element={<AddBook />} />} />
         <Route path="/admin/add-chapter" element={<ProtectedAdminRoute element={<AddChapter />} />} />
+        <Route path="/admin/collections" element={<ProtectedAdminRoute element={<AdminCollections />} />} />
         
         {/* Protected User Routes */}
         <Route path="/collections" element={
