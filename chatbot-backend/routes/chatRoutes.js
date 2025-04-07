@@ -12,8 +12,8 @@ if (!process.env.OPENAI_API_KEY) {
     process.exit(1);
 }
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_D, baseURL: 'https://api.deepseek.com' });
-const openaiStandard = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+//const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_D, baseURL: 'https://api.deepseek.com' });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Configure multer storage for audio files
 const storage = multer.diskStorage({
@@ -107,7 +107,8 @@ router.post("/send", async (req, res) => {
 
         // Get AI response
         const response = await openai.chat.completions.create({
-            model: "deepseek-chat",
+            // model: "deepseek-chat",
+            model: "gpt-4o-mini",
             messages: messagesForOpenAI,
             temperature: 1.25,
         });
