@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import adminAxiosInstance from "../utils/adminAxios";
 import { API_ENDPOINTS } from "../config";
 import { useNavigate } from "react-router-dom";
 
@@ -43,14 +44,10 @@ const AddBook = () => {
         return;
       }
 
-      const response = await axios.post(
+      const response = await adminAxiosInstance.post(
         API_ENDPOINTS.ADD_BOOK, 
-        bookData,
-        {
-          headers: {
-            'Authorization': `Bearer ${adminToken}`
-          }
-        }
+        bookData
+        // No need to manually set headers - adminAxiosInstance will do it
       );
 
       if (response.status === 201) {
@@ -66,7 +63,17 @@ const AddBook = () => {
       }
     } catch (error) {
       console.error("Error adding book:", error);
-      setError(error.response?.data?.message || "❌ Failed to add book. Please try again.");
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", error.response.data);
+        
+        // Handle specific error cases
+        if (error.response.status === 401) {
+          setError("Authentication failed. Please log in again as an admin.");
+          return;
+        }
+      }
+      setError(error.response?.data?.message || error.response?.data?.error || "❌ Failed to add book. Please try again.");
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,8 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const Admin = require("../models/Admin");
+require("dotenv").config();
 
 const router = express.Router();
 
@@ -68,8 +70,30 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    res.json({ message: "Login successful", token: "admin-jwt-token" });
+    // Generate JWT token
+    const payload = {
+      adminId: admin._id,
+      name: admin.name,
+      email: admin.email,
+      role: "admin"
+    };
+
+    // Sign token with same JWT_SECRET as user auth
+    jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }, // Token expires in 1 day
+      (err, token) => {
+        if (err) throw err;
+        res.json({
+          message: "Login successful",
+          token,
+          adminId: admin._id
+        });
+      }
+    );
   } catch (error) {
+    console.error("Admin login error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });

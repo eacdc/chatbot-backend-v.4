@@ -20,6 +20,8 @@ const AdminLogin = () => {
         password,
       });
 
+      console.log("Admin login response:", response.data);
+
       if (response.data.status === "Pending") {
         setError("Your admin account is pending approval.");
         setLoading(false);
@@ -27,11 +29,31 @@ const AdminLogin = () => {
       }
 
       if (response.data.token) {
+        // Clear any previous token
+        localStorage.removeItem("adminToken");
+        
+        // Store the new token and admin ID
         localStorage.setItem("adminToken", response.data.token);
-        navigate("/admin/dashboard"); // ✅ Redirect to Admin Dashboard
+        if (response.data.adminId) {
+          localStorage.setItem("adminId", response.data.adminId);
+        }
+        
+        // Add a slight delay to ensure localStorage is updated
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Navigate to admin dashboard
+        navigate("/admin/dashboard");
+      } else {
+        setError("Invalid response from server. Please try again.");
       }
     } catch (err) {
-      setError("Invalid credentials or approval pending.");
+      console.error("Admin login error:", err);
+      if (err.response) {
+        const errorMsg = err.response.data?.message || "Authentication failed";
+        setError(errorMsg);
+      } else {
+        setError("Failed to connect to server. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

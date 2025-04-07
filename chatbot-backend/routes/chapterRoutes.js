@@ -4,6 +4,8 @@ const Chat = require("../models/Chat");
 const Chapter = require("../models/Chapter");
 const OpenAI = require("openai");
 const jwt = require("jsonwebtoken"); // Make sure to import jwt
+const authenticateUser = require("../middleware/authMiddleware");
+const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -13,7 +15,7 @@ if (!process.env.OPENAI_API_KEY) {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // In routes/chapters.js
-router.post("/", async (req, res) => {
+router.post("/", authenticateAdmin, async (req, res) => {
     try {
       const { bookId, title, prompt } = req.body;
       const newChapter = new Chapter({ bookId, title, prompt });
@@ -170,8 +172,9 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
     }
 });
 
+// Apply admin authentication middleware to admin routes
 // Process raw text through OpenAI
-router.post("/process-text", async (req, res) => {
+router.post("/process-text", authenticateAdmin, async (req, res) => {
     try {
       const { rawText } = req.body;
   
@@ -209,7 +212,7 @@ router.post("/process-text", async (req, res) => {
   });
 
 // Generate QnA through OpenAI
-router.post("/generate-qna", async (req, res) => {
+router.post("/generate-qna", authenticateAdmin, async (req, res) => {
     try {
       const { subject, grade, text, specialInstructions } = req.body;
   
@@ -268,8 +271,8 @@ After each question mention the difficulty level {easy, medium, hard}. This will
     }
   });
 
-// Generate Final Prompt through OpenAI
-router.post("/generate-final-prompt", async (req, res) => {
+// Generate final prompt through OpenAI
+router.post("/generate-final-prompt", authenticateAdmin, async (req, res) => {
     try {
       const { subject, grade, specialInstructions, qnaOutput } = req.body;
   

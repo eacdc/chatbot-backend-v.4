@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import adminAxiosInstance from "../utils/adminAxios";
 import { API_ENDPOINTS } from "../config";
 
 const AddChapter = () => {
@@ -65,14 +66,9 @@ const AddChapter = () => {
         return;
       }
 
-      console.log("Sending request to process text...");
-      const response = await axios.post(API_ENDPOINTS.PROCESS_TEXT, 
-        { rawText: chapterData.rawText },
-        { 
-          headers: { 
-            'Authorization': `Bearer ${adminToken}` 
-          } 
-        }
+      console.log("Sending request to process text with admin token...");
+      const response = await adminAxiosInstance.post(API_ENDPOINTS.PROCESS_TEXT, 
+        { rawText: chapterData.rawText }
       );
       
       console.log("Response received:", response.status);
@@ -86,8 +82,14 @@ const AddChapter = () => {
       if (error.response) {
         console.error("Response status:", error.response.status);
         console.error("Response data:", error.response.data);
+        
+        // Handle specific error cases
+        if (error.response.status === 401) {
+          setError("Authentication failed. Please log in again as an admin.");
+          return;
+        }
       }
-      setError(error.response?.data?.message || "Failed to process text. Please try again.");
+      setError(error.response?.data?.error || error.response?.data?.message || "Failed to process text. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -115,18 +117,13 @@ const AddChapter = () => {
         return;
       }
 
-      console.log("Sending request to generate QnA...");
-      const response = await axios.post(API_ENDPOINTS.GENERATE_QNA, 
+      console.log("Sending request to generate QnA with admin token...");
+      const response = await adminAxiosInstance.post(API_ENDPOINTS.GENERATE_QNA, 
         {
           subject: chapterData.subject,
           grade: chapterData.grade,
           text: chapterData.goodText || chapterData.rawText,
           specialInstructions: chapterData.specialInstructions
-        },
-        { 
-          headers: { 
-            'Authorization': `Bearer ${adminToken}` 
-          } 
         }
       );
       
@@ -141,8 +138,14 @@ const AddChapter = () => {
       if (error.response) {
         console.error("Response status:", error.response.status);
         console.error("Response data:", error.response.data);
+        
+        // Handle specific error cases
+        if (error.response.status === 401) {
+          setError("Authentication failed. Please log in again as an admin.");
+          return;
+        }
       }
-      setError(error.response?.data?.message || "Failed to generate QnA. Please try again.");
+      setError(error.response?.data?.error || error.response?.data?.message || "Failed to generate QnA. Please try again.");
     } finally {
       setQnaLoading(false);
     }
@@ -165,18 +168,13 @@ const AddChapter = () => {
         return;
       }
 
-      console.log("Sending request to generate final prompt...");
-      const response = await axios.post(API_ENDPOINTS.GENERATE_FINAL_PROMPT, 
+      console.log("Sending request to generate final prompt with admin token...");
+      const response = await adminAxiosInstance.post(API_ENDPOINTS.GENERATE_FINAL_PROMPT, 
         {
           subject: chapterData.subject,
           grade: chapterData.grade,
           specialInstructions: chapterData.specialInstructions,
           qnaOutput: chapterData.qnaOutput
-        },
-        { 
-          headers: { 
-            'Authorization': `Bearer ${adminToken}` 
-          } 
         }
       );
       
@@ -191,8 +189,14 @@ const AddChapter = () => {
       if (error.response) {
         console.error("Response status:", error.response.status);
         console.error("Response data:", error.response.data);
+        
+        // Handle specific error cases
+        if (error.response.status === 401) {
+          setError("Authentication failed. Please log in again as an admin.");
+          return;
+        }
       }
-      setError(error.response?.data?.message || "Failed to generate final prompt. Please try again.");
+      setError(error.response?.data?.error || error.response?.data?.message || "Failed to generate final prompt. Please try again.");
     } finally {
       setFinalPromptLoading(false);
     }
@@ -217,14 +221,10 @@ const AddChapter = () => {
         return;
       }
 
-      const response = await axios.post(
+      console.log("Sending request to add chapter with admin token...");
+      const response = await adminAxiosInstance.post(
         API_ENDPOINTS.ADD_CHAPTER, 
-        dataToSubmit,
-        {
-          headers: {
-            'Authorization': `Bearer ${adminToken}`
-          }
-        }
+        dataToSubmit
       );
       
       if (response.status === 201) {
@@ -244,7 +244,17 @@ const AddChapter = () => {
       }
     } catch (error) {
       console.error("Error adding chapter:", error);
-      setError(error.response?.data?.message || "Failed to add chapter. Please try again.");
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", error.response.data);
+        
+        // Handle specific error cases
+        if (error.response.status === 401) {
+          setError("Authentication failed. Please log in again as an admin.");
+          return;
+        }
+      }
+      setError(error.response?.data?.error || error.response?.data?.message || "Failed to add chapter. Please try again.");
     } finally {
       setLoading(false);
     }
