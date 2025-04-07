@@ -70,9 +70,9 @@ const AddChapter = () => {
       console.log("Text length:", chapterData.rawText.length);
       
       // If text is very long, add a warning in the log
-      if (chapterData.rawText.length > 10000) {
-        console.warn("Warning: Text is very long. This may cause issues with processing.");
-      }
+      // if (chapterData.rawText.length > 10000) {
+      //   console.warn("Warning: Text is very long. This may cause issues with processing.");
+      // }
       
       const response = await adminAxiosInstance.post(API_ENDPOINTS.PROCESS_TEXT, 
         { rawText: chapterData.rawText }
@@ -98,23 +98,18 @@ const AddChapter = () => {
           return;
         }
         
-        if (error.response.status === 413) {
-          setError("Text is too large to process. Please break it into smaller chunks.");
-          return;
-        }
-        
         if (error.response.status === 504) {
-          setError("Processing timed out. The text may be too complex or too large. Try with a smaller text segment or wait a few minutes and try again.");
+          setError("Processing timed out. The text may be too complex. Please try again later or try processing in multiple sessions.");
           return;
         }
         
         if (error.response.status === 500) {
-          setError("Server error processing text. The text may be too long or contain invalid characters.");
+          setError("Server error processing text. Please try again later.");
           return;
         }
       } else if (error.request) {
         console.error("No response received from server");
-        setError("No response received from server. The server may be overwhelmed with the size of your text. Please check your connection, reduce the text size, or try again later.");
+        setError("No response received from server. Please check your connection and try again later.");
         return;
       }
       
@@ -173,7 +168,22 @@ const AddChapter = () => {
           setError("Authentication failed. Please log in again as an admin.");
           return;
         }
+        
+        if (error.response.status === 504) {
+          setError("Processing timed out. The text may be too complex. Please try again later.");
+          return;
+        }
+        
+        if (error.response.status === 500) {
+          setError("Server error processing QnA. Please try again later.");
+          return;
+        }
+      } else if (error.request) {
+        console.error("No response received from server");
+        setError("No response received from server. Please check your connection and try again later.");
+        return;
       }
+      
       setError(error.response?.data?.error || error.response?.data?.message || "Failed to generate QnA. Please try again.");
     } finally {
       setQnaLoading(false);
@@ -224,7 +234,22 @@ const AddChapter = () => {
           setError("Authentication failed. Please log in again as an admin.");
           return;
         }
+        
+        if (error.response.status === 504) {
+          setError("Processing timed out. The text may be too complex. Please try again later.");
+          return;
+        }
+        
+        if (error.response.status === 500) {
+          setError("Server error generating final prompt. Please try again later.");
+          return;
+        }
+      } else if (error.request) {
+        console.error("No response received from server");
+        setError("No response received from server. Please check your connection and try again later.");
+        return;
       }
+      
       setError(error.response?.data?.error || error.response?.data?.message || "Failed to generate final prompt. Please try again.");
     } finally {
       setFinalPromptLoading(false);

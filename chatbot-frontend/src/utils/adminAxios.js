@@ -8,7 +8,7 @@ console.log('Admin API URL:', API_URL);
 
 const adminAxiosInstance = axios.create({
   baseURL: API_URL,
-  timeout: 300000, // 5 minutes timeout for long text processing operations
+  timeout: 600000, // 10 minutes timeout for very large text processing operations
   headers: {
     'Content-Type': 'application/json'
   }

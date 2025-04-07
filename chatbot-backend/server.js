@@ -8,8 +8,8 @@ const compression = require("compression"); // Add compression middleware
 console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "Not Found");
 
 const app = express();
-app.use(express.json({ limit: '50mb' })); // Increase JSON body size limit
-app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Increase URL-encoded body size limit
+app.use(express.json({ limit: '100mb' })); // Increase JSON body size limit to handle very large texts
+app.use(express.urlencoded({ extended: true, limit: '100mb' })); // Increase URL-encoded body size limit
 app.use(compression()); // Use compression for all responses
 
 // ✅ Improved CORS

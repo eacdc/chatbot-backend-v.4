@@ -181,14 +181,6 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: "Raw text is required" });
     }
     
-    // Add input validation and size limits
-    if (rawText.length > 50000) {
-      console.warn("Text too large:", rawText.length, "characters");
-      return res.status(413).json({ 
-        error: "Text is too large to process. Please break it into smaller chunks (max 50000 characters)." 
-      });
-    }
-
     // Log processing attempt
     console.log(`Processing text of length: ${rawText.length} characters`);
     
@@ -203,7 +195,7 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
 
     // Add a timeout for the OpenAI request
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('OpenAI request timed out')), 300000); // 5 minutes timeout
+      setTimeout(() => reject(new Error('OpenAI request timed out')), 600000); // 10 minutes timeout for large texts
     });
     
     // Function to make OpenAI request with retry logic
