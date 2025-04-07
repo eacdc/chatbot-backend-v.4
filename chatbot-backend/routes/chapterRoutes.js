@@ -172,44 +172,83 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
     }
 });
 
-// Apply admin authentication middleware to admin routes
 // Process raw text through OpenAI
 router.post("/process-text", authenticateAdmin, async (req, res) => {
-    try {
-      const { rawText } = req.body;
-  
-      if (!rawText) {
-        return res.status(400).json({ error: "Raw text is required" });
-      }
-  
-      // Predefined system prompt for processing text
-      const systemPrompt = " Below find raw text that i got after converting PDF of a book to text file. I need you to fix the text word by word, sentence by sentence.Do not omit any content. Also try to locate the page number of the book and in your converted text use page number as reference.Go ahead page by page and convert the raw text to what actual text would appear.Do not include any outside knowledge or content. Also do not ignore any word or sentence.If the raw text, contains portions which are in different language retain the same without translating";
-  
-      // Construct messages for OpenAI
-      const messagesForOpenAI = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: rawText }
-      ];
-  
-      // Get AI response
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        temperature: 0,
-        messages: messagesForOpenAI,
-      });
-  
-      if (!response || !response.choices || response.choices.length === 0) {
-        throw new Error("Invalid response from OpenAI");
-      }
-  
-      const processedText = response.choices[0].message.content;
-      res.json({ processedText });
-  
-    } catch (error) {
-      console.error("Error processing text:", error);
-      res.status(500).json({ error: "Failed to process text", message: error.message });
+  try {
+    const { rawText } = req.body;
+
+    if (!rawText) {
+      return res.status(400).json({ error: "Raw text is required" });
     }
-  });
+    
+    // Add input validation and size limits
+    if (rawText.length > 25000) {
+      console.warn("Text too large:", rawText.length, "characters");
+      return res.status(413).json({ 
+        error: "Text is too large to process. Please break it into smaller chunks (max 25000 characters)." 
+      });
+    }
+
+    // Log processing attempt
+    console.log(`Processing text of length: ${rawText.length} characters`);
+    
+    // Predefined system prompt for processing text
+    const systemPrompt = "Below find raw text that i got after converting PDF of a book to text file. I need you to fix the text word by word, sentence by sentence.Do not omit any content. Also try to locate the page number of the book and in your converted text use page number as reference.Go ahead page by page and convert the raw text to what actual text would appear.Do not include any outside knowledge or content. Also do not ignore any word or sentence.If the raw text, contains portions which are in different language retain the same without translating";
+
+    // Construct messages for OpenAI
+    const messagesForOpenAI = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: rawText }
+    ];
+
+    // Add a timeout for the OpenAI request
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('OpenAI request timed out')), 60000); // 60 seconds timeout
+    });
+    
+    // Send request to OpenAI with timeout
+    const openAIPromise = openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0,
+      messages: messagesForOpenAI,
+    });
+    
+    // Race the promises
+    const response = await Promise.race([openAIPromise, timeoutPromise]);
+
+    if (!response || !response.choices || response.choices.length === 0) {
+      console.error("Invalid or empty response from OpenAI");
+      throw new Error("Invalid response from OpenAI");
+    }
+
+    const processedText = response.choices[0].message.content;
+    console.log("Text processed successfully. Result length:", processedText.length);
+    res.json({ processedText });
+
+  } catch (error) {
+    console.error("Error processing text:", error);
+    
+    // Add specific error messages based on the error type
+    if (error.message === 'OpenAI request timed out') {
+      return res.status(504).json({ 
+        error: "Processing timed out. The text may be too complex. Please try with a smaller text segment." 
+      });
+    }
+    
+    // Check for OpenAI API errors
+    if (error.response?.status) {
+      console.error("OpenAI API error:", error.response.status, error.response.data);
+      return res.status(502).json({ 
+        error: "Error from AI service. Please try again later." 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: "Failed to process text", 
+      message: error.message || "Unknown error"
+    });
+  }
+});
 
 // Generate QnA through OpenAI
 router.post("/generate-qna", authenticateAdmin, async (req, res) => {

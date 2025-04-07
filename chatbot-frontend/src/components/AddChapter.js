@@ -67,6 +67,13 @@ const AddChapter = () => {
       }
 
       console.log("Sending request to process text with admin token...");
+      console.log("Text length:", chapterData.rawText.length);
+      
+      // If text is very long, add a warning in the log
+      if (chapterData.rawText.length > 10000) {
+        console.warn("Warning: Text is very long. This may cause issues with processing.");
+      }
+      
       const response = await adminAxiosInstance.post(API_ENDPOINTS.PROCESS_TEXT, 
         { rawText: chapterData.rawText }
       );
@@ -79,16 +86,33 @@ const AddChapter = () => {
       setSuccessMessage("Text processed successfully!");
     } catch (error) {
       console.error("Error processing text:", error);
+      
+      // More detailed error logging
       if (error.response) {
         console.error("Response status:", error.response.status);
-        console.error("Response data:", error.response.data);
+        console.error("Response data:", JSON.stringify(error.response.data));
         
         // Handle specific error cases
         if (error.response.status === 401) {
           setError("Authentication failed. Please log in again as an admin.");
           return;
         }
+        
+        if (error.response.status === 413) {
+          setError("Text is too large to process. Please break it into smaller chunks.");
+          return;
+        }
+        
+        if (error.response.status === 500) {
+          setError("Server error processing text. The text may be too long or contain invalid characters.");
+          return;
+        }
+      } else if (error.request) {
+        console.error("No response received from server");
+        setError("No response received from server. Please check your connection and try again.");
+        return;
       }
+      
       setError(error.response?.data?.error || error.response?.data?.message || "Failed to process text. Please try again.");
     } finally {
       setLoading(false);
@@ -270,12 +294,18 @@ const AddChapter = () => {
                 <h1 className="text-xl sm:text-2xl font-bold text-white">Add New Chapter</h1>
                 <p className="mt-1 text-sm text-blue-100">Create educational content for students</p>
               </div>
-              <div className="hidden sm:block">
-                <a href="/collections" className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-indigo-100 bg-indigo-800 hover:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:shadow-outline-indigo transition duration-150 ease-in-out">
+              <div className="hidden sm:flex space-x-3">
+                <a href="/admin/dashboard" className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-indigo-100 bg-indigo-800 hover:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:shadow-outline-indigo transition duration-150 ease-in-out">
                   <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
-                  Back to Collections
+                  Back
+                </a>
+                <a href="/collections" className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-indigo-100 bg-indigo-800 hover:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:shadow-outline-indigo transition duration-150 ease-in-out">
+                  <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  View Collections
                 </a>
               </div>
             </div>
