@@ -182,10 +182,10 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
     }
     
     // Add input validation and size limits
-    if (rawText.length > 25000) {
+    if (rawText.length > 50000) {
       console.warn("Text too large:", rawText.length, "characters");
       return res.status(413).json({ 
-        error: "Text is too large to process. Please break it into smaller chunks (max 25000 characters)." 
+        error: "Text is too large to process. Please break it into smaller chunks (max 50000 characters)." 
       });
     }
 
@@ -193,7 +193,7 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
     console.log(`Processing text of length: ${rawText.length} characters`);
     
     // Predefined system prompt for processing text
-    const systemPrompt = "Below find raw text that i got after converting PDF of a book to text file. I need you to fix the text word by word, sentence by sentence.Do not omit any content. Also try to locate the page number of the book and in your converted text use page number as reference.Go ahead page by page and convert the raw text to what actual text would appear.Do not include any outside knowledge or content. Also do not ignore any word or sentence.If the raw text, contains portions which are in different language retain the same without translating";
+    const systemPrompt = "Below find raw text that I got after converting a PDF of a book to a text file. I need you to fix the text word by word, sentence by sentence. Do not omit any content. \n\nImportant instructions:\n1. Look for and properly format page numbers in the text\n2. Fix any special characters or escape sequences (like \\t, \\n, \\x07, etc.) that appear in the raw text\n3. Maintain proper paragraph structure and formatting\n4. Preserve all content including figure references (Fig. X.X) and mathematical symbols\n5. If text contains different languages, retain them without translation\n6. Handle any control characters or strange formatting artifacts from the PDF conversion\n\nGo ahead page by page and convert the raw text to what the actual text would appear like in the original book. Do not add any outside knowledge or content.";
 
     // Construct messages for OpenAI
     const messagesForOpenAI = [
