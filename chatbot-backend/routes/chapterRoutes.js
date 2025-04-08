@@ -313,7 +313,7 @@ After each question mention the difficulty level {easy, medium, hard}. This will
     // Construct messages for OpenAI
     const messagesForOpenAI = [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Please generate questions and answers based on the following text:\n\n${text}` }
+      { role: "user", content: `Please generate questions based on the following text:\n\n${text}` }
     ];
 
     // Add a timeout for the OpenAI request
@@ -329,6 +329,7 @@ After each question mention the difficulty level {easy, medium, hard}. This will
         // Send request to OpenAI
         const response = await openai.chat.completions.create({
           model: "gpt-4o",
+          temperature: 0,
           messages: messagesForOpenAI,
         });
         
