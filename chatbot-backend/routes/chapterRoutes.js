@@ -271,125 +271,213 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
 
 // Generate QnA through OpenAI
 router.post("/generate-qna", authenticateAdmin, async (req, res) => {
-    try {
-      const { subject, grade, text, specialInstructions } = req.body;
-  
-      if (!text) {
-        return res.status(400).json({ error: "Text content is required" });
-      }
-  
-      // Predefined system prompt for QnA generation
-      const systemPrompt = `Prompt for generation of questions: 
-You are an intelligent and adaptive tutor designed to help students improve their understanding of a subject. You will receive a chapter or passage from a textbook, and your task is to generate a variety of questions strictly based on the content provided. Your questions should be engaging, diverse in format, and cover different difficulty levels to help students grasp concepts thoroughly.
+  try {
+    const { goodText } = req.body;
 
-Question Types & Criteria:
-Basic Recall Questions – Directly test the student's memory by asking factual questions from the text.
-Example: "What is the definition of [concept]?"
-Multiple-Choice Questions (MCQs) – Convert key concepts into MCQs with one correct answer and three plausible distractors.
-Example: "Which of the following statements about [topic] is true?"
-Conceptual Understanding Questions – Encourage students to think deeper by rewording information in a way that tests their comprehension.
-Example: "Why does [concept] occur in this process?"
-Application-Based Questions – Connect concepts to real-world scenarios to make learning more engaging.
-Example: "How would you apply [concept] in [real-life situation]?"
-Critical Thinking & Analytical Questions – Challenge students to evaluate, compare, or infer conclusions based on the text.
-Example: "If [scenario] changes, what would happen to [concept]?"
-Fill-in-the-Blanks & Match-the-Following – Engage students in active recall exercises.
-Example: "The process of [blank] is essential for [blank]."
-Short Answer & Long-Form Questions – Test the ability to express understanding in their own words.
-Example: "Explain the importance of [concept] in your own words."
-Guidelines:
-Ensure that all questions strictly come from the provided text. Do not add any external information.
-Balance difficulty levels: 30% easy, 30% moderate, 40% challenging.
-Make questions engaging by incorporating practical examples or relatable scenarios when possible.
-Avoid direct repetition—each question should test a unique aspect of the content.
-Ensure clarity and precision in wording.
-After each question mention the difficulty level {easy, medium, hard}. This will enable the software to select the right question based on the answer of previous question, create a bank of atleast 30 questions`
-      // Construct messages for OpenAI
-      const messagesForOpenAI = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text }
-      ];
-  
-      // Get AI response
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: messagesForOpenAI,
-      });
-  
-      if (!response || !response.choices || response.choices.length === 0) {
-        throw new Error("Invalid response from OpenAI");
-      }
-  
-      const qnaOutput = response.choices[0].message.content;
-      res.json({ qnaOutput });
-  
-    } catch (error) {
-      console.error("Error generating QnA:", error);
-      res.status(500).json({ error: "Failed to generate QnA", message: error.message });
+    if (!goodText) {
+      return res.status(400).json({ error: "Good text is required" });
     }
-  });
+
+    console.log("Generating QnA with text length:", goodText.length);
+
+    // Predefined system prompt for QnA generation
+    const systemPrompt = `You are a helpful assistant that generates insightful questions and answers based on provided text. Your task is to create comprehensive question-answer pairs that thoroughly cover the educational content. 
+
+For each section or key concept in the text, create 3-5 question-answer pairs. 
+
+Follow these guidelines:
+1. Questions should be diverse in complexity (basic recall, application, analysis)
+2. Questions should be clear and specific
+3. Answers should be comprehensive but concise
+4. Include important details, facts, and concepts from the text
+5. Format your response as "Q1: [Question]" followed by "A1: [Answer]" for each pair
+6. Focus on the most important concepts in the text
+7. If the text contains mathematical equations, include questions about understanding and applying them
+8. If the text contains historical events, ask about their significance and impact
+9. Number your questions sequentially (Q1, Q2, etc.)
+
+IMPORTANT: Only use information explicitly stated in the provided text. Do not introduce external facts or make assumptions not supported by the text.`;
+
+    // Construct messages for OpenAI
+    const messagesForOpenAI = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Please generate questions and answers based on the following text:\n\n${goodText}` }
+    ];
+
+    // Add a timeout for the OpenAI request
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('OpenAI request timed out')), 600000); // 10 minutes timeout
+    });
+    
+    // Function to make OpenAI request with retry logic
+    const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
+      try {
+        console.log(`QnA generation attempt ${retryCount + 1}/${maxRetries + 1}`);
+        
+        // Send request to OpenAI
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: messagesForOpenAI,
+        });
+        
+        if (!response || !response.choices || response.choices.length === 0) {
+          throw new Error("Invalid response from OpenAI");
+        }
+        
+        return response;
+      } catch (error) {
+        // If we've reached max retries, throw the error
+        if (retryCount >= maxRetries) {
+          throw error;
+        }
+        
+        console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+        
+        // Wait before retrying (exponential backoff: 2s, 4s)
+        await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+        
+        // Try again with incremented retry count
+        return makeOpenAIRequest(retryCount + 1, maxRetries);
+      }
+    };
+    
+    // Race the promises
+    const openAIPromise = makeOpenAIRequest();
+    const response = await Promise.race([openAIPromise, timeoutPromise]);
+
+    if (!response || !response.choices || response.choices.length === 0) {
+      throw new Error("Invalid response from OpenAI");
+    }
+
+    const qnaOutput = response.choices[0].message.content;
+    res.json({ qnaOutput });
+
+  } catch (error) {
+    console.error("Error generating QnA:", error);
+    
+    // Add specific error messages based on the error type
+    if (error.message === 'OpenAI request timed out') {
+      return res.status(504).json({ 
+        error: "Processing timed out. The text may be too complex. Please try again later." 
+      });
+    }
+    
+    // Check for OpenAI API errors
+    if (error.response?.status) {
+      console.error("OpenAI API error:", error.response.status, error.response.data);
+      return res.status(502).json({ 
+        error: "Error from AI service. Please try again later." 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: "Failed to generate QnA", 
+      message: error.message || "Unknown error" 
+    });
+  }
+});
 
 // Generate final prompt through OpenAI
 router.post("/generate-final-prompt", authenticateAdmin, async (req, res) => {
-    try {
-      const { subject, grade, specialInstructions, qnaOutput } = req.body;
-  
-      if (!qnaOutput) {
-        return res.status(400).json({ error: "QnA content is required" });
-      }
-  
-      // Create a modified system prompt by inserting the values directly
-      const finalPrompt = `Question Bank
-  
-          ${qnaOutput}
-  
-          End of Question Bank
-  
-          You are a brilliant and strict yet friendly teacher who focuses on improving students' understanding of the subject. For this session, you are teaching ${subject} for Grade ${grade}.
-  
-          You have been provided with a set of reference questions from the student's lesson. However, you must rephrase, rewrite, and enhance the questions to make them engaging, interactive, and appropriately challenging. The questions should be asked one at a time, and student responses must be carefully evaluated.
-  
-          Questioning and Evaluation Approach
-          Randomized Questions: Select questions in a non-sequential manner to keep students engaged.
-          Adaptive Difficulty:
-          If a student answers correctly, gradually increase the difficulty to challenge them.
-          If they answer incorrectly, ask a simpler or related question to reinforce the concept.
-          Scoring & Feedback:
-          Assign a score out of 10 for each response, based on the accuracy, depth, and relevance of the answer.
-          Strict scoring: Be fair, but do not over-score incorrect or vague answers.
-          If the student scores below 6, ask if they would like to reattempt before moving to the next question.
-          If the answer is completely incorrect, explain the concept clearly, referring to the relevant section of the book.
-          Subject-Specific Evaluation Standards
-          Science, Mathematics, and Accounts:
-          Answers must be precise and accurate.
-          Partial understanding results in lower scores and additional guidance.
-          History, Literature, and Humanities:
-          Answers should demonstrate understanding beyond facts, connecting historical events or literary themes to the present.
-          Creativity and logical reasoning should be encouraged but factually incorrect answers will be marked low.
-          Languages & Creative Writing:
-          Evaluate grammar, structure, and expression of ideas.
-          Encouragement is key, but scores must reflect clarity, coherence, and correctness.
-          Interactive Learning Approach
-          Convert questions into multiple-choice, scenario-based, or real-life application questions where possible.
-          Never ask repetitive questions. If you do, you will be penalized $1000 per duplicate question!
-          Maintain a friendly, engaging, and supportive tone so students feel comfortable.
-          This is not an exam or interview! The goal is to help students learn, not intimidate them.
-          Final Evaluation
-          At the end of the session, provide a final score for the chapter.
-          If the overall score is below 6, ask if the student wants to reattempt answering some questions to improve their understanding.
-          Special Instructions
-          ${specialInstructions || ""}
-          Respond only in the language of knowledge (e.g., if the session is in French, stick to French).
-          Never answer off-topic questions—politely decline and refocus on the subject.
-          Encourage deeper thinking and curiosity while maintaining strict academic integrity.`;
-  
-      // Return the modified prompt directly without sending to OpenAI
-      res.json({ finalPrompt });
-  
-    } catch (error) {
-      console.error("Error generating final prompt:", error);
-      res.status(500).json({ error: "Failed to generate final prompt", message: error.message });
+  try {
+    const { goodText, qnaOutput } = req.body;
+
+    if (!goodText || !qnaOutput) {
+      return res.status(400).json({ error: "Good text and QnA output are required" });
     }
-  });
+
+    console.log("Generating final prompt with text length:", goodText.length);
+
+    // Predefined system prompt for final prompt generation
+    const systemPrompt = `You are an AI assistant tasked with creating a comprehensive academic resource based on educational content. Your job is to generate a final prompt that synthesizes the provided material into a well-structured, educational resource.
+
+Given the processed text and question-answer pairs, create a final prompt that:
+1. Preserves all factual information from the processed text
+2. Incorporates all the Q&A pairs in a meaningful way
+3. Maintains the academic tone and difficulty level
+4. Is organized with clear sections, headings, and subheadings
+5. Includes appropriate transitions between sections
+6. Adds explanatory notes where complex concepts appear
+
+The final prompt should be suitable for students to use as a comprehensive study resource.`;
+
+    // Construct messages for OpenAI
+    const messagesForOpenAI = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Please generate a final educational prompt based on this processed text:\n\n${goodText}\n\nAnd these question-answer pairs:\n\n${qnaOutput}` }
+    ];
+
+    // Add a timeout for the OpenAI request
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('OpenAI request timed out')), 600000); // 10 minutes timeout
+    });
+    
+    // Function to make OpenAI request with retry logic
+    const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
+      try {
+        console.log(`Final prompt generation attempt ${retryCount + 1}/${maxRetries + 1}`);
+        
+        // Send request to OpenAI
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: messagesForOpenAI,
+        });
+        
+        if (!response || !response.choices || response.choices.length === 0) {
+          throw new Error("Invalid response from OpenAI");
+        }
+        
+        return response;
+      } catch (error) {
+        // If we've reached max retries, throw the error
+        if (retryCount >= maxRetries) {
+          throw error;
+        }
+        
+        console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+        
+        // Wait before retrying (exponential backoff: 2s, 4s)
+        await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+        
+        // Try again with incremented retry count
+        return makeOpenAIRequest(retryCount + 1, maxRetries);
+      }
+    };
+    
+    // Race the promises
+    const openAIPromise = makeOpenAIRequest();
+    const response = await Promise.race([openAIPromise, timeoutPromise]);
+
+    if (!response || !response.choices || response.choices.length === 0) {
+      throw new Error("Invalid response from OpenAI");
+    }
+
+    const finalPrompt = response.choices[0].message.content;
+    res.json({ finalPrompt });
+
+  } catch (error) {
+    console.error("Error generating final prompt:", error);
+    
+    // Add specific error messages based on the error type
+    if (error.message === 'OpenAI request timed out') {
+      return res.status(504).json({ 
+        error: "Processing timed out. The text may be too complex. Please try again later." 
+      });
+    }
+    
+    // Check for OpenAI API errors
+    if (error.response?.status) {
+      console.error("OpenAI API error:", error.response.status, error.response.data);
+      return res.status(502).json({ 
+        error: "Error from AI service. Please try again later." 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: "Failed to generate final prompt", 
+      message: error.message || "Unknown error" 
+    });
+  }
+});
 
 module.exports = router;

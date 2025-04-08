@@ -12,7 +12,6 @@ if (!process.env.OPENAI_API_KEY) {
     process.exit(1);
 }
 
-//const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_D, baseURL: 'https://api.deepseek.com' });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Configure multer storage for audio files
@@ -105,13 +104,47 @@ router.post("/send", async (req, res) => {
         
         console.log("Sending to OpenAI:", messagesForOpenAI);
 
-        // Get AI response
-        const response = await openai.chat.completions.create({
-            // model: "deepseek-chat",
-            model: "gpt-4o-mini",
-            messages: messagesForOpenAI,
-            temperature: 1.25,
+        // Add a timeout for the OpenAI request
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('OpenAI request timed out')), 600000); // 10 minutes timeout
         });
+        
+        // Function to make OpenAI request with retry logic
+        const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
+          try {
+            console.log(`Chat message attempt ${retryCount + 1}/${maxRetries + 1}`);
+            
+            // Send request to OpenAI
+            const response = await openai.chat.completions.create({
+              model: "gpt-4o",
+              messages: messagesForOpenAI,
+              temperature: 0.7,
+            });
+            
+            if (!response || !response.choices || response.choices.length === 0) {
+              throw new Error("Invalid response from OpenAI");
+            }
+            
+            return response;
+          } catch (error) {
+            // If we've reached max retries, throw the error
+            if (retryCount >= maxRetries) {
+              throw error;
+            }
+            
+            console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+            
+            // Wait before retrying (exponential backoff: 2s, 4s)
+            await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+            
+            // Try again with incremented retry count
+            return makeOpenAIRequest(retryCount + 1, maxRetries);
+          }
+        };
+        
+        // Race the promises
+        const openAIPromise = makeOpenAIRequest();
+        const response = await Promise.race([openAIPromise, timeoutPromise]);
 
         if (!response || !response.choices || response.choices.length === 0) {
             throw new Error("Invalid response from OpenAI");
@@ -131,42 +164,116 @@ router.post("/send", async (req, res) => {
 
     } catch (error) {
         console.error("Error in chatbot API:", error);
-        res.status(500).json({ message: "Error getting response from OpenAI", error: error.message });
+        
+        // Add specific error messages based on the error type
+        if (error.message === 'OpenAI request timed out') {
+          return res.status(504).json({ 
+            error: "Chat processing timed out. Please try again with a shorter message." 
+          });
+        }
+        
+        // Check for OpenAI API errors
+        if (error.response?.status) {
+          console.error("OpenAI API error:", error.response.status, error.response.data);
+          return res.status(502).json({ 
+            error: "Error from AI service. Please try again later." 
+          });
+        }
+        
+        res.status(500).json({ 
+          error: "Error getting response", 
+          message: error.message || "Unknown error" 
+        });
     }
 });
 
-// Transcribe audio to text
-router.post("/transcribe", upload.single('audio'), async (req, res) => {
+// Transcribe audio and get AI response
+router.post("/transcribe", upload.single("audio"), async (req, res) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ error: "No audio file provided" });
+            return res.status(400).json({ error: "No audio file uploaded" });
         }
-        
-        console.log(`Transcribing audio file: ${req.file.path}`);
-        
-        const audioFilePath = req.file.path;
-        
-        // Call OpenAI's Whisper API to transcribe audio
-        const transcription = await openaiStandard.audio.transcriptions.create({
-            file: fs.createReadStream(audioFilePath),
-            model: "whisper-1",
-            response_format: "text"
+
+        console.log("Transcribing audio file:", req.file.filename);
+        const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
+
+        // Add timeout for the OpenAI transcription request
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('OpenAI transcription timed out')), 300000); // 5 minutes timeout
         });
         
-        // Clean up the uploaded file
-        fs.unlinkSync(audioFilePath);
+        // Function to make OpenAI transcription request with retry logic
+        const makeTranscriptionRequest = async (retryCount = 0, maxRetries = 2) => {
+            try {
+                console.log(`Transcription attempt ${retryCount + 1}/${maxRetries + 1}`);
+                
+                const transcription = await openai.audio.transcriptions.create({
+                    file: fs.createReadStream(audioFilePath),
+                    model: "whisper-1",
+                });
+                
+                if (!transcription || !transcription.text) {
+                    throw new Error("Invalid transcription response from OpenAI");
+                }
+                
+                return transcription;
+            } catch (error) {
+                // If we've reached max retries, throw the error
+                if (retryCount >= maxRetries) {
+                    throw error;
+                }
+                
+                console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+                
+                // Wait before retrying (exponential backoff: 2s, 4s)
+                await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+                
+                // Try again with incremented retry count
+                return makeTranscriptionRequest(retryCount + 1, maxRetries);
+            }
+        };
         
-        console.log(`Transcription successful: ${transcription.substring(0, 30)}...`);
-        
-        res.json({ text: transcription });
-        
+        // Race the promises
+        const openAIPromise = makeTranscriptionRequest();
+        const transcription = await Promise.race([openAIPromise, timeoutPromise]);
+
+        // Clean up the audio file
+        fs.unlink(audioFilePath, (err) => {
+            if (err) console.error("Error deleting audio file:", err);
+            else console.log("Audio file deleted successfully");
+        });
+
+        res.json({ text: transcription.text });
     } catch (error) {
         console.error("Error transcribing audio:", error);
-        // Clean up the file if it exists and there was an error
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
+        
+        // Clean up the audio file if it exists
+        if (req.file) {
+            const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
+            fs.unlink(audioFilePath, (err) => {
+                if (err) console.error("Error deleting audio file:", err);
+            });
         }
-        res.status(500).json({ error: "Failed to transcribe audio", message: error.message });
+        
+        // Add specific error messages based on the error type
+        if (error.message === 'OpenAI transcription timed out') {
+            return res.status(504).json({ 
+                error: "Audio transcription timed out. Please try with a shorter audio clip." 
+            });
+        }
+        
+        // Check for OpenAI API errors
+        if (error.response?.status) {
+            console.error("OpenAI API error:", error.response.status, error.response.data);
+            return res.status(502).json({ 
+                error: "Error from transcription service. Please try again later." 
+            });
+        }
+        
+        res.status(500).json({ 
+            error: "Error transcribing audio", 
+            message: error.message || "Unknown error" 
+        });
     }
 });
 
