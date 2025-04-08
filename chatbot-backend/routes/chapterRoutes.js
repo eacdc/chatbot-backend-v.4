@@ -380,103 +380,65 @@ IMPORTANT: Only use information explicitly stated in the provided text. Do not i
 // Generate final prompt through OpenAI
 router.post("/generate-final-prompt", authenticateAdmin, async (req, res) => {
   try {
-    const { goodText, qnaOutput } = req.body;
+    const { subject, grade, specialInstructions, qnaOutput } = req.body;
 
-    if (!goodText || !qnaOutput) {
-      return res.status(400).json({ error: "Good text and QnA output are required" });
+    if (!qnaOutput) {
+      return res.status(400).json({ error: "QnA content is required" });
     }
 
-    console.log("Generating final prompt with text length:", goodText.length);
+    // Create a modified system prompt by inserting the values directly
+    const finalPrompt = `Question Bank
 
-    // Predefined system prompt for final prompt generation
-    const systemPrompt = `You are an AI assistant tasked with creating a comprehensive academic resource based on educational content. Your job is to generate a final prompt that synthesizes the provided material into a well-structured, educational resource.
+        ${qnaOutput}
 
-Given the processed text and question-answer pairs, create a final prompt that:
-1. Preserves all factual information from the processed text
-2. Incorporates all the Q&A pairs in a meaningful way
-3. Maintains the academic tone and difficulty level
-4. Is organized with clear sections, headings, and subheadings
-5. Includes appropriate transitions between sections
-6. Adds explanatory notes where complex concepts appear
+        End of Question Bank
 
-The final prompt should be suitable for students to use as a comprehensive study resource.`;
+        You are a brilliant and strict yet friendly teacher who focuses on improving students' understanding of the subject. For this session, you are teaching ${subject} for Grade ${grade}.
 
-    // Construct messages for OpenAI
-    const messagesForOpenAI = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: `Please generate a final educational prompt based on this processed text:\n\n${goodText}\n\nAnd these question-answer pairs:\n\n${qnaOutput}` }
-    ];
+        You have been provided with a set of reference questions from the student's lesson. However, you must rephrase, rewrite, and enhance the questions to make them engaging, interactive, and appropriately challenging. The questions should be asked one at a time, and student responses must be carefully evaluated.
 
-    // Add a timeout for the OpenAI request
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('OpenAI request timed out')), 600000); // 10 minutes timeout
-    });
-    
-    // Function to make OpenAI request with retry logic
-    const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
-      try {
-        console.log(`Final prompt generation attempt ${retryCount + 1}/${maxRetries + 1}`);
-        
-        // Send request to OpenAI
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: messagesForOpenAI,
-        });
-        
-        if (!response || !response.choices || response.choices.length === 0) {
-          throw new Error("Invalid response from OpenAI");
-        }
-        
-        return response;
-      } catch (error) {
-        // If we've reached max retries, throw the error
-        if (retryCount >= maxRetries) {
-          throw error;
-        }
-        
-        console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
-        
-        // Wait before retrying (exponential backoff: 2s, 4s)
-        await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
-        
-        // Try again with incremented retry count
-        return makeOpenAIRequest(retryCount + 1, maxRetries);
-      }
-    };
-    
-    // Race the promises
-    const openAIPromise = makeOpenAIRequest();
-    const response = await Promise.race([openAIPromise, timeoutPromise]);
+        Questioning and Evaluation Approach
+        Randomized Questions: Select questions in a non-sequential manner to keep students engaged.
+        Adaptive Difficulty:
+        If a student answers correctly, gradually increase the difficulty to challenge them.
+        If they answer incorrectly, ask a simpler or related question to reinforce the concept.
+        Scoring & Feedback:
+        Assign a score out of 10 for each response, based on the accuracy, depth, and relevance of the answer.
+        Strict scoring: Be fair, but do not over-score incorrect or vague answers.
+        If the student scores below 6, ask if they would like to reattempt before moving to the next question.
+        If the answer is completely incorrect, explain the concept clearly, referring to the relevant section of the book.
+        Subject-Specific Evaluation Standards
+        Science, Mathematics, and Accounts:
+        Answers must be precise and accurate.
+        Partial understanding results in lower scores and additional guidance.
+        History, Literature, and Humanities:
+        Answers should demonstrate understanding beyond facts, connecting historical events or literary themes to the present.
+        Creativity and logical reasoning should be encouraged but factually incorrect answers will be marked low.
+        Languages & Creative Writing:
+        Evaluate grammar, structure, and expression of ideas.
+        Encouragement is key, but scores must reflect clarity, coherence, and correctness.
+        Interactive Learning Approach
+        Convert questions into multiple-choice, scenario-based, or real-life application questions where possible.
+        Never ask repetitive questions. If you do, you will be penalized $1000 per duplicate question!
+        Maintain a friendly, engaging, and supportive tone so students feel comfortable.
+        This is not an exam or interview! The goal is to help students learn, not intimidate them.
+        Final Evaluation
+        At the end of the session, provide a final score for the chapter.
+        If the overall score is below 6, ask if the student wants to reattempt answering some questions to improve their understanding.
+        Special Instructions:
+        ${specialInstructions || ""}
+        -Respond only in the language of knowledge (e.g., if the session is in French, stick to French).
+        -Never answer off-topic questions—politely decline and refocus on the subject.
+        -Encourage deeper thinking and curiosity while maintaining strict academic integrity.
+        -Avoid giving scoring guidelines or hints when asking questions.
+        -Ask sufficient questions to cover all the topics of the chapter as defined in teh question bank.`;
 
-    if (!response || !response.choices || response.choices.length === 0) {
-      throw new Error("Invalid response from OpenAI");
-    }
-
-    const finalPrompt = response.choices[0].message.content;
+    // Return the modified prompt directly without sending to OpenAI
     res.json({ finalPrompt });
 
   } catch (error) {
     console.error("Error generating final prompt:", error);
-    
-    // Add specific error messages based on the error type
-    if (error.message === 'OpenAI request timed out') {
-      return res.status(504).json({ 
-        error: "Processing timed out. The text may be too complex. Please try again later." 
-      });
-    }
-    
-    // Check for OpenAI API errors
-    if (error.response?.status) {
-      console.error("OpenAI API error:", error.response.status, error.response.data);
-      return res.status(502).json({ 
-        error: "Error from AI service. Please try again later." 
-      });
-    }
-    
-    res.status(500).json({ 
-      error: "Failed to generate final prompt", 
-      message: error.message || "Unknown error" 
-    });
+    res.status(500).json({ error: "Failed to generate final prompt", message: error.message });
   }
 });
 
