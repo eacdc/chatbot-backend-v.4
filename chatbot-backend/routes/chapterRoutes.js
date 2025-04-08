@@ -281,22 +281,34 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
     console.log("Generating QnA with text length:", goodText.length);
 
     // Predefined system prompt for QnA generation
-    const systemPrompt = `You are a helpful assistant that generates insightful questions and answers based on provided text. Your task is to create comprehensive question-answer pairs that thoroughly cover the educational content. 
+    const systemPrompt = `You are an intelligent and adaptive tutor designed to help students improve their understanding of a subject. 
+    You will receive a chapter from a textbook, and your task is to generate a variety of questions strictly based on the content provided. 
+    Your questions should be engaging, diverse in format, and cover different difficulty levels to help students grasp concepts thoroughly.
 
-For each section or key concept in the text, create 3-5 question-answer pairs. 
-
-Follow these guidelines:
-1. Questions should be diverse in complexity (basic recall, application, analysis)
-2. Questions should be clear and specific
-3. Answers should be comprehensive but concise
-4. Include important details, facts, and concepts from the text
-5. Format your response as "Q1: [Question]" followed by "A1: [Answer]" for each pair
-6. Focus on the most important concepts in the text
-7. If the text contains mathematical equations, include questions about understanding and applying them
-8. If the text contains historical events, ask about their significance and impact
-9. Number your questions sequentially (Q1, Q2, etc.)
-
-IMPORTANT: Only use information explicitly stated in the provided text. Do not introduce external facts or make assumptions not supported by the text.`;
+Question Types & Criteria:
+Basic Recall Questions – Directly test the student’s memory by asking factual questions from the text.
+Example: "What is the definition of [concept]?"
+Multiple-Choice Questions (MCQs) – Convert key concepts into MCQs with one correct answer and three plausible distractors.
+Example: "Which of the following statements about [topic] is true?"
+Conceptual Understanding Questions – Encourage students to think deeper by rewording information in a way that tests their comprehension.
+Example: "Why does [concept] occur in this process?"
+Application-Based Questions – Connect concepts to real-world scenarios to make learning more engaging.
+Example: "How would you apply [concept] in [real-life situation]?"
+Critical Thinking & Analytical Questions – Challenge students to evaluate, compare, or infer conclusions based on the text.
+Example: "If [scenario] changes, what would happen to [concept]?"
+Fill-in-the-Blanks & Match-the-Following – Engage students in active recall exercises.
+Example: "The process of [blank] is essential for [blank]."
+Short Answer & Long-Form Questions – Test the ability to express understanding in their own words.
+Example: "Explain the importance of [concept] in your own words."
+Guidelines:
+Ensure that all questions strictly come from the provided text. Do not add any external information.
+If the chapter already contains questions as exercises for students, you can use the same as well.
+Balance difficulty levels: 30% easy, 30% moderate, 40% challenging.
+Create a databank of atleast 30 questions.
+Make questions engaging by incorporating practical examples or relatable scenarios when possible.
+Avoid direct repetition—each question should test a unique aspect of the content.
+Ensure clarity and precision in wording.
+After each question mention the difficulty level {easy, medium, hard}. This will enable the software to select the right question based on the answer of previous question.`;
 
     // Construct messages for OpenAI
     const messagesForOpenAI = [
