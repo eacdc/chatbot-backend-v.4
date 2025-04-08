@@ -16,3 +16,142 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Add this after the existing styles */
+
+/* Markdown styling */
+.markdown-assistant {
+  line-height: 1.6;
+}
+
+.markdown-assistant h1,
+.markdown-assistant h2,
+.markdown-assistant h3,
+.markdown-assistant h4,
+.markdown-assistant h5,
+.markdown-assistant h6 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+
+.markdown-assistant h1 {
+  font-size: 1.5em;
+}
+
+.markdown-assistant h2 {
+  font-size: 1.3em;
+}
+
+.markdown-assistant h3 {
+  font-size: 1.2em;
+}
+
+.markdown-assistant h4,
+.markdown-assistant h5,
+.markdown-assistant h6 {
+  font-size: 1.1em;
+}
+
+.markdown-assistant p {
+  margin-bottom: 0.75em;
+}
+
+.markdown-assistant strong {
+  font-weight: 600;
+}
+
+.markdown-assistant em {
+  font-style: italic;
+}
+
+.markdown-assistant ul,
+.markdown-assistant ol {
+  margin-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+.markdown-assistant li {
+  margin-bottom: 0.25em;
+}
+
+.markdown-assistant a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.markdown-assistant code {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 0.1em 0.3em;
+  border-radius: 0.2em;
+  font-family: monospace;
+}
+
+.markdown-assistant pre {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 0.75em;
+  border-radius: 0.3em;
+  overflow-x: auto;
+  margin-bottom: 1em;
+}
+
+.markdown-assistant pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-assistant blockquote {
+  border-left: 4px solid rgba(0, 0, 0, 0.2);
+  padding-left: 1em;
+  margin-left: 0;
+  margin-bottom: 1em;
+  font-style: italic;
+}
+
+.markdown-assistant table {
+  border-collapse: collapse;
+  margin-bottom: 1em;
+  width: 100%;
+}
+
+.markdown-assistant th,
+.markdown-assistant td {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  padding: 0.4em 0.8em;
+  text-align: left;
+}
+
+.markdown-assistant th {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* System message styles */
+.markdown-system {
+  color: #805500;
+}
+
+/* Adapt styles for dark backgrounds (user messages) */
+.bg-blue-600 .markdown-assistant code {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.bg-blue-600 .markdown-assistant pre {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.bg-blue-600 .markdown-assistant blockquote {
+  border-left-color: rgba(255, 255, 255, 0.4);
+}
+
+.bg-blue-600 .markdown-assistant a {
+  color: #93c5fd;
+}
+
+.bg-blue-600 .markdown-assistant th,
+.bg-blue-600 .markdown-assistant td {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.bg-blue-600 .markdown-assistant th {
+  background-color: rgba(255, 255, 255, 0.1);
+}

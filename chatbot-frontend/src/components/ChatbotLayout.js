@@ -4,6 +4,8 @@ import { FaUserEdit, FaSignOutAlt, FaBook, FaChevronDown, FaChevronRight, FaPlus
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
 import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -692,32 +694,34 @@ export default function ChatbotLayout({ children }) {
                         : msg.role === "system" 
                           ? "bg-yellow-100 text-yellow-800 rounded-tl-none border border-yellow-200" 
                           : "bg-gray-100 text-gray-800 rounded-tl-none border border-gray-200"
-                    } text-sm sm:text-base`}
+                    } text-sm sm:text-base markdown-content`}
                     >
-                      {msg.content}
+                      {msg.role === "user" ? (
+                        msg.content
+                      ) : (
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          className={msg.role === "system" ? "markdown-system" : "markdown-assistant"}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      )}
                     </div>
                   </div>
                 ))}
+                <div ref={chatEndRef} />
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-500 p-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
-                <p className="text-center font-medium mb-1">
-                  {activeChapter 
-                    ? "No messages yet for this chapter" 
-                    : "Select a chapter to start chatting"}
-                </p>
-                <p className="text-center text-sm text-gray-400">
-                  {activeChapter 
-                    ? "Ask a question to start a conversation" 
-                    : "Choose a book and chapter from your library"}
+                <p className="text-center text-lg font-medium">Start a conversation!</p>
+                <p className="text-center text-sm mt-2">
+                  {activeChapter ? "Ask questions about this chapter" : "Select a chapter or ask a general question"}
                 </p>
               </div>
             )}
-            <div ref={chatEndRef} className="h-4" />
-            {children}
           </div>
           
           {/* Message Input */}
