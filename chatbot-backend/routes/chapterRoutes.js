@@ -6,6 +6,7 @@ const OpenAI = require("openai");
 const jwt = require("jsonwebtoken"); // Make sure to import jwt
 const authenticateUser = require("../middleware/authMiddleware");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
+const Book = require("../models/Book");
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -272,21 +273,35 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
 // Generate QnA through OpenAI
 router.post("/generate-qna", authenticateAdmin, async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, bookId, subject, specialInstructions } = req.body;
 
     if (!text) {
       return res.status(400).json({ error: "Text content is required" });
     }
 
-    console.log("Generating QnA with text length:", text.length);
+    if (!bookId) {
+      return res.status(400).json({ error: "Book ID is required" });
+    }
+
+    // Get book details to find the grade
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ error: "Book not found" });
+    }
+
+    const grade = book.grade;
+
+    console.log("Generating QnA with text length:", text.length, "for grade:", grade);
 
     // Predefined system prompt for QnA generation
     const systemPrompt = `You are an intelligent and adaptive tutor designed to help students improve their understanding of a subject. 
     You will receive a chapter from a textbook, and your task is to generate a variety of questions strictly based on the content provided. 
     Your questions should be engaging, diverse in format, and cover different difficulty levels to help students grasp concepts thoroughly.
+    
+    You are generating questions for Grade ${grade} students studying ${subject}.
 
 Question Types & Criteria:
-Basic Recall Questions – Directly test the student’s memory by asking factual questions from the text.
+Basic Recall Questions – Directly test the student's memory by asking factual questions from the text.
 Example: "What is the definition of [concept]?"
 Multiple-Choice Questions (MCQs) – Convert key concepts into MCQs with one correct answer and three plausible distractors.
 Example: "Which of the following statements about [topic] is true?"
@@ -308,7 +323,8 @@ Create a databank of atleast 30 questions.
 Make questions engaging by incorporating practical examples or relatable scenarios when possible.
 Avoid direct repetition—each question should test a unique aspect of the content.
 Ensure clarity and precision in wording.
-After each question mention the difficulty level {easy, medium, hard}. This will enable the software to select the right question based on the answer of previous question.`;
+After each question mention the difficulty level {easy, medium, hard}. This will enable the software to select the right question based on the answer of previous question.
+${specialInstructions || ""}`;
 
     // Construct messages for OpenAI
     const messagesForOpenAI = [
@@ -393,10 +409,25 @@ After each question mention the difficulty level {easy, medium, hard}. This will
 // Generate final prompt through OpenAI
 router.post("/generate-final-prompt", authenticateAdmin, async (req, res) => {
   try {
-    const { subject, grade, specialInstructions, qnaOutput } = req.body;
+    const { subject, grade, bookId, specialInstructions, qnaOutput } = req.body;
 
     if (!qnaOutput) {
       return res.status(400).json({ error: "QnA content is required" });
+    }
+
+    let finalGrade = grade;
+
+    // If bookId is provided but grade is not, fetch the grade from the book
+    if (bookId && !grade) {
+      const book = await Book.findById(bookId);
+      if (!book) {
+        return res.status(404).json({ error: "Book not found" });
+      }
+      finalGrade = book.grade;
+    }
+
+    if (!finalGrade) {
+      return res.status(400).json({ error: "Grade is required either directly or through bookId" });
     }
 
     // Create a modified system prompt by inserting the values directly
@@ -406,7 +437,7 @@ router.post("/generate-final-prompt", authenticateAdmin, async (req, res) => {
 
         End of Question Bank
 
-        You are a brilliant and strict yet friendly teacher who focuses on improving students' understanding of the subject. For this session, you are teaching ${subject} for Grade ${grade}.
+        You are a brilliant and strict yet friendly teacher who focuses on improving students' understanding of the subject. For this session, you are teaching ${subject} for Grade ${finalGrade}.
 
         You have been provided with a set of reference questions from the student's lesson. However, you must rephrase, rewrite, and enhance the questions to make them engaging, interactive, and appropriately challenging. The questions should be asked one at a time, and student responses must be carefully evaluated.
 

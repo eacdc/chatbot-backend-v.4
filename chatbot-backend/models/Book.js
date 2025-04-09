@@ -6,6 +6,7 @@ const bookSchema = new mongoose.Schema({
   publisher: { type: String, required: true },
   subject: { type: String, required: true },
   language: { type: String, required: true },
+  grade: { type: String, required: true, default: "1" },
   bookCoverImgLink: { type: String, required: true },
 }, { timestamps: true });
 

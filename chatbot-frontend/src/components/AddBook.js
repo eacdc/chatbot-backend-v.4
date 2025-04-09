@@ -5,11 +5,17 @@ import { API_ENDPOINTS } from "../config";
 import { useNavigate } from "react-router-dom";
 
 const AddBook = () => {
+  // Grade options
+  const gradeOptions = [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "College Student"
+  ];
+
   const [bookData, setBookData] = useState({
     title: "",
     publisher: "",
     subject: "",
     language: "",
+    grade: "1",
     bookCoverImgLink: "",
   });
   const [successMessage, setSuccessMessage] = useState("");
@@ -58,6 +64,7 @@ const AddBook = () => {
           publisher: "",
           subject: "",
           language: "",
+          grade: "1",
           bookCoverImgLink: "",
         });
       }
@@ -158,6 +165,24 @@ const AddBook = () => {
                 className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
               />
+            </div>
+
+            <div>
+              <label htmlFor="grade" className="block text-sm font-medium text-gray-700 mb-1">Grade</label>
+              <select
+                id="grade"
+                name="grade"
+                value={bookData.grade}
+                onChange={handleChange}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              >
+                {gradeOptions.map((grade) => (
+                  <option key={grade} value={grade}>
+                    Grade {grade}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

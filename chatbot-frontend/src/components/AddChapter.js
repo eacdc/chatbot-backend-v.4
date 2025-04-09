@@ -16,16 +16,10 @@ const AddChapter = () => {
     rawText: "",
     goodText: "",
     subject: "",
-    grade: "1",
     specialInstructions: "",
     qnaOutput: "",
     finalPrompt: ""
   });
-
-  // Grade options
-  const gradeOptions = [
-    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "College Student"
-  ];
 
   // Fetch books for dropdown
   useEffect(() => {
@@ -130,6 +124,11 @@ const AddChapter = () => {
       return;
     }
 
+    if (!chapterData.bookId) {
+      setError("Please select a book");
+      return;
+    }
+
     setQnaLoading(true);
     setError("");
     setSuccessMessage("");
@@ -144,8 +143,8 @@ const AddChapter = () => {
       console.log("Sending request to generate QnA with admin token...");
       const response = await adminAxiosInstance.post(API_ENDPOINTS.GENERATE_QNA, 
         {
+          bookId: chapterData.bookId,
           subject: chapterData.subject,
-          grade: chapterData.grade,
           text: chapterData.goodText || chapterData.rawText,
           specialInstructions: chapterData.specialInstructions
         }
@@ -196,6 +195,11 @@ const AddChapter = () => {
       return;
     }
 
+    if (!chapterData.bookId) {
+      setError("Please select a book");
+      return;
+    }
+
     setFinalPromptLoading(true);
     setError("");
     setSuccessMessage("");
@@ -210,8 +214,8 @@ const AddChapter = () => {
       console.log("Sending request to generate final prompt with admin token...");
       const response = await adminAxiosInstance.post(API_ENDPOINTS.GENERATE_FINAL_PROMPT, 
         {
+          bookId: chapterData.bookId,
           subject: chapterData.subject,
-          grade: chapterData.grade,
           specialInstructions: chapterData.specialInstructions,
           qnaOutput: chapterData.qnaOutput
         }
@@ -290,7 +294,6 @@ const AddChapter = () => {
           rawText: "",
           goodText: "",
           subject: "",
-          grade: "1",
           specialInstructions: "",
           qnaOutput: "",
           finalPrompt: ""
@@ -421,25 +424,6 @@ const AddChapter = () => {
                         className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200"
                         required
                       />
-                    </div>
-                  </div>
-                  
-                  <div className="sm:col-span-3">
-                    <label className="block text-sm font-medium text-gray-700">Grade</label>
-                    <div className="mt-1">
-                      <select
-                        name="grade"
-                        value={chapterData.grade}
-                        onChange={handleChange}
-                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200"
-                        required
-                      >
-                        {gradeOptions.map((grade) => (
-                          <option key={grade} value={grade}>
-                            Grade {grade}
-                          </option>
-                        ))}
-                      </select>
                     </div>
                   </div>
                 </div>
