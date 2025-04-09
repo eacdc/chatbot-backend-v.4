@@ -118,7 +118,7 @@ router.post("/send", async (req, res) => {
             const response = await openai.chat.completions.create({
               model: "deepseek-chat",
               messages: messagesForOpenAI,
-              temperature: 0.25,
+              temperature: 0.15,
             });
             
             if (!response || !response.choices || response.choices.length === 0) {
