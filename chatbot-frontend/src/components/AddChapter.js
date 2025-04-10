@@ -217,6 +217,11 @@ const AddChapter = () => {
       return;
     }
 
+    if (!chapterData.title.trim()) {
+      setError("Please enter a chapter title");
+      return;
+    }
+
     setFinalPromptLoading(true);
     setError("");
     setSuccessMessage("");
@@ -233,6 +238,7 @@ const AddChapter = () => {
         {
           bookId: chapterData.bookId,
           subject: chapterData.subject,
+          chapterTitle: chapterData.title,
           specialInstructions: chapterData.specialInstructions,
           qnaOutput: chapterData.qnaOutput
         }
