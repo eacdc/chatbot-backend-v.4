@@ -39,7 +39,24 @@ const AddChapter = () => {
   }, []);
 
   const handleChange = (e) => {
-    setChapterData({ ...chapterData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // If book selection changes, update the subject based on the selected book
+    if (name === "bookId" && value) {
+      const selectedBook = books.find((book) => book._id === value);
+      if (selectedBook) {
+        setChapterData({ 
+          ...chapterData, 
+          [name]: value,
+          subject: selectedBook.subject
+        });
+      } else {
+        setChapterData({ ...chapterData, [name]: value });
+      }
+    } else {
+      setChapterData({ ...chapterData, [name]: value });
+    }
+    
     setError(""); // Clear error when user types
   };
 
@@ -421,9 +438,15 @@ const AddChapter = () => {
                         name="subject"
                         value={chapterData.subject}
                         onChange={handleChange}
-                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200"
+                        className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200 ${chapterData.bookId ? 'bg-gray-100' : ''}`}
+                        readOnly={chapterData.bookId ? true : false}
                         required
                       />
+                      {chapterData.bookId && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Subject is auto-populated from the selected book
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
