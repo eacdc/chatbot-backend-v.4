@@ -14,12 +14,18 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Get all books
+// Get all books with optional grade filter
 router.get("/", async (req, res) => {
   try {
-    const books = await Book.find();
+    const { grade } = req.query;
+    
+    // If grade is provided, filter books by grade
+    const filter = grade ? { grade } : {};
+    
+    const books = await Book.find(filter);
     res.json(books);
   } catch (err) {
+    console.error("Error fetching books:", err);
     res.status(500).json({ error: "Failed to fetch books" });
   }
 });

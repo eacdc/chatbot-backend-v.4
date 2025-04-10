@@ -5,12 +5,19 @@ import { API_ENDPOINTS } from "../config";
 
 const Signup = () => {
     const navigate = useNavigate();
+    
+    // Grade options for the dropdown
+    const gradeOptions = [
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "College Student"
+    ];
+    
     const [formData, setFormData] = useState({
         username: "",
         fullname: "",
         email: "",
         phone: "",
         role: "",
+        grade: "1", // Default grade
         password: "",
         confirmPassword: ""
     });
@@ -41,7 +48,8 @@ const Signup = () => {
                 confirmPassword: formData.confirmPassword,
                 fullname: formData.fullname,
                 phone: formData.phone,
-                role: formData.role
+                role: formData.role,
+                grade: formData.grade
             });
 
             // Show success message
@@ -156,6 +164,23 @@ const Signup = () => {
                                 <option value="">Select your role</option>
                                 <option value="teacher">Teacher</option>
                                 <option value="student">Student</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="grade" className="block text-sm font-medium text-gray-700 mb-1">Grade Level</label>
+                            <select
+                                id="grade"
+                                name="grade"
+                                required
+                                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-lg placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                value={formData.grade}
+                                onChange={handleChange}
+                            >
+                                {gradeOptions.map((grade) => (
+                                    <option key={grade} value={grade}>
+                                        Grade {grade}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                         <div>

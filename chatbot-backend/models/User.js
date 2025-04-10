@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
     fullname: { type: String, required: true },
     email: { type: String, required: false, unique: false, lowercase: true, trim: true }, // ✅ Made optional
     phone: { type: String, required: true },
+    grade: { type: String, required: true, default: "1" }, // Grade level for filtering content
     role: { 
         type: String, 
         enum: ["student", "teacher", "school admin", "publisher admin", "admin"], 

@@ -26,11 +26,17 @@ export const login = async (credentials) => {
       localStorage.removeItem('userId');
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userGrade');
       
       // Set new values
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('userId', response.data.userId);
       localStorage.setItem('isAuthenticated', 'true');
+      
+      // Store user grade if available
+      if (response.data.grade) {
+        localStorage.setItem('userGrade', response.data.grade);
+      }
       
       // Set last activity timestamp
       updateLastActivity();
@@ -166,6 +172,7 @@ export const logout = () => {
   localStorage.removeItem('userId');
   localStorage.removeItem('isAuthenticated');
   localStorage.removeItem('lastActivityTime');
+  localStorage.removeItem('userGrade');
   
   // Clear session timeout interval
   if (window._sessionTimeoutInterval) {

@@ -54,7 +54,19 @@ export default function Collections() {
     const fetchBooks = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(API_ENDPOINTS.GET_BOOKS);
+        
+        // Get the user's grade from local storage
+        const userGrade = localStorage.getItem("userGrade");
+        let response;
+        
+        if (userGrade) {
+          // If we have the user's grade, fetch books filtered by grade
+          response = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?grade=${userGrade}`);
+        } else {
+          // Otherwise, fetch all books
+          response = await axios.get(API_ENDPOINTS.GET_BOOKS);
+        }
+        
         setBooks(response.data);
       } catch (error) {
         console.error("Error fetching books:", error);
@@ -65,6 +77,13 @@ export default function Collections() {
     };
     fetchBooks();
   }, []);
+
+  // Store user grade in localStorage when user data is fetched
+  useEffect(() => {
+    if (user && user.grade) {
+      localStorage.setItem("userGrade", user.grade);
+    }
+  }, [user]);
 
   // Fetch chapters when a book is selected
   const fetchChapters = async (bookId) => {

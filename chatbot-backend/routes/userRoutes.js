@@ -12,7 +12,7 @@ router.post("/register", async (req, res) => {
     try {
         console.log("📩 Received registration request:", req.body);
 
-        const { username, fullname, email, phone, role, password } = req.body;
+        const { username, fullname, email, phone, role, grade, password } = req.body;
 
         // Check required fields
         if (!username || !fullname || !phone || !role || !password) {
@@ -40,6 +40,7 @@ router.post("/register", async (req, res) => {
             email: email ? email.toLowerCase().trim() : "",
             phone,
             role,
+            grade: grade || "1", // Use provided grade or default to "1"
             password: password.trim() // Password will be hashed by the pre-save hook
         });
 
@@ -99,13 +100,19 @@ router.post("/login", async (req, res) => {
         if (isMatch) {
             // ✅ Generate token
             const token = jwt.sign(
-                { userId: user._id, name: user.fullname, role: user.role },
+                { userId: user._id, name: user.fullname, role: user.role, grade: user.grade },
                 process.env.JWT_SECRET,
                 { expiresIn: "1h" }
             );
 
             console.log("✅ Login successful!");
-            return res.json({ token, userId: user._id, name: user.fullname, role: user.role });
+            return res.json({ 
+                token, 
+                userId: user._id, 
+                name: user.fullname, 
+                role: user.role, 
+                grade: user.grade 
+            });
         }
 
         // If we got here, password doesn't match
@@ -118,12 +125,18 @@ router.post("/login", async (req, res) => {
         if (directHashCompare) {
             // Password matched with direct comparison
             const token = jwt.sign(
-                { userId: user._id, name: user.fullname, role: user.role },
+                { userId: user._id, name: user.fullname, role: user.role, grade: user.grade },
                 process.env.JWT_SECRET,
                 { expiresIn: "1h" }
             );
             console.log("✅ Login successful with direct comparison!");
-            return res.json({ token, userId: user._id, name: user.fullname, role: user.role });
+            return res.json({ 
+                token, 
+                userId: user._id, 
+                name: user.fullname, 
+                role: user.role, 
+                grade: user.grade 
+            });
         }
             
         // Last resort, try to update password
@@ -135,7 +148,7 @@ router.post("/login", async (req, res) => {
                 
         // Return success but with a note about the password update
         const token = jwt.sign(
-            { userId: user._id, name: user.fullname, role: user.role },
+            { userId: user._id, name: user.fullname, role: user.role, grade: user.grade },
             process.env.JWT_SECRET,
             { expiresIn: "1h" }
         );
@@ -144,6 +157,7 @@ router.post("/login", async (req, res) => {
             userId: user._id, 
             name: user.fullname, 
             role: user.role,
+            grade: user.grade,
             message: "Password updated for future logins" 
         });
     } catch (error) {
