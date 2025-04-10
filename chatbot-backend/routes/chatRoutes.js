@@ -88,6 +88,19 @@ router.post("/send", async (req, res) => {
             }
         }
 
+        // Add formatting instructions to system prompt
+        systemPrompt += `
+        
+        IMPORTANT FORMATTING INSTRUCTIONS:
+        1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
+        2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
+        3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
+        4. Format mathematical operations and expressions simply:
+           - Instead of writing "( 10 , \\text{m/s} - 5 , \\text{m/s} = 5 , \\text{m/s} )", write "10 m/s - 5 m/s = 5 m/s"
+           - Instead of writing "( \\frac{5 , \\text{m/s}}{2 , \\text{s}} = 2.5 , \\text{m/s}^2 )", write "5 m/s ÷ 2 s = 2.5 m/s²" or "5 m/s / 2 s = 2.5 m/s²"
+        5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
+        6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
+        
         if (!Array.isArray(chat.messages)) {
             console.log("Messages is not an array, initializing empty array");
             chat.messages = [];
