@@ -1,16 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const SystemPrompt = require("../models/SystemPrompt");
+const Prompt = require("../models/Prompt");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 
-// Get all system prompts
+// Get all prompts
 router.get("/", authenticateAdmin, async (req, res) => {
   try {
-    const prompts = await SystemPrompt.find().sort({ type: 1 });
+    const prompts = await Prompt.find().sort({ prompt_type: 1 });
     res.json(prompts);
   } catch (error) {
-    console.error("Error fetching system prompts:", error);
-    res.status(500).json({ error: "Failed to fetch system prompts" });
+    console.error("Error fetching prompts:", error);
+    res.status(500).json({ error: "Failed to fetch prompts" });
   }
 });
 
@@ -23,7 +23,7 @@ router.get("/:type", async (req, res) => {
       return res.status(400).json({ error: "Invalid prompt type" });
     }
     
-    const prompt = await SystemPrompt.findOne({ type, isActive: true });
+    const prompt = await Prompt.findOne({ prompt_type: type, isActive: true });
     
     if (!prompt) {
       return res.status(404).json({ error: "Prompt not found" });
@@ -36,48 +36,52 @@ router.get("/:type", async (req, res) => {
   }
 });
 
-// Create or update a system prompt
+// Create or update a prompt
 router.post("/", authenticateAdmin, async (req, res) => {
   try {
-    const { type, prompt } = req.body;
+    const { prompt_type, prompt, isActive } = req.body;
     
-    if (!type || !prompt) {
+    if (!prompt_type || !prompt) {
       return res.status(400).json({ error: "Type and prompt are required" });
     }
     
-    if (!["goodText", "qna", "finalPrompt"].includes(type)) {
+    if (!["goodText", "qna", "finalPrompt"].includes(prompt_type)) {
       return res.status(400).json({ error: "Invalid prompt type" });
     }
     
     // Check if prompt exists
-    let existingPrompt = await SystemPrompt.findOne({ type });
+    let existingPrompt = await Prompt.findOne({ prompt_type });
     
     if (existingPrompt) {
       // Update existing prompt
       existingPrompt.prompt = prompt;
+      if (isActive !== undefined) {
+        existingPrompt.isActive = isActive;
+      }
       existingPrompt.lastUpdated = Date.now();
       await existingPrompt.save();
       res.json(existingPrompt);
     } else {
       // Create new prompt
-      const newPrompt = new SystemPrompt({
-        type,
-        prompt
+      const newPrompt = new Prompt({
+        prompt_type,
+        prompt,
+        isActive: isActive !== undefined ? isActive : true
       });
       await newPrompt.save();
       res.status(201).json(newPrompt);
     }
   } catch (error) {
-    console.error("Error creating/updating system prompt:", error);
-    res.status(500).json({ error: "Failed to create/update system prompt" });
+    console.error("Error creating/updating prompt:", error);
+    res.status(500).json({ error: "Failed to create/update prompt" });
   }
 });
 
-// Delete a system prompt
+// Delete a prompt
 router.delete("/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await SystemPrompt.findByIdAndDelete(id);
+    const result = await Prompt.findByIdAndDelete(id);
     
     if (!result) {
       return res.status(404).json({ error: "Prompt not found" });
@@ -85,8 +89,8 @@ router.delete("/:id", authenticateAdmin, async (req, res) => {
     
     res.json({ message: "Prompt deleted successfully" });
   } catch (error) {
-    console.error("Error deleting system prompt:", error);
-    res.status(500).json({ error: "Failed to delete system prompt" });
+    console.error("Error deleting prompt:", error);
+    res.status(500).json({ error: "Failed to delete prompt" });
   }
 });
 

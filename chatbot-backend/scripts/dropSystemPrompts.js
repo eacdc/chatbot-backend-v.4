@@ -1,5 +1,8 @@
-require("dotenv").config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const mongoose = require("mongoose");
+
+console.log("This script will drop the old 'systemprompts' collection which is no longer needed");
+console.log("The application now uses the 'prompts' collection instead");
 
 // Connect to MongoDB
 mongoose
@@ -13,7 +16,8 @@ mongoose
     try {
       // Drop the SystemPrompt collection
       await mongoose.connection.db.dropCollection("systemprompts");
-      console.log("✅ SystemPrompt collection dropped successfully");
+      console.log("✅ Old 'systemprompts' collection dropped successfully");
+      console.log("✅ The application now uses 'prompts' collection instead");
       
     } catch (error) {
       if (error.code === 26) {

@@ -1,8 +1,8 @@
-require("dotenv").config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const mongoose = require("mongoose");
-const SystemPrompt = require("../models/SystemPrompt");
+const Prompt = require("../models/Prompt");
 
-// Define default prompts with MongoDB ObjectIds
+// Define default prompts
 const defaultPrompts = [
   {
     prompt_type: "Good Text",
@@ -104,11 +104,15 @@ mongoose
     
     try {
       // Clear existing prompts
-      await SystemPrompt.deleteMany({});
+      await Prompt.deleteMany({});
       console.log("Previous prompts cleared.");
       
       // Insert default prompts
-      const result = await SystemPrompt.insertMany(defaultPrompts);
+      const result = await Prompt.insertMany(defaultPrompts.map(prompt => ({
+        ...prompt,
+        isActive: true,
+        lastUpdated: new Date()
+      })));
       console.log(`✅ ${result.length} default prompts added to database.`);
       
       // Display summary of inserted prompts

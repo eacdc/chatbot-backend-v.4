@@ -7,7 +7,7 @@ const jwt = require("jsonwebtoken"); // Make sure to import jwt
 const authenticateUser = require("../middleware/authMiddleware");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 const Book = require("../models/Book");
-const SystemPrompt = require("../models/SystemPrompt");
+const Prompt = require("../models/Prompt");
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -189,7 +189,7 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
     // Fetch the goodText system prompt from the database
     let systemPrompt;
     try {
-      const promptDoc = await SystemPrompt.findOne({ prompt_type: "Good Text" });
+      const promptDoc = await Prompt.findOne({ prompt_type: "Good Text", isActive: true });
       if (promptDoc) {
         systemPrompt = promptDoc.prompt;
         console.log("Successfully loaded Good Text prompt from database");
@@ -312,7 +312,7 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
     // Fetch the QnA system prompt from the database
     let systemPrompt;
     try {
-      const promptDoc = await SystemPrompt.findOne({ prompt_type: "QnA" });
+      const promptDoc = await Prompt.findOne({ prompt_type: "QnA", isActive: true });
       if (promptDoc) {
         // Replace placeholders in the prompt
         systemPrompt = promptDoc.prompt
@@ -475,7 +475,7 @@ router.post("/generate-final-prompt", authenticateAdmin, async (req, res) => {
     // Fetch the finalPrompt system prompt from the database
     let finalPrompt;
     try {
-      const promptDoc = await SystemPrompt.findOne({ prompt_type: "Final Prompt" });
+      const promptDoc = await Prompt.findOne({ prompt_type: "Final Prompt", isActive: true });
       if (promptDoc) {
         // Replace placeholders in the prompt
         finalPrompt = promptDoc.prompt
