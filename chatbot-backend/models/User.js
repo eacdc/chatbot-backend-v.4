@@ -19,6 +19,9 @@ const userSchema = new mongoose.Schema({
 // Add an index to ensure username uniqueness
 userSchema.index({ username: 1 }, { unique: true });
 
+// Explicitly create a sparse index for email
+userSchema.index({ email: 1 }, { unique: true, sparse: true });
+
 // ✅ Hash password before saving (only if modified)
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next();

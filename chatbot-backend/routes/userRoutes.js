@@ -47,6 +47,7 @@ router.post("/register", async (req, res) => {
         if (email && email.trim()) {
             userData.email = email.toLowerCase().trim();
         }
+        // Do NOT set email to null or empty string
 
         // Create and save the new user
         const newUser = new User(userData);
