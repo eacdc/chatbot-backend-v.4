@@ -26,24 +26,30 @@ router.post("/register", async (req, res) => {
         }
 
         // Check if email exists and is already registered (if provided)
-        if (email) {
+        if (email && email.trim()) {
             existingUser = await User.findOne({ email: email.toLowerCase().trim() });
             if (existingUser) {
                 return res.status(400).json({ message: "Email already registered" });
             }
         }
 
-        // Create new user with plain password - the model's pre-save hook will hash it
-        const newUser = new User({
+        // Prepare user data
+        const userData = {
             username: username.trim(),
             fullname,
-            email: email ? email.toLowerCase().trim() : "",
             phone,
             role,
             grade: grade || "1", // Use provided grade or default to "1"
             password: password.trim() // Password will be hashed by the pre-save hook
-        });
+        };
+        
+        // Only add email if it exists and is not empty
+        if (email && email.trim()) {
+            userData.email = email.toLowerCase().trim();
+        }
 
+        // Create and save the new user
+        const newUser = new User(userData);
         await newUser.save();
         
         // Verify that the saved password hash works with the original password

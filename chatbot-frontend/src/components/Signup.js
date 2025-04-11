@@ -31,26 +31,25 @@ const Signup = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError("");
         setLoading(true);
 
+        // Basic form validation
         if (formData.password !== formData.confirmPassword) {
-            setError("Passwords do not match!");
+            setError("Passwords do not match.");
             setLoading(false);
             return;
         }
 
         try {
-            const response = await axios.post(API_ENDPOINTS.USER_SIGNUP, {
-                username: formData.username,
-                email: formData.email,
-                password: formData.password,
-                confirmPassword: formData.confirmPassword,
-                fullname: formData.fullname,
-                phone: formData.phone,
-                role: formData.role,
-                grade: formData.grade
-            });
+            // Create a copy of formData to modify
+            const userData = { ...formData };
+            
+            // If email is empty, set it to null or remove it from request
+            if (!userData.email.trim()) {
+                delete userData.email;
+            }
+            
+            const response = await axios.post(API_ENDPOINTS.USER_SIGNUP, userData);
 
             // Show success message
             setError(""); // Clear any existing errors
