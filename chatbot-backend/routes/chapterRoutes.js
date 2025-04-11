@@ -7,6 +7,7 @@ const jwt = require("jsonwebtoken"); // Make sure to import jwt
 const authenticateUser = require("../middleware/authMiddleware");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 const Book = require("../models/Book");
+const SystemPrompt = require("../models/SystemPrompt");
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -185,8 +186,23 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
     // Log processing attempt
     console.log(`Processing text of length: ${rawText.length} characters`);
     
-    // Predefined system prompt for processing text
-    const systemPrompt = "Below find raw text that I got after converting a PDF of a book to a text file. I need you to fix the text word by word, sentence by sentence. Do not omit any content. \n\nImportant instructions:\n1. Look for and properly format page numbers in the text\n2. Fix any special characters or escape sequences (like \\t, \\n, \\x07, etc.) that appear in the raw text\n3. Maintain proper paragraph structure and formatting\n4. Preserve all content including figure references (Fig. X.X) and mathematical symbols\n5. If text contains different languages, retain them without translation\n6. Handle any control characters or strange formatting artifacts from the PDF conversion\n\nGo ahead page by page and convert the raw text to what the actual text would appear like in the original book. Do not add any outside knowledge or content.";
+    // Fetch the goodText system prompt from the database
+    let systemPrompt;
+    try {
+      const promptDoc = await SystemPrompt.findOne({ prompt_type: "Good Text" });
+      if (promptDoc) {
+        systemPrompt = promptDoc.prompt;
+        console.log("Successfully loaded Good Text prompt from database");
+      } else {
+        // Fallback to default prompt if not found in DB
+        systemPrompt = "Below find raw text that I got after converting a PDF of a book to a text file. I need you to fix the text word by word, sentence by sentence. Do not omit any content. \n\nImportant instructions:\n1. Look for and properly format page numbers in the text\n2. Fix any special characters or escape sequences (like \\t, \\n, \\x07, etc.) that appear in the raw text\n3. Maintain proper paragraph structure and formatting\n4. Preserve all content including figure references (Fig. X.X) and mathematical symbols\n5. If text contains different languages, retain them without translation\n6. Handle any control characters or strange formatting artifacts from the PDF conversion\n\nGo ahead page by page and convert the raw text to what the actual text would appear like in the original book. Do not add any outside knowledge or content.";
+        console.warn("Warning: Good Text system prompt not found in database, using default");
+      }
+    } catch (error) {
+      console.error("Error fetching Good Text system prompt:", error);
+      // Fallback to default prompt
+      systemPrompt = "Below find raw text that I got after converting a PDF of a book to a text file. I need you to fix the text word by word, sentence by sentence. Do not omit any content.";
+    }
 
     // Construct messages for OpenAI
     const messagesForOpenAI = [
@@ -293,12 +309,24 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
 
     console.log("Generating QnA with text length:", text.length, "for grade:", grade);
 
-    // Predefined system prompt for QnA generation
-    const systemPrompt = `You are an intelligent and adaptive tutor designed to help students improve their understanding of a subject. 
-    You will receive a chapter from a textbook, and your task is to generate a variety of questions strictly based on the content provided. 
-    Your questions should be engaging, diverse in format, and cover different difficulty levels to help students grasp concepts thoroughly.
-    
-    You are generating questions for Grade ${grade} students studying ${subject}.
+    // Fetch the QnA system prompt from the database
+    let systemPrompt;
+    try {
+      const promptDoc = await SystemPrompt.findOne({ prompt_type: "QnA" });
+      if (promptDoc) {
+        // Replace placeholders in the prompt
+        systemPrompt = promptDoc.prompt
+          .replace(/{grade}/g, grade)
+          .replace(/{subject}/g, subject || "");
+        console.log("Successfully loaded QnA prompt from database");
+      } else {
+        // Fallback to default prompt if not found in DB
+        console.warn("Warning: QnA system prompt not found in database, using default");
+        systemPrompt = `You are an intelligent and adaptive tutor designed to help students improve their understanding of a subject. 
+        You will receive a chapter from a textbook, and your task is to generate a variety of questions strictly based on the content provided. 
+        Your questions should be engaging, diverse in format, and cover different difficulty levels to help students grasp concepts thoroughly.
+        
+        You are generating questions for Grade ${grade} students studying ${subject}.
 
 Question Types & Criteria:
 Basic Recall Questions – Directly test the student's memory by asking factual questions from the text.
@@ -323,8 +351,18 @@ Create a databank of atleast 30 questions.
 Make questions engaging by incorporating practical examples or relatable scenarios when possible.
 Avoid direct repetition—each question should test a unique aspect of the content.
 Ensure clarity and precision in wording.
-After each question mention the difficulty level {easy, medium, hard}. This will enable the software to select the right question based on the answer of previous question.
-${specialInstructions || ""}`;
+After each question mention the difficulty level {easy, medium, hard}. This will enable the software to select the right question based on the answer of previous question.`;
+      }
+      
+      // Add special instructions if provided
+      if (specialInstructions) {
+        systemPrompt += `\n\n${specialInstructions}`;
+      }
+    } catch (error) {
+      console.error("Error fetching QnA system prompt:", error);
+      // Fallback to default prompt
+      systemPrompt = `Generate questions and answers for Grade ${grade} students studying ${subject}.`;
+    }
 
     // Construct messages for OpenAI
     const messagesForOpenAI = [
@@ -434,57 +472,36 @@ router.post("/generate-final-prompt", authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: "Grade is required either directly or through bookId" });
     }
 
-    // Create a modified system prompt by inserting the values directly
-    const finalPrompt = `Question Bank
-
-        ${qnaOutput}
-
-        End of Question Bank
-
-        You are a brilliant and strict yet friendly teacher who focuses on improving students' understanding of the subject. For this session, you are teaching ${subject} for grade ${finalGrade}. The name of the chapter is ${chapterTitle}.
-  
-You have been provided with a set of reference questions above, from the student's lesson. Your have to ask the students atleast 10-20 of these questions in single session. But one at a time. Wait for the student to answer. provide accurate feedback and then ask the next question.
-  
-##########################
-Questioning and Evaluation Approach
-
-Randomized Questions: Select questions in a non-sequential manner to keep students engaged. You may rewrite, rephrase the questions to make it more interesting.
-Adaptive Difficulty: 
-	If a student answers correctly, gradually increase the difficulty to challenge them.
-        If they answer incorrectly, ask a simpler or related question to reinforce the concept.
-Scoring & Feedback:
-        Assign a score out of 10 for each response, based on the accuracy, depth, and relevance of the answer.
-        Strict scoring: Be fair, but do not over-score incorrect or vague answers.
-        If the student scores below 6, ask if they would like to reattempt before moving to the next question.
-        If the answer is completely incorrect, explain the concept clearly.
-Subject-Specific Evaluation Standards:
-	Science, Mathematics, and Accounts:
-        Answers must be precise and accurate.
-        Partial understanding results in lower scores and additional guidance.
-        History, Literature, and Humanities:
-        Answers should demonstrate understanding beyond facts, connecting historical events or literary themes to the present.
-        Creativity and logical reasoning should be encouraged but factually incorrect answers will be marked low.
-        Languages & Creative Writing:
-        Evaluate grammar, structure, and expression of ideas.
-        Encouragement is key, but scores must reflect clarity, coherence, and correctness.
-Never ask repetitive questions. If you do, you will be penalized $1000 per duplicate question!
-Maintain a friendly, engaging, and supportive tone so students feel comfortable.
-This is not an exam or interview! The goal is to help students learn, not intimidate them.
-Final Evaluation : At the end of the session, provide a final score for the chapter. If the overall score is below 6, ask if the student wants to reattempt answering some questions to improve their understanding.
-         
-##########################
-Special Instructions
+    // Fetch the finalPrompt system prompt from the database
+    let finalPrompt;
+    try {
+      const promptDoc = await SystemPrompt.findOne({ prompt_type: "Final Prompt" });
+      if (promptDoc) {
+        // Replace placeholders in the prompt
+        finalPrompt = promptDoc.prompt
+          .replace(/\${qnaOutput}/g, qnaOutput)
+          .replace(/{subject}/g, subject || "")
+          .replace(/{finalGrade}/g, finalGrade)
+          .replace(/{chapterTitle}/g, chapterTitle);
           
-        -Respond only in the language of knowledge (e.g., if the session is in French, stick to French).
-        -Never answer off-topic questions—politely decline and refocus on the subject.
-        -Encourage deeper thinking and curiosity while maintaining strict academic integrity.
-        -Avoid giving scoring guidelines or hints when asking questions.
-        -Ask sufficient questions to cover all the topics of the chapter as defined in teh question bank.
-	- Ask atleast 10-15 questions to ensure most of the questions from the bank is covered
-	- Keep responses short and to the point. Maximium 2-4 lines.
-        ${specialInstructions || ""}`;
+        console.log("Successfully loaded Final Prompt from database");
+        
+        // Add special instructions if provided
+        if (specialInstructions) {
+          finalPrompt += `\n\n${specialInstructions}`;
+        }
+      } else {
+        // Fallback to default prompt if not found in DB
+        console.warn("Warning: Final Prompt system prompt not found in database, using default");
+        finalPrompt = `Question Bank\n\n${qnaOutput}\n\nEnd of Question Bank\n\nYou are a teacher focusing on ${subject} for Grade ${finalGrade}. The chapter is ${chapterTitle}.`;
+      }
+    } catch (error) {
+      console.error("Error fetching Final Prompt system prompt:", error);
+      // Fallback to default prompt
+      finalPrompt = `${qnaOutput}\n\nTeach ${subject} for Grade ${finalGrade}. Chapter: ${chapterTitle}.`;
+    }
 
-    // Return the modified prompt directly without sending to OpenAI
+    // Return the final prompt directly
     res.json({ finalPrompt });
 
   } catch (error) {
