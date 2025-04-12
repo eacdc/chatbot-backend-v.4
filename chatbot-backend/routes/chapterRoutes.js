@@ -189,7 +189,7 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
     // Fetch the goodText system prompt from the database
     let systemPrompt;
     try {
-      const promptDoc = await Prompt.findOne({ prompt_type: "Good Text", isActive: true });
+      const promptDoc = await Prompt.findOne({ prompt_type: "goodText", isActive: true });
       if (promptDoc) {
         systemPrompt = promptDoc.prompt;
         console.log("Successfully loaded Good Text prompt from database");
@@ -312,7 +312,7 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
     // Fetch the QnA system prompt from the database
     let systemPrompt;
     try {
-      const promptDoc = await Prompt.findOne({ prompt_type: "QnA", isActive: true });
+      const promptDoc = await Prompt.findOne({ prompt_type: "qna", isActive: true });
       if (promptDoc) {
         // Replace placeholders in the prompt
         systemPrompt = promptDoc.prompt
@@ -475,7 +475,7 @@ router.post("/generate-final-prompt", authenticateAdmin, async (req, res) => {
     // Fetch the finalPrompt system prompt from the database
     let finalPrompt;
     try {
-      const promptDoc = await Prompt.findOne({ prompt_type: "Final Prompt", isActive: true });
+      const promptDoc = await Prompt.findOne({ prompt_type: "finalPrompt", isActive: true });
       if (promptDoc) {
         // Replace placeholders in the prompt
         finalPrompt = promptDoc.prompt
