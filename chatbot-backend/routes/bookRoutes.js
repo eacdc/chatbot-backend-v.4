@@ -55,15 +55,20 @@ router.post("/upload-cover", authenticateAdmin, upload.single('coverImage'), asy
       return res.status(400).json({ error: "No image file provided" });
     }
 
+    // Get filename and sanitize it
+    const filename = req.file.filename;
+    
     // Create URL for the uploaded file
     const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
-    const relativePath = `/uploads/bookcovers/${req.file.filename}`;
+    const relativePath = `/uploads/bookcovers/${filename}`;
     const imageUrl = `${baseUrl}${relativePath}`;
 
+    console.log('Uploaded image URL:', imageUrl); // Log the URL for debugging
+    
     res.status(200).json({ 
       message: "Image uploaded successfully", 
       imageUrl: imageUrl,
-      filename: req.file.filename
+      filename: filename
     });
   } catch (err) {
     console.error("Error uploading image:", err);
