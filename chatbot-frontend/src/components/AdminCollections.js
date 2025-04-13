@@ -158,7 +158,12 @@ export default function AdminCollections() {
                     <img 
                       src={book.bookCoverImgLink} 
                       alt={book.title} 
-                      className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500 ease-in-out" 
+                      className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500 ease-in-out"
+                      onError={(e) => {
+                        console.log("Image failed to load:", book.bookCoverImgLink);
+                        e.target.onerror = null; // Prevent infinite loop
+                        e.target.src = "https://via.placeholder.com/400x600?text=Book+Cover+Not+Available";
+                      }}
                     />
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
