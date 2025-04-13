@@ -12,6 +12,7 @@ export default function Collections() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
+  const [subscribedBookIds, setSubscribedBookIds] = useState([]); // Track subscribed book IDs
   const navigate = useNavigate(); // For navigation
 
   // Update activity timestamp on component mount
@@ -47,6 +48,30 @@ export default function Collections() {
     };
 
     fetchUser();
+  }, []);
+
+  // Fetch user's subscriptions
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        
+        const response = await axios.get(API_ENDPOINTS.GET_SUBSCRIPTIONS, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        // Extract book IDs from subscriptions
+        const bookIds = response.data.map(sub => sub.bookId);
+        setSubscribedBookIds(bookIds);
+      } catch (error) {
+        console.error("Error fetching subscriptions:", error);
+      }
+    };
+    
+    fetchSubscriptions();
   }, []);
 
   // Fetch books from API
@@ -129,10 +154,13 @@ export default function Collections() {
         }
       );
 
+      // Add this book ID to the subscribed list
+      setSubscribedBookIds([...subscribedBookIds, bookId]);
+
       setNotification({
         show: true,
         type: "success",
-        message: response.data.message
+        message: response.data.message || "Successfully subscribed to the book"
       });
     } catch (error) {
       console.error("Subscription error:", error.response?.data?.error || error.message);
@@ -147,6 +175,40 @@ export default function Collections() {
       } else {
         setError(error.response?.data?.error || "Subscription failed");
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Unsubscribe from a book
+  const handleUnsubscribe = async (bookId) => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Please log in to unsubscribe from books");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await axios.delete(
+        API_ENDPOINTS.UNSUBSCRIBE_BOOK.replace(':bookId', bookId),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      // Remove this book ID from the subscribed list
+      setSubscribedBookIds(subscribedBookIds.filter(id => id !== bookId));
+
+      setNotification({
+        show: true,
+        type: "success",
+        message: "Successfully unsubscribed from the book"
+      });
+    } catch (error) {
+      console.error("Unsubscription error:", error.response?.data?.error || error.message);
+      setError(error.response?.data?.error || "Unsubscription failed");
     } finally {
       setLoading(false);
     }
@@ -272,16 +334,30 @@ export default function Collections() {
                         </svg>
                         View Chapters
                       </button>
-                      <button
-                        className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 flex-1"
-                        onClick={() => handleSubscribe(book._id)}
-                        disabled={loading}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Subscribe
-                      </button>
+                      
+                      {subscribedBookIds.includes(book._id) ? (
+                        <button
+                          className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200 flex-1"
+                          onClick={() => handleUnsubscribe(book._id)}
+                          disabled={loading}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Unsubscribe
+                        </button>
+                      ) : (
+                        <button
+                          className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 flex-1"
+                          onClick={() => handleSubscribe(book._id)}
+                          disabled={loading}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          Subscribe
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
