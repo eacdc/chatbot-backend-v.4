@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import adminAxiosInstance from "../utils/adminAxios";
 import { API_ENDPOINTS } from "../config";
@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 const AddBook = () => {
   // Grade options
   const gradeOptions = [
-    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "College Student"
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "College Student", "Other"
   ];
 
   const [bookData, setBookData] = useState({
@@ -21,6 +21,9 @@ const AddBook = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   // Check if admin is logged in
@@ -34,6 +37,25 @@ const AddBook = () => {
   const handleChange = (e) => {
     setBookData({ ...bookData, [e.target.name]: e.target.value });
     setError(""); // Clear error when user types
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploadedImage(file);
+      // Create a preview URL for the image
+      const fileUrl = URL.createObjectURL(file);
+      setPreviewUrl(fileUrl);
+      // Clear the bookCoverImgLink field since we're using an upload
+      setBookData({ ...bookData, bookCoverImgLink: "" });
+    }
+  };
+
+  const handleUrlChange = (e) => {
+    setBookData({ ...bookData, bookCoverImgLink: e.target.value });
+    // Clear the uploaded image since we're using a URL
+    setUploadedImage(null);
+    setPreviewUrl("");
   };
 
   const handleSubmit = async (e) => {
@@ -50,10 +72,34 @@ const AddBook = () => {
         return;
       }
 
+      let coverImageUrl = bookData.bookCoverImgLink;
+
+      // If we have an uploaded image, upload it to the server first
+      if (uploadedImage) {
+        const formData = new FormData();
+        formData.append("coverImage", uploadedImage);
+        
+        const uploadResponse = await adminAxiosInstance.post(
+          API_ENDPOINTS.UPLOAD_BOOK_COVER, 
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
+        
+        if (uploadResponse.data && uploadResponse.data.imageUrl) {
+          coverImageUrl = uploadResponse.data.imageUrl;
+        } else {
+          throw new Error("Failed to upload image");
+        }
+      }
+
+      // Now submit the book data with the image URL
       const response = await adminAxiosInstance.post(
         API_ENDPOINTS.ADD_BOOK, 
-        bookData
-        // No need to manually set headers - adminAxiosInstance will do it
+        { ...bookData, bookCoverImgLink: coverImageUrl }
       );
 
       if (response.status === 201) {
@@ -67,6 +113,11 @@ const AddBook = () => {
           grade: "1",
           bookCoverImgLink: "",
         });
+        setUploadedImage(null);
+        setPreviewUrl("");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       }
     } catch (error) {
       console.error("Error adding book:", error);
@@ -169,20 +220,34 @@ const AddBook = () => {
 
             <div>
               <label htmlFor="grade" className="block text-sm font-medium text-gray-700 mb-1">Grade</label>
-              <select
-                id="grade"
-                name="grade"
-                value={bookData.grade}
-                onChange={handleChange}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                {gradeOptions.map((grade) => (
-                  <option key={grade} value={grade}>
-                    Grade {grade}
-                  </option>
-                ))}
-              </select>
+              <div className="flex space-x-2">
+                <select
+                  id="grade-select"
+                  value={bookData.grade}
+                  onChange={(e) => {
+                    if (e.target.value !== "custom") {
+                      setBookData({ ...bookData, grade: e.target.value });
+                    }
+                  }}
+                  className="w-1/2 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {gradeOptions.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade === "College Student" || grade === "Other" ? grade : `Grade ${grade}`}
+                    </option>
+                  ))}
+                  <option value="custom">Custom Grade...</option>
+                </select>
+                <input
+                  id="grade"
+                  type="text"
+                  name="grade"
+                  placeholder="Enter grade"
+                  value={bookData.grade}
+                  onChange={handleChange}
+                  className="w-1/2 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
 
             <div>
@@ -200,17 +265,51 @@ const AddBook = () => {
             </div>
 
             <div>
-              <label htmlFor="bookCoverImgLink" className="block text-sm font-medium text-gray-700 mb-1">Book Cover Image URL</label>
-              <input
-                id="bookCoverImgLink"
-                type="url"
-                name="bookCoverImgLink"
-                placeholder="Enter book cover image URL"
-                value={bookData.bookCoverImgLink}
-                onChange={handleChange}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Book Cover Image</label>
+              
+              {/* Upload option */}
+              <div className="mb-3">
+                <label className="block text-sm text-gray-600 mb-1">Upload from your device</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+              
+              {/* URL option */}
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Or provide an image URL</label>
+                <input
+                  id="bookCoverImgLink"
+                  type="url"
+                  name="bookCoverImgLink"
+                  placeholder="Enter book cover image URL"
+                  value={bookData.bookCoverImgLink}
+                  onChange={handleUrlChange}
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              {/* Image preview */}
+              {(previewUrl || bookData.bookCoverImgLink) && (
+                <div className="mt-3">
+                  <p className="text-sm text-gray-600 mb-1">Preview:</p>
+                  <div className="w-32 h-40 bg-gray-100 border rounded-md overflow-hidden">
+                    <img 
+                      src={previewUrl || bookData.bookCoverImgLink} 
+                      alt="Book cover preview" 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "https://via.placeholder.com/128x160?text=No+Image";
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">

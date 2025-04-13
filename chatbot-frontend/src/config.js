@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
   GET_CHAT_HISTORY: `${API_URL}/api/chat/history/:userId`,
   SEND_AUDIO: `${API_URL}/api/chat/send-audio`,
   TRANSCRIBE_AUDIO: `${API_URL}/api/chat/transcribe`,
+  UPLOAD_BOOK_COVER: `${API_URL}/api/books/upload-cover`,
   
   // Chapter preparation endpoints
   PROCESS_TEXT: `${API_URL}/api/chapters/process-text`,
