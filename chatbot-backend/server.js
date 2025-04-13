@@ -4,6 +4,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const compression = require("compression"); // Add compression middleware
+const path = require("path");
 
 console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "Not Found");
 
@@ -11,6 +12,9 @@ const app = express();
 app.use(express.json({ limit: '100mb' })); // Increase JSON body size limit to handle very large texts
 app.use(express.urlencoded({ extended: true, limit: '100mb' })); // Increase URL-encoded body size limit
 app.use(compression()); // Use compression for all responses
+
+// Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ✅ Improved CORS
 app.use(
