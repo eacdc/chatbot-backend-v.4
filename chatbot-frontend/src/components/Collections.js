@@ -214,6 +214,24 @@ export default function Collections() {
     }
   };
 
+  // Helper function to fix image URLs that might be using localhost
+  const fixImageUrl = (url) => {
+    if (!url) return "https://via.placeholder.com/400x600?text=No+Image";
+    
+    // Check if the URL is using localhost
+    if (url.includes('localhost:5000')) {
+      // Replace localhost:5000 with the production URL
+      return url.replace('http://localhost:5000', 'https://chatbot-backend-v-4-1.onrender.com');
+    }
+    
+    // If it's already using HTTP, convert to HTTPS
+    if (url.startsWith('http://')) {
+      return url.replace('http://', 'https://');
+    }
+    
+    return url;
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4">
@@ -315,7 +333,7 @@ export default function Collections() {
                 <div key={book._id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100 flex flex-col">
                   <div className="relative h-48 overflow-hidden">
                     <img 
-                      src={book.bookCoverImgLink} 
+                      src={fixImageUrl(book.bookCoverImgLink)} 
                       alt={book.title} 
                       className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500 ease-in-out"
                       onError={(e) => {
