@@ -23,6 +23,7 @@ const AddBook = () => {
   const [loading, setLoading] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [isCustomGrade, setIsCustomGrade] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -36,6 +37,27 @@ const AddBook = () => {
 
   const handleChange = (e) => {
     setBookData({ ...bookData, [e.target.name]: e.target.value });
+    setError(""); // Clear error when user types
+  };
+
+  const handleGradeChange = (e) => {
+    const value = e.target.value;
+    
+    if (value === "custom") {
+      setIsCustomGrade(true);
+      // Don't update grade value yet, let user type it
+    } else {
+      setIsCustomGrade(false);
+      setBookData({ ...bookData, grade: value });
+    }
+    
+    setError(""); // Clear error when user selects
+  };
+
+  const handleCustomGradeChange = (e) => {
+    if (isCustomGrade) {
+      setBookData({ ...bookData, grade: e.target.value });
+    }
     setError(""); // Clear error when user types
   };
 
@@ -223,12 +245,8 @@ const AddBook = () => {
               <div className="flex space-x-2">
                 <select
                   id="grade-select"
-                  value={bookData.grade}
-                  onChange={(e) => {
-                    if (e.target.value !== "custom") {
-                      setBookData({ ...bookData, grade: e.target.value });
-                    }
-                  }}
+                  value={isCustomGrade ? "custom" : bookData.grade}
+                  onChange={handleGradeChange}
                   className="w-1/2 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {gradeOptions.map((grade) => (
@@ -242,10 +260,13 @@ const AddBook = () => {
                   id="grade"
                   type="text"
                   name="grade"
-                  placeholder="Enter grade"
+                  placeholder={isCustomGrade ? "Enter custom grade" : ""}
                   value={bookData.grade}
-                  onChange={handleChange}
-                  className="w-1/2 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={handleCustomGradeChange}
+                  className={`w-1/2 p-2 border rounded-lg ${isCustomGrade 
+                    ? "focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    : "bg-gray-100 cursor-not-allowed"}`}
+                  disabled={!isCustomGrade}
                 />
               </div>
             </div>
