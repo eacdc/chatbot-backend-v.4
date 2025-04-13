@@ -317,7 +317,12 @@ export default function Collections() {
                     <img 
                       src={book.bookCoverImgLink} 
                       alt={book.title} 
-                      className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500 ease-in-out" 
+                      className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500 ease-in-out"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "https://via.placeholder.com/400x600?text=No+Image";
+                        console.error(`Failed to load image: ${book.bookCoverImgLink}`);
+                      }}
                     />
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
