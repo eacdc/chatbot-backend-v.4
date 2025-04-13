@@ -99,6 +99,12 @@ const AdminLogin = () => {
             Register as Admin
           </a>
         </p>
+        
+        <div className="border-t border-gray-200 mt-4 pt-4">
+          <p className="text-center text-gray-600">
+            Not an admin? <a href="/login" className="text-blue-500 hover:underline">Go to User Login</a>
+          </p>
+        </div>
       </div>
     </div>
   );
