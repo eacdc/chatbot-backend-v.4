@@ -13,9 +13,6 @@ app.use(express.json({ limit: '100mb' })); // Increase JSON body size limit to h
 app.use(express.urlencoded({ extended: true, limit: '100mb' })); // Increase URL-encoded body size limit
 app.use(compression()); // Use compression for all responses
 
-// Serve static files from the uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // ✅ Improved CORS
 app.use(
   cors({
@@ -49,6 +46,9 @@ const bookRoutes = require("./routes/bookRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 
+// Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // ✅ Use Routes
 app.use("/api/chat", chatRoutes);
 app.use("/api/users", userRoutes);
@@ -62,8 +62,29 @@ app.get("/", (req, res) => {
   res.json({ message: "Welcome to Chatbot API" });
 });
 
-// Handle 404 errors
+// ✅ Fetch chapters by bookId API (Newly Added)
+const Chapter = require("./models/Chapter");
+app.get("/api/books/:bookId/chapters", async (req, res) => {
+  try {
+    const { bookId } = req.params;
+
+    // Convert ObjectId to string before querying chapters
+    const chapters = await Chapter.find({ bookId: bookId.toString() });
+
+    if (chapters.length === 0) {
+      return res.status(404).json({ error: "No chapters found for this book" });
+    }
+
+    res.json(chapters);
+  } catch (error) {
+    console.error("🔥 Error fetching chapters:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Handle 404 errors - MOVED AFTER all routes including static file handling
 app.use((req, res) => {
+  console.log(`🔴 404 Not Found: ${req.method} ${req.url}`);
   res.status(404).json({ message: "Route not found" });
 });
 
@@ -92,26 +113,6 @@ mongoose
     console.error("❌ MongoDB connection error:", err);
     process.exit(1);
   });
-
-// ✅ Fetch chapters by bookId API (Newly Added)
-const Chapter = require("./models/Chapter");
-app.get("/api/books/:bookId/chapters", async (req, res) => {
-  try {
-    const { bookId } = req.params;
-
-    // Convert ObjectId to string before querying chapters
-    const chapters = await Chapter.find({ bookId: bookId.toString() });
-
-    if (chapters.length === 0) {
-      return res.status(404).json({ error: "No chapters found for this book" });
-    }
-
-    res.json(chapters);
-  } catch (error) {
-    console.error("🔥 Error fetching chapters:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
 
 // ✅ Global Error Handler (Better debugging)
 app.use((err, req, res, next) => {

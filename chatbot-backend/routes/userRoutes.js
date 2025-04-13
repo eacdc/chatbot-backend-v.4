@@ -214,4 +214,42 @@ router.post("/reset-password", async (req, res) => {
     }
 });
 
+// Refresh Token Endpoint
+router.post("/refresh-token", async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: "Token is required" });
+    }
+
+    // Verify the existing token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Find the user
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Generate a new token
+    const newToken = jwt.sign(
+      { userId: user._id, name: user.fullname, role: user.role, grade: user.grade },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.json({
+      token: newToken,
+      userId: user._id,
+      name: user.fullname,
+      role: user.role,
+      grade: user.grade
+    });
+  } catch (error) {
+    console.error("Token refresh error:", error);
+    res.status(401).json({ message: "Invalid or expired token" });
+  }
+});
+
 module.exports = router;

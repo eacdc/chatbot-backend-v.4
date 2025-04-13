@@ -1,8 +1,12 @@
 import axiosInstance from './axios';
 import { API_ENDPOINTS } from '../config';
+import { API_URL } from './config';
 
 // 30 minutes in milliseconds
 const SESSION_TIMEOUT = 30 * 60 * 1000;
+
+const TOKEN_KEY = 'auth_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
 
 /**
  * Handles user login
@@ -135,30 +139,48 @@ export const signup = async (userData) => {
   return response.data;
 };
 
-/**
- * Refreshes the authentication token
- * @returns {Promise<string>} New authentication token
- */
+export const setToken = (token) => {
+  localStorage.setItem(TOKEN_KEY, token);
+};
+
+export const getToken = () => {
+  return localStorage.getItem(TOKEN_KEY);
+};
+
+export const removeToken = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+};
+
+export const setRefreshToken = (token) => {
+  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+};
+
+export const getRefreshToken = () => {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+};
+
+export const isAuthenticated = () => {
+  return !!getToken();
+};
+
 export const refreshToken = async () => {
   try {
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (!refreshToken) throw new Error('No refresh token available');
-
-    const response = await axiosInstance.post(API_ENDPOINTS.REFRESH_TOKEN, {
-      refreshToken
-    });
-
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      if (response.data.refreshToken) {
-        localStorage.setItem('refreshToken', response.data.refreshToken);
-      }
-      updateLastActivity(); // Update activity time on token refresh
-      return response.data.token;
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
     }
-    throw new Error('No token in refresh response');
+
+    const response = await axiosInstance.post('/auth/refresh', { refreshToken });
+    const { token, refreshToken: newRefreshToken } = response.data;
+
+    setToken(token);
+    setRefreshToken(newRefreshToken);
+
+    return token;
   } catch (error) {
-    logout();
+    console.error('Error refreshing token:', error);
+    removeToken();
     throw error;
   }
 };
@@ -183,48 +205,6 @@ export const logout = () => {
 };
 
 /**
- * Checks if user is authenticated and session is valid
- * @returns {boolean}
- */
-export const isAuthenticated = () => {
-  const token = localStorage.getItem('token');
-  const isAuth = localStorage.getItem('isAuthenticated') === 'true' && !!token;
-  
-  if (!isAuth) {
-    return false;
-  }
-  
-  // Check for session timeout
-  if (hasSessionTimedOut()) {
-    console.log('Session expired during authentication check');
-    return false;
-  }
-  
-  // Check if token looks valid (simple check)
-  if (token && typeof token === 'string' && token.length > 20) {
-    return true;
-  }
-  
-  return false;
-};
-
-/**
- * Gets the current user's ID
- * @returns {string|null}
- */
-export const getCurrentUserId = () => {
-  return localStorage.getItem('userId');
-};
-
-/**
- * Gets the current authentication token
- * @returns {string|null}
- */
-export const getToken = () => {
-  return localStorage.getItem('token');
-};
-
-/**
  * Checks if admin is authenticated
  * @returns {boolean}
  */
@@ -241,4 +221,12 @@ export const isAdminAuthenticated = () => {
   }
   
   return false;
+};
+
+/**
+ * Gets the current user's ID
+ * @returns {string|null}
+ */
+export const getCurrentUserId = () => {
+  return localStorage.getItem('userId');
 }; 
