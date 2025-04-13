@@ -59,10 +59,22 @@ router.post("/upload-cover", authenticateAdmin, upload.single('coverImage'), asy
     const filename = req.file.filename;
     
     // Create URL for the uploaded file
-    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+    // For production environments, use HTTPS and the actual domain
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.IS_PRODUCTION === 'true';
+    let baseUrl;
+    
+    if (isProduction) {
+      // Use the production URL (must be HTTPS)
+      baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://chatbot-backend-v-4-1.onrender.com';
+    } else {
+      // Use local development URL
+      baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+    }
+    
     const relativePath = `/uploads/bookcovers/${filename}`;
     const imageUrl = `${baseUrl}${relativePath}`;
 
+    console.log('Environment:', isProduction ? 'Production' : 'Development');
     console.log('Uploaded image URL:', imageUrl); // Log the URL for debugging
     
     res.status(200).json({ 
