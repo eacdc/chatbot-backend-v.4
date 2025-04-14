@@ -11,6 +11,7 @@ export default function AdminCollections() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
+  const [noChaptersModal, setNoChaptersModal] = useState({ show: false, bookTitle: "" });
   const navigate = useNavigate();
 
   // Check admin authentication
@@ -44,8 +45,19 @@ export default function AdminCollections() {
     try {
       setLoading(true);
       const response = await adminAxiosInstance.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId));
-      setChapters(response.data);
-      setSelectedBook(bookId);
+      
+      // Find the book title for the selected book
+      const selectedBookData = books.find(book => book._id === bookId);
+      const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
+      
+      if (response.data.length === 0) {
+        // Show popup for no chapters instead of setting chapters
+        setNoChaptersModal({ show: true, bookTitle });
+        setSelectedBook(null); // Don't show the chapters section
+      } else {
+        setChapters(response.data);
+        setSelectedBook(bookId);
+      }
     } catch (error) {
       console.error("Error fetching chapters:", error);
       setError("Failed to fetch chapters");
@@ -120,6 +132,33 @@ export default function AdminCollections() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* No Chapters Modal */}
+      {noChaptersModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">No Chapters Available</h2>
+              <p className="text-gray-600 mb-6">
+                No chapters have been added to "{noChaptersModal.bookTitle}" yet. 
+                <br />
+                Add chapters from the Admin Dashboard to make them available.
+              </p>
+              <button 
+                onClick={() => setNoChaptersModal({ show: false, bookTitle: "" })}
+                className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}
