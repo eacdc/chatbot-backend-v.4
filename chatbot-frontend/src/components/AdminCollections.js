@@ -44,24 +44,41 @@ export default function AdminCollections() {
   const fetchChapters = async (bookId) => {
     try {
       setLoading(true);
-      const response = await adminAxiosInstance.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId));
       
-      // Find the book title for the selected book
-      const selectedBookData = books.find(book => book._id === bookId);
-      const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
-      
-      if (response.data.length === 0) {
-        // Show popup for no chapters instead of setting chapters
-        setNoChaptersModal({ show: true, bookTitle });
-        setSelectedBook(null); // Don't show the chapters section
-      } else {
-        setChapters(response.data);
-        setSelectedBook(bookId);
+      try {
+        const response = await adminAxiosInstance.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId));
+        
+        // Find the book title for the selected book
+        const selectedBookData = books.find(book => book._id === bookId);
+        const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
+        
+        if (response.data.length === 0) {
+          // Show popup for no chapters instead of setting chapters
+          setNoChaptersModal({ show: true, bookTitle });
+          setSelectedBook(null); // Don't show the chapters section
+        } else {
+          setChapters(response.data);
+          setSelectedBook(bookId);
+        }
+      } catch (err) {
+        // Check if the error is a 404 (No chapters found)
+        if (err.response && err.response.status === 404) {
+          // Find the book title for the selected book
+          const selectedBookData = books.find(book => book._id === bookId);
+          const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
+          
+          // Show popup for no chapters
+          setNoChaptersModal({ show: true, bookTitle });
+          setSelectedBook(null); // Don't show the chapters section
+        } else {
+          // For other errors, log them but don't show an error to the user
+          console.error("Error fetching chapters:", err);
+          // Don't set the error state to avoid showing the error popup
+        }
       }
     } catch (error) {
-      console.error("Error fetching chapters:", error);
-      setError("Failed to fetch chapters");
-      setChapters([]);
+      console.error("Error in fetchChapters:", error);
+      // Don't set error state here to avoid showing the error screen
     } finally {
       setLoading(false);
     }

@@ -121,28 +121,44 @@ export default function Collections() {
         return;
       }
       
-      const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
-        headers: {
-          Authorization: `Bearer ${token}`
+      try {
+        const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        // Find the book title for the selected book
+        const selectedBookData = books.find(book => book._id === bookId);
+        const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
+        
+        if (response.data.length === 0) {
+          // Show popup for no chapters instead of setting chapters
+          setNoChaptersModal({ show: true, bookTitle });
+          setSelectedBook(null); // Don't show the chapters section
+        } else {
+          setChapters(response.data);
+          setSelectedBook(bookId);
         }
-      });
-      
-      // Find the book title for the selected book
-      const selectedBookData = books.find(book => book._id === bookId);
-      const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
-      
-      if (response.data.length === 0) {
-        // Show popup for no chapters instead of setting chapters
-        setNoChaptersModal({ show: true, bookTitle });
-        setSelectedBook(null); // Don't show the chapters section
-      } else {
-        setChapters(response.data);
-        setSelectedBook(bookId);
+      } catch (err) {
+        // Check if the error is a 404 (No chapters found)
+        if (err.response && err.response.status === 404) {
+          // Find the book title for the selected book
+          const selectedBookData = books.find(book => book._id === bookId);
+          const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
+          
+          // Show popup for no chapters
+          setNoChaptersModal({ show: true, bookTitle });
+          setSelectedBook(null); // Don't show the chapters section
+        } else {
+          // For other errors, log them but don't show an error to the user
+          console.error("Error fetching chapters:", err);
+          // Don't set the error state to avoid showing the error popup
+        }
       }
     } catch (error) {
-      console.error("Error fetching chapters:", error);
-      setError("Failed to fetch chapters");
-      setChapters([]);
+      console.error("Error in fetchChapters:", error);
+      // Don't set error state here to avoid redirecting to login
     } finally {
       setLoading(false);
     }
