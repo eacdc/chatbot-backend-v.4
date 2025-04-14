@@ -113,52 +113,47 @@ export default function Collections() {
 
   // Fetch chapters when a book is selected
   const fetchChapters = async (bookId) => {
+    setLoading(true);
+    
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Please log in to view chapters");
+      setLoading(false);
+      return;
+    }
+    
+    // Find the book title for the selected book (do this outside try/catch)
+    const selectedBookData = books.find(book => book._id === bookId);
+    const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
+    
     try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Please log in to view chapters");
-        return;
-      }
+      const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       
-      try {
-        const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        
-        // Find the book title for the selected book
-        const selectedBookData = books.find(book => book._id === bookId);
-        const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
-        
-        if (response.data.length === 0) {
-          // Show popup for no chapters instead of setting chapters
-          setNoChaptersModal({ show: true, bookTitle });
-          setSelectedBook(null); // Don't show the chapters section
-        } else {
-          setChapters(response.data);
-          setSelectedBook(bookId);
-        }
-      } catch (err) {
-        // Check if the error is a 404 (No chapters found)
-        if (err.response && err.response.status === 404) {
-          // Find the book title for the selected book
-          const selectedBookData = books.find(book => book._id === bookId);
-          const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
-          
-          // Show popup for no chapters
-          setNoChaptersModal({ show: true, bookTitle });
-          setSelectedBook(null); // Don't show the chapters section
-        } else {
-          // For other errors, log them but don't show an error to the user
-          console.error("Error fetching chapters:", err);
-          // Don't set the error state to avoid showing the error popup
-        }
+      // If we get a response, check if it has chapters
+      if (response.data && response.data.length > 0) {
+        setChapters(response.data);
+        setSelectedBook(bookId);
+      } else {
+        // No chapters in response
+        setNoChaptersModal({ show: true, bookTitle });
+        setSelectedBook(null);
       }
     } catch (error) {
-      console.error("Error in fetchChapters:", error);
-      // Don't set error state here to avoid redirecting to login
+      console.log("Caught error in fetchChapters:", error.message);
+      
+      // Specifically handle 404 errors as "No chapters found"
+      if (error.response && error.response.status === 404) {
+        console.log("No chapters found for book:", bookTitle);
+        setNoChaptersModal({ show: true, bookTitle });
+        setSelectedBook(null);
+      } else {
+        // For other errors, don't set the full error state, just log it
+        console.error("Error fetching chapters:", error);
+      }
     } finally {
       setLoading(false);
     }
