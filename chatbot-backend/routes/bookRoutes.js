@@ -6,23 +6,18 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
+const cloudinary = require("cloudinary").v2;
+
+// Configure Cloudinary
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo', 
+  api_key: process.env.CLOUDINARY_API_KEY, 
+  api_secret: process.env.CLOUDINARY_API_SECRET 
+});
 
 // Configure multer storage for image uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, "../uploads/bookcovers");
-    // Create the directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    // Create unique filename with timestamp
-    const uniqueFilename = `${Date.now()}-${file.originalname}`;
-    cb(null, uniqueFilename);
-  }
-});
+// Use memory storage for Cloudinary uploads
+const storage = multer.memoryStorage();
 
 const upload = multer({ 
   storage: storage,
@@ -55,36 +50,86 @@ router.post("/upload-cover", authenticateAdmin, upload.single('coverImage'), asy
       return res.status(400).json({ error: "No image file provided" });
     }
 
-    // Get filename and sanitize it
-    const filename = req.file.filename;
+    console.log('Received file:', req.file.originalname, 'Size:', req.file.size);
+
+    // Try to use Cloudinary for storage first
+    let imageUrl;
+    let useCloudinary = true;
     
-    // Create URL for the uploaded file
-    // For production environments, use HTTPS and the actual domain
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.IS_PRODUCTION === 'true';
-    let baseUrl;
-    
-    if (isProduction) {
-      // Use the production URL (must be HTTPS)
-      baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://chatbot-backend-v-4-1.onrender.com';
-    } else {
-      // Use local development URL
-      baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+    try {
+      if (process.env.CLOUDINARY_API_KEY) {
+        // Create a buffer from the file
+        const buffer = req.file.buffer;
+        
+        // Create a temporary file for Cloudinary upload
+        const tempFilePath = path.join(__dirname, `../temp-${Date.now()}.jpg`);
+        fs.writeFileSync(tempFilePath, buffer);
+        
+        console.log(`Uploading to Cloudinary: ${tempFilePath}`);
+        
+        // Upload to Cloudinary
+        const result = await cloudinary.uploader.upload(tempFilePath, {
+          folder: "book-covers",
+          resource_type: "image"
+        });
+        
+        // Delete the temporary file
+        fs.unlinkSync(tempFilePath);
+        
+        // Get the secure URL from Cloudinary
+        imageUrl = result.secure_url;
+        console.log('Cloudinary upload successful, URL:', imageUrl);
+      } else {
+        useCloudinary = false;
+        console.log('Cloudinary credentials not found, falling back to local storage');
+      }
+    } catch (cloudinaryError) {
+      useCloudinary = false;
+      console.error('Cloudinary upload failed:', cloudinaryError);
+      console.log('Falling back to local storage');
     }
     
-    const relativePath = `/uploads/bookcovers/${filename}`;
-    const imageUrl = `${baseUrl}${relativePath}`;
+    // Fall back to local storage if Cloudinary fails or is not configured
+    if (!useCloudinary) {
+      // Create local directory if not exists
+      const uploadDir = path.join(__dirname, "../uploads/bookcovers");
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      
+      // Save file locally
+      const filename = `${Date.now()}-${req.file.originalname}`;
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, req.file.buffer);
+      
+      // Check if file exists after saving
+      const fileExists = fs.existsSync(filePath);
+      console.log(`Local file saved: ${filePath}, exists: ${fileExists}`);
+      
+      // Create URL for the uploaded file
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.IS_PRODUCTION === 'true';
+      let baseUrl;
+      
+      if (isProduction) {
+        baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://chatbot-backend-v-4-1.onrender.com';
+      } else {
+        baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+      }
+      
+      const relativePath = `/uploads/bookcovers/${filename}`;
+      imageUrl = `${baseUrl}${relativePath}`;
+    }
 
-    console.log('Environment:', isProduction ? 'Production' : 'Development');
-    console.log('Uploaded image URL:', imageUrl); // Log the URL for debugging
+    console.log('Final image URL:', imageUrl);
     
     res.status(200).json({ 
       message: "Image uploaded successfully", 
       imageUrl: imageUrl,
-      filename: filename
+      storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (err) {
     console.error("Error uploading image:", err);
-    res.status(500).json({ error: "Failed to upload image" });
+    res.status(500).json({ error: "Failed to upload image", details: err.message });
   }
 });
 

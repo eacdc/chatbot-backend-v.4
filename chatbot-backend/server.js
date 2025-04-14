@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const compression = require("compression"); // Add compression middleware
 const path = require("path");
+const fs = require("fs");
 
 console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "Not Found");
 
@@ -46,8 +47,31 @@ const bookRoutes = require("./routes/bookRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+const bookCoversDir = path.join(__dirname, 'uploads/bookcovers');
+if (!fs.existsSync(uploadsDir)) {
+  console.log('Creating uploads directory...');
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+if (!fs.existsSync(bookCoversDir)) {
+  console.log('Creating book covers directory...');
+  fs.mkdirSync(bookCoversDir, { recursive: true });
+}
+
 // Serve static files from the uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  console.log(`Static file request: ${req.url}`);
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
+
+// Log all available directories in uploads folder
+console.log('Uploads directories:');
+if (fs.existsSync(uploadsDir)) {
+  fs.readdirSync(uploadsDir, { withFileTypes: true })
+    .filter(dirent => dirent.isDirectory())
+    .forEach(dirent => console.log(`- ${dirent.name}`));
+}
 
 // ✅ Use Routes
 app.use("/api/chat", chatRoutes);

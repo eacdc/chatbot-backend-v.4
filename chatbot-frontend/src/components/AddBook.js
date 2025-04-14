@@ -64,12 +64,29 @@ const AddBook = () => {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Image file is too large. Please select an image under 5MB.");
+        e.target.value = null; // Clear the file input
+        return;
+      }
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError("Only image files are allowed.");
+        e.target.value = null; // Clear the file input
+        return;
+      }
+      
+      setError(""); // Clear any existing errors
       setUploadedImage(file);
       // Create a preview URL for the image
       const fileUrl = URL.createObjectURL(file);
       setPreviewUrl(fileUrl);
       // Clear the bookCoverImgLink field since we're using an upload
       setBookData({ ...bookData, bookCoverImgLink: "" });
+      
+      console.log(`Selected image: ${file.name}, size: ${(file.size / 1024).toFixed(2)}KB, type: ${file.type}`);
     }
   };
 
@@ -101,20 +118,30 @@ const AddBook = () => {
         const formData = new FormData();
         formData.append("coverImage", uploadedImage);
         
-        const uploadResponse = await adminAxiosInstance.post(
-          API_ENDPOINTS.UPLOAD_BOOK_COVER, 
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
+        console.log(`Uploading image: ${uploadedImage.name}, size: ${(uploadedImage.size / 1024).toFixed(2)}KB`);
         
-        if (uploadResponse.data && uploadResponse.data.imageUrl) {
-          coverImageUrl = uploadResponse.data.imageUrl;
-        } else {
-          throw new Error("Failed to upload image");
+        try {
+          const uploadResponse = await adminAxiosInstance.post(
+            API_ENDPOINTS.UPLOAD_BOOK_COVER, 
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
+          
+          console.log("Image upload response:", uploadResponse.data);
+          
+          if (uploadResponse.data && uploadResponse.data.imageUrl) {
+            coverImageUrl = uploadResponse.data.imageUrl;
+            console.log(`Image uploaded successfully. URL: ${coverImageUrl}`);
+          } else {
+            throw new Error("Failed to get image URL from server response");
+          }
+        } catch (uploadError) {
+          console.error("Image upload failed:", uploadError);
+          throw new Error(`Image upload failed: ${uploadError.message || "Unknown error"}`);
         }
       }
 
@@ -324,11 +351,18 @@ const AddBook = () => {
                       alt="Book cover preview" 
                       className="w-full h-full object-cover"
                       onError={(e) => {
+                        console.error(`Image load error for: ${e.target.src}`);
                         e.target.onerror = null;
                         e.target.src = "https://via.placeholder.com/128x160?text=No+Image";
+                        setError("Failed to load image preview. The image might be inaccessible.");
                       }}
                     />
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {uploadedImage 
+                      ? `${uploadedImage.name} (${(uploadedImage.size / 1024).toFixed(2)} KB)` 
+                      : "From URL"}
+                  </p>
                 </div>
               )}
             </div>
