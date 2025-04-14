@@ -21,6 +21,8 @@ app.use(
       "http://localhost:3000",
       "https://chatbot-frontend-v-4.onrender.com",
       "https://chatbot-backend-v-4-1.onrender.com",
+      "https://www.testyourlearning.com",
+      "https://testyourlearning.com",
       process.env.FRONTEND_URL || "http://localhost:3000"
     ].filter(Boolean),
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
