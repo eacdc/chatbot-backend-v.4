@@ -8,6 +8,11 @@ const path = require("path");
 const fs = require("fs");
 
 console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "Not Found");
+console.log("Cloudinary Configuration:", {
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? "Loaded" : "Not Found",
+  api_key: process.env.CLOUDINARY_API_KEY ? "Loaded" : "Not Found",
+  api_secret: process.env.CLOUDINARY_API_SECRET ? "Loaded" : "Not Found"
+});
 
 const app = express();
 app.use(express.json({ limit: '100mb' })); // Increase JSON body size limit to handle very large texts

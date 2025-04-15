@@ -8,15 +8,26 @@ const fs = require("fs");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 const cloudinary = require("cloudinary").v2;
 
-// Configure Cloudinary
-cloudinary.config({ 
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo', 
-  api_key: process.env.CLOUDINARY_API_KEY, 
-  api_secret: process.env.CLOUDINARY_API_SECRET 
-});
+// Validate Cloudinary configuration
+const isCloudinaryConfigured = () => {
+  return process.env.CLOUDINARY_CLOUD_NAME && 
+         process.env.CLOUDINARY_API_KEY && 
+         process.env.CLOUDINARY_API_SECRET;
+};
+
+// Configure Cloudinary if credentials are available
+if (isCloudinaryConfigured()) {
+  cloudinary.config({ 
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET 
+  });
+  console.log('Cloudinary configured successfully');
+} else {
+  console.warn('Cloudinary credentials missing. Image uploads will fail!');
+}
 
 // Configure multer storage for image uploads
-// Use memory storage for Cloudinary uploads
 const storage = multer.memoryStorage();
 
 const upload = multer({ 
@@ -24,11 +35,10 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: function (req, file, cb) {
     // Accept image files only
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only image files are allowed!"), false);
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error("Only image files are allowed!"), false);
     }
+    cb(null, true);
   }
 });
 
@@ -50,86 +60,178 @@ router.post("/upload-cover", authenticateAdmin, upload.single('coverImage'), asy
       return res.status(400).json({ error: "No image file provided" });
     }
 
-    console.log('Received file:', req.file.originalname, 'Size:', req.file.size);
+    console.log('Upload Request - File Details:', {
+      filename: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      buffer: req.file.buffer ? 'Present' : 'Missing'
+    });
 
-    // Try to use Cloudinary for storage first
-    let imageUrl;
-    let useCloudinary = true;
+    // Check Cloudinary configuration
+    const cloudinaryConfig = {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET
+    };
+    
+    console.log('Upload Request - Environment Check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      CLOUDINARY_CLOUD_NAME: cloudinaryConfig.cloud_name ? 'Present' : 'Missing',
+      CLOUDINARY_API_KEY: cloudinaryConfig.api_key ? 'Present' : 'Missing',
+      CLOUDINARY_API_SECRET: cloudinaryConfig.api_secret ? 'Present' : 'Missing'
+    });
+
+    if (!isCloudinaryConfigured()) {
+      throw new Error('Cloudinary configuration is missing. Cannot upload images.');
+    }
+
+    // Create a buffer from the file
+    const buffer = req.file.buffer;
+    const tempFilePath = path.join(__dirname, `../temp-${Date.now()}.jpg`);
     
     try {
-      if (process.env.CLOUDINARY_API_KEY) {
-        // Create a buffer from the file
-        const buffer = req.file.buffer;
-        
-        // Create a temporary file for Cloudinary upload
-        const tempFilePath = path.join(__dirname, `../temp-${Date.now()}.jpg`);
-        fs.writeFileSync(tempFilePath, buffer);
-        
-        console.log(`Uploading to Cloudinary: ${tempFilePath}`);
-        
-        // Upload to Cloudinary
-        const result = await cloudinary.uploader.upload(tempFilePath, {
-          folder: "book-covers",
-          resource_type: "image"
-        });
-        
-        // Delete the temporary file
+      // Write buffer to temporary file
+      fs.writeFileSync(tempFilePath, buffer);
+      console.log('Upload Request - Temporary file created:', tempFilePath);
+      
+      // Upload to Cloudinary
+      console.log('Upload Request - Starting Cloudinary upload...');
+      const result = await cloudinary.uploader.upload(tempFilePath, {
+        folder: "book-covers",
+        resource_type: "image",
+        timeout: 60000 // 60 second timeout
+      });
+      
+      // Delete the temporary file
+      fs.unlinkSync(tempFilePath);
+      console.log('Upload Request - Temporary file deleted');
+      
+      if (!result || !result.secure_url) {
+        throw new Error('Cloudinary upload failed to return a valid URL');
+      }
+      
+      console.log('Upload Request - Cloudinary upload successful:', {
+        url: result.secure_url,
+        public_id: result.public_id,
+        format: result.format,
+        size: result.bytes
+      });
+      
+      res.status(200).json({ 
+        message: "Image uploaded successfully", 
+        imageUrl: result.secure_url,
+        storage: 'cloudinary'
+      });
+    } catch (uploadError) {
+      // Clean up temp file if it exists
+      if (fs.existsSync(tempFilePath)) {
         fs.unlinkSync(tempFilePath);
-        
-        // Get the secure URL from Cloudinary
-        imageUrl = result.secure_url;
-        console.log('Cloudinary upload successful, URL:', imageUrl);
-      } else {
-        useCloudinary = false;
-        console.log('Cloudinary credentials not found, falling back to local storage');
       }
-    } catch (cloudinaryError) {
-      useCloudinary = false;
-      console.error('Cloudinary upload failed:', cloudinaryError);
-      console.log('Falling back to local storage');
+      console.error('Upload Request - Cloudinary upload error:', {
+        error: uploadError.message,
+        stack: uploadError.stack
+      });
+      throw uploadError;
     }
-    
-    // Fall back to local storage if Cloudinary fails or is not configured
-    if (!useCloudinary) {
-      // Create local directory if not exists
-      const uploadDir = path.join(__dirname, "../uploads/bookcovers");
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      
-      // Save file locally
-      const filename = `${Date.now()}-${req.file.originalname}`;
-      const filePath = path.join(uploadDir, filename);
-      fs.writeFileSync(filePath, req.file.buffer);
-      
-      // Check if file exists after saving
-      const fileExists = fs.existsSync(filePath);
-      console.log(`Local file saved: ${filePath}, exists: ${fileExists}`);
-      
-      // Create URL for the uploaded file
-      const isProduction = process.env.NODE_ENV === 'production' || process.env.IS_PRODUCTION === 'true';
-      let baseUrl;
-      
-      if (isProduction) {
-        baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://chatbot-backend-v-4-1.onrender.com';
-      } else {
-        baseUrl = process.env.BASE_URL || 'http://localhost:5000';
-      }
-      
-      const relativePath = `/uploads/bookcovers/${filename}`;
-      imageUrl = `${baseUrl}${relativePath}`;
+  } catch (err) {
+    console.error("Upload Request - Error:", {
+      message: err.message,
+      stack: err.stack
+    });
+    res.status(500).json({ 
+      error: "Failed to upload image", 
+      details: err.message,
+      solution: "Please ensure Cloudinary is properly configured"
+    });
+  }
+});
+
+// Test endpoint for image upload verification
+router.post("/test-upload", authenticateAdmin, upload.single('coverImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No image file provided" });
     }
 
-    console.log('Final image URL:', imageUrl);
-    
-    res.status(200).json({ 
-      message: "Image uploaded successfully", 
-      imageUrl: imageUrl,
-      storage: useCloudinary ? 'cloudinary' : 'local'
+    console.log('Test Upload - File received:', {
+      filename: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
     });
+
+    // Check Cloudinary configuration
+    const cloudinaryConfig = {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET
+    };
+    
+    console.log('Test Upload - Cloudinary Config:', {
+      cloud_name: cloudinaryConfig.cloud_name ? 'Present' : 'Missing',
+      api_key: cloudinaryConfig.api_key ? 'Present' : 'Missing',
+      api_secret: cloudinaryConfig.api_secret ? 'Present' : 'Missing'
+    });
+
+    if (!isCloudinaryConfigured()) {
+      throw new Error('Cloudinary configuration is missing. Cannot upload images.');
+    }
+
+    // Create a buffer from the file
+    const buffer = req.file.buffer;
+    const tempFilePath = path.join(__dirname, `../temp-test-${Date.now()}.jpg`);
+    
+    try {
+      // Write buffer to temporary file
+      fs.writeFileSync(tempFilePath, buffer);
+      console.log('Test Upload - Temporary file created:', tempFilePath);
+      
+      // Upload to Cloudinary
+      const result = await cloudinary.uploader.upload(tempFilePath, {
+        folder: "test-uploads",
+        resource_type: "image",
+        timeout: 60000 // 60 second timeout
+      });
+      
+      // Delete the temporary file
+      fs.unlinkSync(tempFilePath);
+      console.log('Test Upload - Temporary file deleted');
+      
+      if (!result || !result.secure_url) {
+        throw new Error('Cloudinary upload failed to return a valid URL');
+      }
+      
+      console.log('Test Upload - Cloudinary upload successful:', {
+        url: result.secure_url,
+        public_id: result.public_id,
+        format: result.format,
+        size: result.bytes
+      });
+      
+      res.status(200).json({ 
+        message: "Test upload successful", 
+        imageUrl: result.secure_url,
+        details: {
+          public_id: result.public_id,
+          format: result.format,
+          size: result.bytes,
+          width: result.width,
+          height: result.height
+        }
+      });
+    } catch (uploadError) {
+      // Clean up temp file if it exists
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
+      throw uploadError;
+    }
   } catch (err) {
-    console.error("Error uploading image:", err);
-    res.status(500).json({ error: "Failed to upload image", details: err.message });
+    console.error("Test Upload - Error:", err);
+    res.status(500).json({ 
+      error: "Test upload failed", 
+      details: err.message,
+      solution: "Please ensure Cloudinary is properly configured"
+    });
   }
 });
 
