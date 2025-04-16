@@ -69,8 +69,8 @@ export default function AdminCollections() {
         setNoChaptersModal({ show: true, bookTitle });
         setSelectedBook(null);
       } else {
-        // For other errors, don't set the full error state, just log it
-        console.error("Error fetching chapters:", error);
+        // For other errors, set the error state
+        setError(error.response?.data?.error || "Failed to fetch chapters");
       }
     } finally {
       setLoading(false);
