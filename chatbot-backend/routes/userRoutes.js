@@ -180,7 +180,7 @@ router.post("/login", async (req, res) => {
 // ✅ Get Logged-in User Details
 router.get("/me", authenticateUser, async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId).select("_id username fullname email role phone createdAt");
+        const user = await User.findById(req.user.userId).select("_id username fullname email role phone grade publisher createdAt");
         if (!user) return res.status(404).json({ message: "User not found" });
 
         res.json(user);
