@@ -1,6 +1,5 @@
 import axiosInstance from './axios';
-import { API_ENDPOINTS } from '../config';
-import { API_URL } from './config';
+import API_URL, { API_ENDPOINTS } from '../config';
 
 // 30 minutes in milliseconds
 const SESSION_TIMEOUT = 30 * 60 * 1000;
