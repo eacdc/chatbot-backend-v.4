@@ -18,6 +18,7 @@ const Signup = () => {
         phone: "",
         role: "",
         grade: "1", // Default grade
+        publisher: "", // New field for publisher
         password: "",
         confirmPassword: ""
     });
@@ -47,6 +48,11 @@ const Signup = () => {
             // If email is empty, set it to null or remove it from request
             if (!userData.email.trim()) {
                 delete userData.email;
+            }
+            
+            // If publisher is empty, remove it from request
+            if (!userData.publisher.trim()) {
+                delete userData.publisher;
             }
             
             const response = await axios.post(API_ENDPOINTS.USER_SIGNUP, userData);
@@ -181,6 +187,18 @@ const Signup = () => {
                                     </option>
                                 ))}
                             </select>
+                        </div>
+                        <div>
+                            <label htmlFor="publisher" className="block text-sm font-medium text-gray-700 mb-1">Publisher <span className="text-gray-500 font-normal">(Optional)</span></label>
+                            <input
+                                id="publisher"
+                                name="publisher"
+                                type="text"
+                                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-lg placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                placeholder="Your preferred publisher (optional)"
+                                value={formData.publisher}
+                                onChange={handleChange}
+                            />
                         </div>
                         <div>
                             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>

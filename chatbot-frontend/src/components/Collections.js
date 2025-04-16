@@ -81,18 +81,23 @@ export default function Collections() {
       try {
         setLoading(true);
         
-        // Get the user's grade from local storage
-        const userGrade = localStorage.getItem("userGrade");
-        let response;
+        // Get the user's details from state
+        const userGrade = user?.grade || localStorage.getItem("userGrade");
+        const userPublisher = user?.publisher || localStorage.getItem("userPublisher");
         
+        // Build query parameters
+        const queryParams = new URLSearchParams();
         if (userGrade) {
-          // If we have the user's grade, fetch books filtered by grade
-          response = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?grade=${userGrade}`);
-        } else {
-          // Otherwise, fetch all books
-          response = await axios.get(API_ENDPOINTS.GET_BOOKS);
+          queryParams.append('grade', userGrade);
+        }
+        if (userPublisher) {
+          queryParams.append('publisher', userPublisher);
         }
         
+        // Construct URL with query parameters
+        const url = `${API_ENDPOINTS.GET_BOOKS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        
+        const response = await axios.get(url);
         setBooks(response.data);
       } catch (error) {
         console.error("Error fetching books:", error);
@@ -102,12 +107,17 @@ export default function Collections() {
       }
     };
     fetchBooks();
-  }, []);
+  }, [user]);
 
-  // Store user grade in localStorage when user data is fetched
+  // Store user data in localStorage when user data is fetched
   useEffect(() => {
-    if (user && user.grade) {
-      localStorage.setItem("userGrade", user.grade);
+    if (user) {
+      if (user.grade) {
+        localStorage.setItem("userGrade", user.grade);
+      }
+      if (user.publisher) {
+        localStorage.setItem("userPublisher", user.publisher);
+      }
     }
   }, [user]);
 

@@ -12,7 +12,7 @@ router.post("/register", async (req, res) => {
     try {
         console.log("📩 Received registration request:", req.body);
 
-        const { username, fullname, email, phone, role, grade, password } = req.body;
+        const { username, fullname, email, phone, role, grade, publisher, password } = req.body;
 
         // Check required fields
         if (!username || !fullname || !phone || !role || !password) {
@@ -47,7 +47,11 @@ router.post("/register", async (req, res) => {
         if (email && email.trim()) {
             userData.email = email.toLowerCase().trim();
         }
-        // Do NOT set email to null or empty string
+        
+        // Only add publisher if it exists and is not empty
+        if (publisher && publisher.trim()) {
+            userData.publisher = publisher.trim();
+        }
 
         // Create and save the new user
         const newUser = new User(userData);

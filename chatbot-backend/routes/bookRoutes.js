@@ -235,13 +235,21 @@ router.post("/test-upload", authenticateAdmin, upload.single('coverImage'), asyn
   }
 });
 
-// Get all books with optional grade filter
+// Get all books with optional grade and publisher filters
 router.get("/", async (req, res) => {
   try {
-    const { grade } = req.query;
+    const { grade, publisher } = req.query;
     
-    // If grade is provided, filter books by grade
-    const filter = grade ? { grade } : {};
+    // Build filter object based on query parameters
+    const filter = {};
+    
+    if (grade) {
+      filter.grade = grade;
+    }
+    
+    if (publisher) {
+      filter.publisher = publisher;
+    }
     
     const books = await Book.find(filter);
     res.json(books);

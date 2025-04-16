@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: false, sparse: true, lowercase: true, trim: true }, // Optional field with sparse indexing
     phone: { type: String, required: true },
     grade: { type: String, required: true, default: "1" }, // Grade level for filtering content
+    publisher: { type: String, required: false, trim: true }, // Publisher preference for filtering content
     role: { 
         type: String, 
         enum: ["student", "teacher", "school admin", "publisher admin", "admin"], 
