@@ -40,11 +40,22 @@ adminAxiosInstance.interceptors.response.use(
     return response;
   },
   async (error) => {
-    console.error('Admin response error:', error.message); // Debug log
+    // Only log as error if it's not a 404 (which is often an expected response)
+    if (error.response?.status !== 404) {
+      console.error('Admin response error:', error.message); // Debug log
+    } else {
+      console.log('Admin response: No data found (404)'); // More appropriate log for 404s
+    }
     
     if (error.response) {
-      console.error('Status:', error.response.status); // Debug log
-      console.error('Data:', error.response.data); // Debug log
+      // Only log error details for non-404 responses
+      if (error.response.status !== 404) {
+        console.error('Status:', error.response.status); // Debug log
+        console.error('Data:', error.response.data); // Debug log
+      } else {
+        console.log('Status: 404 - Not Found');
+        console.log('Data:', error.response.data);
+      }
     } else if (error.request) {
       console.error('No response received'); // Debug log
     }
