@@ -127,6 +127,7 @@ export default function Collections() {
     const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
     
     try {
+      // Use a direct axios call with the correct endpoint
       const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
         headers: {
           Authorization: `Bearer ${token}`
@@ -145,14 +146,20 @@ export default function Collections() {
     } catch (error) {
       console.log("Caught error in fetchChapters:", error.message);
       
+      // Handle authentication errors without redirecting
+      if (error.response && error.response.status === 401) {
+        setError("Your session has expired. Please log in again.");
+        // Don't redirect automatically, just show the error
+      } 
       // Specifically handle 404 errors as "No chapters found"
-      if (error.response && error.response.status === 404) {
+      else if (error.response && error.response.status === 404) {
         console.log("No chapters found for book:", bookTitle);
         setNoChaptersModal({ show: true, bookTitle });
         setSelectedBook(null);
       } else {
         // For other errors, don't set the full error state, just log it
         console.error("Error fetching chapters:", error);
+        setError("Failed to load chapters. Please try again later.");
       }
     } finally {
       setLoading(false);

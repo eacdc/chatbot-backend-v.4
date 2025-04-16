@@ -44,8 +44,15 @@ instance.interceptors.response.use(
         // Retry the original request
         return instance(originalRequest);
       } catch (refreshError) {
-        // If refresh token fails, redirect to login
-        window.location.href = '/login';
+        // If refresh token fails, check if this is a chapter request
+        // For chapter requests, we don't want to redirect automatically
+        const isChapterRequest = originalRequest.url.includes('/books/') && originalRequest.url.includes('/chapters');
+        
+        if (!isChapterRequest) {
+          // Only redirect to login for non-chapter requests
+          window.location.href = '/login';
+        }
+        
         return Promise.reject(refreshError);
       }
     }
