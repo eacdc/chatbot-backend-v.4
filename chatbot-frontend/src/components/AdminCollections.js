@@ -69,8 +69,13 @@ export default function AdminCollections() {
         setNoChaptersModal({ show: true, bookTitle });
         setSelectedBook(null);
       } else {
-        // For other errors, set the error state
-        setError(error.response?.data?.error || "Failed to fetch chapters");
+        // For other errors, show a notification instead of just logging
+        console.error("Error fetching chapters:", error);
+        setNotification({
+          show: true, 
+          type: "error", 
+          message: "Failed to fetch chapters. Please try again."
+        });
       }
     } finally {
       setLoading(false);
@@ -100,7 +105,7 @@ export default function AdminCollections() {
                 onClick={() => navigate('/admin/login')} 
                 className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
               >
-                Go to Admin Login
+                No Chapter added to this Book 
               </button>
             ) : (
               <button 
@@ -175,14 +180,25 @@ export default function AdminCollections() {
               <p className="text-gray-600 mb-6">
                 No chapters have been added to "{noChaptersModal.bookTitle}" yet. 
                 <br />
-                Add chapters from the Admin Dashboard to make them available.
+                You can add chapters to this book from the Admin Dashboard.
               </p>
-              <button 
-                onClick={() => setNoChaptersModal({ show: false, bookTitle: "" })}
-                className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-              >
-                OK
-              </button>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button 
+                  onClick={() => setNoChaptersModal({ show: false, bookTitle: "" })}
+                  className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                >
+                  OK
+                </button>
+                <button 
+                  onClick={() => {
+                    setNoChaptersModal({ show: false, bookTitle: "" });
+                    navigate('/admin/add-chapter');
+                  }}
+                  className="inline-flex items-center justify-center px-6 py-3 border border-gray-300 rounded-lg shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                >
+                  Add Chapter
+                </button>
+              </div>
             </div>
           </div>
         </div>
