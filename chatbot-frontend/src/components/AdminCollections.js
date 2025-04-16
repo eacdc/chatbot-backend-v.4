@@ -11,7 +11,6 @@ export default function AdminCollections() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
-  const [noChaptersModal, setNoChaptersModal] = useState({ show: false, bookTitle: "" });
   const navigate = useNavigate();
 
   // Check admin authentication
@@ -54,20 +53,19 @@ export default function AdminCollections() {
       // If we get a response, check if it has chapters
       if (response.data && response.data.length > 0) {
         setChapters(response.data);
-        setSelectedBook(bookId);
       } else {
-        // No chapters in response
-        setNoChaptersModal({ show: true, bookTitle });
-        setSelectedBook(null);
+        // Empty chapters array instead of showing modal
+        setChapters([]);
       }
+      setSelectedBook(bookId);
     } catch (error) {
       console.log("Caught error in fetchChapters:", error.message);
       
       // Specifically handle 404 errors as "No chapters found"
       if (error.response && error.response.status === 404) {
         console.log("No chapters found for book:", bookTitle);
-        setNoChaptersModal({ show: true, bookTitle });
-        setSelectedBook(null);
+        setChapters([]);
+        setSelectedBook(bookId);
       } else {
         // For other errors, show a notification instead of just logging
         console.error("Error fetching chapters:", error);
@@ -162,44 +160,6 @@ export default function AdminCollections() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* No Chapters Modal */}
-      {noChaptersModal.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">No Chapters Available</h2>
-              <p className="text-gray-600 mb-6">
-                No chapters have been added to "{noChaptersModal.bookTitle}" yet. 
-                <br />
-                You can add chapters to this book from the Admin Dashboard.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button 
-                  onClick={() => setNoChaptersModal({ show: false, bookTitle: "" })}
-                  className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                >
-                  OK
-                </button>
-                <button 
-                  onClick={() => {
-                    setNoChaptersModal({ show: false, bookTitle: "" });
-                    navigate('/admin/add-chapter');
-                  }}
-                  className="inline-flex items-center justify-center px-6 py-3 border border-gray-300 rounded-lg shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                >
-                  Add Chapter
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -309,8 +269,22 @@ export default function AdminCollections() {
                     ))}
                   </ul>
                 ) : (
-                  <div className="bg-gray-50 rounded-lg p-4 text-center">
-                    <p className="text-gray-600">No chapters found for this book.</p>
+                  <div className="bg-gray-50 rounded-lg p-6 text-center">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <p className="text-gray-600 mb-4">No chapters have been added to this book yet.</p>
+                    <button
+                      onClick={() => navigate('/admin/add-chapter')}
+                      className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Chapter
+                    </button>
                   </div>
                 )}
               </div>
