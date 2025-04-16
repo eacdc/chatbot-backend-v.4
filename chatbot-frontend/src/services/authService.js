@@ -1,6 +1,18 @@
 import axios from '../utils/axios';
 import { ENDPOINTS } from '../utils/config';
 
+// Get token from localStorage
+export const getToken = () => {
+  return localStorage.getItem('token');
+};
+
+// Get refresh token
+export const refreshToken = async () => {
+  // Implementation depends on your backend
+  console.log("Refreshing token...");
+  // Add your refresh token logic here
+};
+
 const authService = {
   // Login user
   login: async (credentials) => {
@@ -78,7 +90,10 @@ const authService = {
       newPassword
     });
     return response.data;
-  }
+  },
+
+  // Get token (exported both as a function and as part of the service)
+  getToken
 };
 
 export default authService; 
