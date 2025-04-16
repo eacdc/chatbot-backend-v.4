@@ -6,6 +6,7 @@ const OpenAI = require("openai");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
+const authenticateUser = require("../middleware/authMiddleware");
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -45,7 +46,7 @@ const upload = multer({
 });
 
 // Send Message & Get AI Response
-router.post("/send", async (req, res) => {
+router.post("/send", authenticateUser, async (req, res) => {
     try {
         const { userId, message, chapterId } = req.body;
         
@@ -201,7 +202,7 @@ router.post("/send", async (req, res) => {
 });
 
 // Transcribe audio and get AI response
-router.post("/transcribe", upload.single("audio"), async (req, res) => {
+router.post("/transcribe", authenticateUser, upload.single("audio"), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: "No audio file uploaded" });
@@ -290,8 +291,8 @@ router.post("/transcribe", upload.single("audio"), async (req, res) => {
     }
 });
 
-// Fetch General Chat History for Logged-in User
-router.get("/history/:userId", async (req, res) => {
+// Get chat history for a specific user
+router.get("/history/:userId", authenticateUser, async (req, res) => {
     try {
         const { userId } = req.params;
 
@@ -313,8 +314,8 @@ router.get("/history/:userId", async (req, res) => {
     }
 });
 
-// Fetch Chapter-specific Chat History
-router.get("/chapter-history/:chapterId", async (req, res) => {
+// Get chat history for a specific chapter
+router.get("/chapter-history/:chapterId", authenticateUser, async (req, res) => {
     try {
         const { chapterId } = req.params;
         
