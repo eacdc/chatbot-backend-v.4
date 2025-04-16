@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { login } from "../utils/auth";
 import { handleAuthError } from "../utils/errorHandler";
 
@@ -10,7 +9,6 @@ const Login = () => {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -34,11 +32,9 @@ const Login = () => {
       console.log("localStorage userId:", localStorage.getItem('userId'));
       console.log("localStorage isAuthenticated:", localStorage.getItem('isAuthenticated'));
       
-      // Add a slight delay before navigation to ensure localStorage is updated
-      setTimeout(() => {
-        console.log("Navigating to /chat");
-        navigate("/chat");
-      }, 300);
+      // Use direct window location navigation instead of React Router
+      console.log("Redirecting to chat page");
+      window.location.href = "/chat";
     } catch (err) {
       console.error("Login error:", err);
       setError(handleAuthError(err));

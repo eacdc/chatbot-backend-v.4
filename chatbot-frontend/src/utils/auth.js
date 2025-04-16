@@ -21,6 +21,7 @@ export const login = async (credentials) => {
     const response = await axiosInstance.post(API_ENDPOINTS.LOGIN, credentials);
     
     console.log("Login response:", response.status, response.data ? 'Data received' : 'No data');
+    console.log("Response data:", JSON.stringify(response.data, null, 2));
     
     if (response.data && response.data.token) {
       console.log("Token received, storing in localStorage");
@@ -49,8 +50,12 @@ export const login = async (credentials) => {
         localStorage.setItem('refreshToken', response.data.refreshToken);
       }
       
-      // Add a slight delay to ensure localStorage is updated
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Verify localStorage was updated
+      console.log("LocalStorage after login:", {
+        token: localStorage.getItem('token') ? 'Set' : 'Not set',
+        userId: localStorage.getItem('userId'),
+        isAuthenticated: localStorage.getItem('isAuthenticated')
+      });
       
       return response.data;
     } else {
