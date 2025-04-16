@@ -7,7 +7,7 @@
 // Background image for the chat area
 // Change this path to update the background image
 // Images should be placed in the /public/images/ directory
-export const CHAT_BACKGROUND = "/images/test-image.jpg";
+export const CHAT_BACKGROUND = "/images/chat-background.jpg";
 
 // Additional chat configuration settings can be added here
 export const CHAT_CONFIG = {
