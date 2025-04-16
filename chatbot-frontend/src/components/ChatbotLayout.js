@@ -6,6 +6,7 @@ import { API_ENDPOINTS } from "../config";
 import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { CHAT_BACKGROUND, CHAT_CONFIG } from "../config/chatConfig"; // Import chat configuration
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -659,7 +660,7 @@ export default function ChatbotLayout({ children }) {
         </div>
         
         {/* Chat Area */}
-        <div className="flex flex-col flex-1 bg-white overflow-hidden ml-0 lg:ml-72 transition-all duration-300 ease-in-out">
+        <div className="flex flex-col flex-1 overflow-hidden ml-0 lg:ml-72 transition-all duration-300 ease-in-out">
           {/* Current chapter indicator */}
           {activeChapter && (
             <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-3 shadow-sm flex justify-between items-center">
@@ -676,10 +677,16 @@ export default function ChatbotLayout({ children }) {
             </div>
           )}
           
-          {/* Messages Container */}
+          {/* Messages Container - Add background image */}
           <div 
             className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" 
-            style={{ scrollBehavior: 'smooth' }}
+            style={{ 
+              scrollBehavior: 'smooth',
+              backgroundImage: `url(${CHAT_BACKGROUND})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }}
           >
             {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
               <div className="space-y-4">
@@ -712,7 +719,7 @@ export default function ChatbotLayout({ children }) {
                 <div ref={chatEndRef} />
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-500">
+              <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-white bg-opacity-80 rounded-lg p-6">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
