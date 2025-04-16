@@ -160,8 +160,12 @@ export const getRefreshToken = () => {
   return localStorage.getItem(REFRESH_TOKEN_KEY);
 };
 
+/**
+ * Checks if the user is authenticated
+ * @returns {boolean} Whether the user is authenticated
+ */
 export const isAuthenticated = () => {
-  return !!getToken();
+  return !!localStorage.getItem('token');
 };
 
 export const refreshToken = async () => {

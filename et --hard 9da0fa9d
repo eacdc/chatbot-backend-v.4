@@ -1,0 +1,5 @@
+[33mfad1706c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix: Improve error handling in AdminCollections.js for 404 responses
+[33m9da0fa9d[m fix: Update AdminCollections.js to show 'No chapters added' message instead of redirecting to login
+[33me7f08ab0[m feat: Add admin axios instance and Cloudinary test script. Add .env.example template
+[33ma9c76224[m Fix View Chapter functionality to prevent automatic redirects to login page
+[33mf67dd747[m Enhanced Cloudinary image upload with improved error handling and logging

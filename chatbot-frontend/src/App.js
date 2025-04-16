@@ -12,7 +12,7 @@ import AddChapter from "./components/AddChapter";  // Create this later
 import Collections from "./components/Collections"; // Import the Collections page
 import AdminCollections from "./components/AdminCollections"; // Import the AdminCollections page
 import Profile from "./components/Profile"; // Import the Profile page
-import { isAuthenticated, setupActivityTracking } from "./utils/auth"; // Import auth utilities
+import { setupActivityTracking } from "./utils/auth"; // Import auth utilities
 import "./App.css";
 
 // Custom component for admin routes protection
@@ -22,8 +22,8 @@ const ProtectedAdminRoute = ({ element }) => {
 };
 
 function App() {
-  // Check if user is authenticated with timeout validation
-  const userIsAuthenticated = isAuthenticated();
+  // Check if user is authenticated directly from localStorage
+  const userIsAuthenticated = !!localStorage.getItem("token");
 
   // Handle redirects from 404.html
   useEffect(() => {
