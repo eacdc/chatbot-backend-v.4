@@ -13,7 +13,11 @@ if (!process.env.OPENAI_API_KEY) {
     process.exit(1);
 }
 
+// Create an OpenAI client using DeepSeek for chat completions
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_D, baseURL: 'https://api.deepseek.com' });
+
+// Create a separate OpenAI client for audio transcription using the standard OpenAI API
+const openaiTranscription = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Configure multer storage for audio files
 const storage = multer.diskStorage({
@@ -221,7 +225,8 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             try {
                 console.log(`Transcription attempt ${retryCount + 1}/${maxRetries + 1}`);
                 
-                const transcription = await openai.audio.transcriptions.create({
+                // Use the dedicated OpenAI client for transcription
+                const transcription = await openaiTranscription.audio.transcriptions.create({
                     file: fs.createReadStream(audioFilePath),
                     model: "whisper-1",
                 });
