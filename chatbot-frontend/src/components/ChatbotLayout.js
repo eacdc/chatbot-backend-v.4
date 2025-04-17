@@ -660,7 +660,15 @@ export default function ChatbotLayout({ children }) {
         </div>
         
         {/* Chat Area */}
-        <div className="flex flex-col flex-1 overflow-hidden ml-0 lg:ml-72 transition-all duration-300 ease-in-out">
+        <div 
+          className="flex flex-col flex-1 overflow-hidden ml-0 lg:ml-72 transition-all duration-300 ease-in-out"
+          style={{ 
+            backgroundImage: `url(${CHAT_BACKGROUND})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
+          }}
+        >
           {/* Current chapter indicator */}
           {activeChapter && (
             <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-3 shadow-sm flex justify-between items-center">
@@ -677,16 +685,10 @@ export default function ChatbotLayout({ children }) {
             </div>
           )}
           
-          {/* Messages Container - Add background image */}
+          {/* Messages Container - No background image here anymore */}
           <div 
             className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" 
-            style={{ 
-              scrollBehavior: 'smooth',
-              backgroundImage: `url(${CHAT_BACKGROUND})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat'
-            }}
+            style={{ scrollBehavior: 'smooth' }}
           >
             {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
               <div className="space-y-4">
