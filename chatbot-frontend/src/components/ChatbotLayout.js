@@ -6,7 +6,6 @@ import { API_ENDPOINTS } from "../config";
 import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { CHAT_BACKGROUND, CHAT_CONFIG } from "../config/chatConfig"; // Import chat configuration
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -661,16 +660,7 @@ export default function ChatbotLayout({ children }) {
         
         {/* Chat Area */}
         <div 
-          className="flex flex-col flex-1 overflow-hidden ml-0 lg:ml-72 transition-all duration-300 ease-in-out"
-          style={{ 
-            backgroundImage: `url(${CHAT_BACKGROUND})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            backgroundAttachment: 'fixed',
-            height: '100%',
-            width: '100%'
-          }}
+          className="flex flex-col flex-1 overflow-hidden ml-0 lg:ml-72 transition-all duration-300 ease-in-out bg-white"
         >
           {/* Current chapter indicator */}
           {activeChapter && (
@@ -724,7 +714,7 @@ export default function ChatbotLayout({ children }) {
                 <div ref={chatEndRef} />
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl p-8 shadow-lg">
+              <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-gray-50 rounded-xl p-8 shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
@@ -737,7 +727,7 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* Message Input */}
-          <div className="border-t border-gray-300 bg-white bg-opacity-90 backdrop-blur-sm p-3 sm:p-4 shadow-lg">
+          <div className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <input
