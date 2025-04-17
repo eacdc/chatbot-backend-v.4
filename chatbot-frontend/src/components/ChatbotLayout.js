@@ -40,23 +40,6 @@ export default function ChatbotLayout({ children }) {
       // Redirect to login if not authenticated
       navigate("/login");
     }
-
-    // Prevent navigation back to login page
-    const preventBackNavigation = (e) => {
-      // This will prevent the default behavior of the popstate event
-      window.history.pushState(null, '', window.location.pathname);
-    };
-
-    // Replace the current history entry to prevent back navigation to login
-    window.history.replaceState(null, '', window.location.pathname);
-    
-    // Add an event listener for the popstate event (back/forward buttons)
-    window.addEventListener('popstate', preventBackNavigation);
-    
-    // Clean up the event listener when component unmounts
-    return () => {
-      window.removeEventListener('popstate', preventBackNavigation);
-    };
   }, [navigate]);
 
   useEffect(() => {

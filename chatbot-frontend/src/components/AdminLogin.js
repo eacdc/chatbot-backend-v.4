@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { API_ENDPOINTS } from "../config";
@@ -10,18 +10,6 @@ const AdminLogin = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
-  // Check if admin is already logged in and prevent back navigation to login page
-  useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken');
-    const adminId = localStorage.getItem('adminId');
-    
-    if (adminToken && adminId) {
-      // Replace current history entry with dashboard to prevent back navigation to login
-      window.history.replaceState(null, '', '/admin/dashboard');
-      navigate('/admin/dashboard', { replace: true });
-    }
-  }, [navigate]);
 
   const handleLogin = async () => {
     setError(""); // Clear previous errors
@@ -54,11 +42,8 @@ const AdminLogin = () => {
         // Add a slight delay to ensure localStorage is updated
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Replace current history entry with dashboard to prevent back navigation
-        window.history.replaceState(null, '', '/admin/dashboard');
-        
-        // Navigate to admin dashboard with replace option
-        navigate("/admin/dashboard", { replace: true });
+        // Navigate to admin dashboard
+        navigate("/admin/dashboard");
       } else {
         setError("Invalid response from server. Please try again.");
       }
