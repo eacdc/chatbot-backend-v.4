@@ -499,7 +499,7 @@ export default function ChatbotLayout({ children }) {
         )}
         
         {/* Sidebar */}
-        <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-gray-800 text-white fixed lg:relative z-20 h-full lg:h-auto overflow-y-auto shadow-lg flex flex-col flex-shrink-0`}>
+        <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-gray-800 text-white fixed lg:static z-20 h-full overflow-y-auto shadow-lg flex flex-col flex-shrink-0`}>
           <div className="p-4 flex-1">
             <div className="flex justify-between items-center lg:hidden mb-4">
               <h2 className="text-lg font-semibold">My Library</h2>
@@ -656,11 +656,11 @@ export default function ChatbotLayout({ children }) {
               </button>
             </nav>
           </div>
-        </div>
+        </aside>
         
         {/* Chat Area */}
         <div 
-          className="flex flex-col flex-1 overflow-hidden w-full lg:ml-72 transition-all duration-300 ease-in-out bg-white"
+          className="flex flex-col flex-1 overflow-hidden w-full transition-all duration-300 ease-in-out bg-white"
         >
           {/* Current chapter indicator */}
           {activeChapter && (
