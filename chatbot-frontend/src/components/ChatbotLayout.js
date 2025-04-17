@@ -192,6 +192,13 @@ export default function ChatbotLayout({ children }) {
     setCurrentBookId(bookId);
     setCurrentBookCover(bookCoverImgLink);
     
+    console.log("Selected chapter with book cover:", {
+      chapterId: chapter._id,
+      chapterTitle: chapter.title,
+      bookId: bookId,
+      bookCoverImgLink: bookCoverImgLink
+    });
+    
     // Fetch chat history for this chapter
     await fetchChapterChatHistory(chapter._id);
   };
@@ -485,7 +492,7 @@ export default function ChatbotLayout({ children }) {
     if (!currentBookCover) return {};
     
     return {
-      backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8)), url(${currentBookCover})`,
+      backgroundImage: `url(${currentBookCover})`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
@@ -720,47 +727,49 @@ export default function ChatbotLayout({ children }) {
             className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" 
             style={{ scrollBehavior: 'smooth' }}
           >
-            {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
-              <div className="space-y-4">
-                {chatHistory.map((msg, index) => (
-                  <div
-                    key={index}
-                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg shadow-md p-3 ${
-                      msg.role === "user" 
-                        ? "bg-blue-600 text-white rounded-tr-none" 
-                        : msg.role === "system" 
-                          ? "bg-yellow-100 text-yellow-800 rounded-tl-none border border-yellow-200" 
-                          : "bg-white text-gray-800 rounded-tl-none border border-gray-200"
-                    } text-sm sm:text-base markdown-content`}
+            <div className={`h-full ${currentBookCover ? 'bg-white bg-opacity-50 backdrop-blur-sm rounded-lg p-4' : ''}`}>
+              {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
+                <div className="space-y-4">
+                  {chatHistory.map((msg, index) => (
+                    <div
+                      key={index}
+                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                     >
-                      {msg.role === "user" ? (
-                        msg.content
-                      ) : (
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm]}
-                          className={msg.role === "system" ? "markdown-system" : "markdown-assistant"}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      )}
+                      <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg shadow-md p-3 ${
+                        msg.role === "user" 
+                          ? "bg-blue-600 text-white rounded-tr-none" 
+                          : msg.role === "system" 
+                            ? "bg-yellow-100 text-yellow-800 rounded-tl-none border border-yellow-200" 
+                            : "bg-white bg-opacity-90 backdrop-blur-sm text-gray-800 rounded-tl-none border border-gray-200"
+                      } text-sm sm:text-base markdown-content`}
+                      >
+                        {msg.role === "user" ? (
+                          msg.content
+                        ) : (
+                          <ReactMarkdown 
+                            remarkPlugins={[remarkGfm]}
+                            className={msg.role === "system" ? "markdown-system" : "markdown-assistant"}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl p-8 shadow-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-                <p className="text-center text-xl font-medium">Start a conversation!</p>
-                <p className="text-center text-base mt-3">
-                  {activeChapter ? "Ask questions about this chapter" : "Select a chapter or ask a general question"}
-                </p>
-              </div>
-            )}
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl p-8 shadow-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  <p className="text-center text-xl font-medium">Start a conversation!</p>
+                  <p className="text-center text-base mt-3">
+                    {activeChapter ? "Ask questions about this chapter" : "Select a chapter or ask a general question"}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
           
           {/* Message Input */}
