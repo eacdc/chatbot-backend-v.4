@@ -16,6 +16,8 @@ export default function ChatbotLayout({ children }) {
   const [loading, setLoading] = useState(true);
   const [activeChapter, setActiveChapter] = useState(null);
   const [currentChapterTitle, setCurrentChapterTitle] = useState("");
+  const [currentBookId, setCurrentBookId] = useState(null);
+  const [currentBookCover, setCurrentBookCover] = useState("");
   const chatEndRef = useRef(null);
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   // Audio recording states
@@ -184,9 +186,11 @@ export default function ChatbotLayout({ children }) {
   };
 
   // Handle chapter selection
-  const handleChapterSelect = async (chapter) => {
+  const handleChapterSelect = async (chapter, bookId, bookCoverImgLink) => {
     setActiveChapter(chapter._id);
     setCurrentChapterTitle(chapter.title);
+    setCurrentBookId(bookId);
+    setCurrentBookCover(bookCoverImgLink);
     
     // Fetch chat history for this chapter
     await fetchChapterChatHistory(chapter._id);
@@ -376,6 +380,8 @@ export default function ChatbotLayout({ children }) {
   const clearActiveChapter = async () => {
     setActiveChapter(null);
     setCurrentChapterTitle("");
+    setCurrentBookId(null);
+    setCurrentBookCover("");
     
     // Fetch general chat history
     const userId = getUserId();
@@ -467,8 +473,38 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
+  // Handle book cover image error
+  const handleBookCoverError = () => {
+    console.error(`Failed to load book cover image: ${currentBookCover}`);
+    // Use a fallback gradient instead
+    setCurrentBookCover("");
+  };
+
+  // Chat Area background style with error handling
+  const getChatAreaStyle = () => {
+    if (!currentBookCover) return {};
+    
+    return {
+      backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8)), url(${currentBookCover})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed',
+    };
+  };
+
   return (
     <div className="flex h-screen flex-col bg-gray-50">
+      {/* Hidden image to preload and validate book cover */}
+      {currentBookCover && (
+        <img 
+          src={currentBookCover}
+          alt=""
+          className="hidden"
+          onError={handleBookCoverError}
+        />
+      )}
+    
       <div className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-3 sm:p-4 flex justify-between items-center shadow-md">
         <div className="flex items-center space-x-2">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
@@ -557,7 +593,7 @@ export default function ChatbotLayout({ children }) {
                                       : "text-gray-300 hover:bg-gray-600 hover:text-white"
                                   }`}
                                   onClick={() => {
-                                    handleChapterSelect(chapter);
+                                    handleChapterSelect(chapter, sub.bookId, sub.bookCoverImgLink);
                                     setIsSidebarOpen(false);
                                   }}
                                 >
@@ -661,6 +697,7 @@ export default function ChatbotLayout({ children }) {
         {/* Chat Area */}
         <div 
           className="flex flex-col flex-1 overflow-hidden w-full transition-all duration-300 ease-in-out bg-white"
+          style={getChatAreaStyle()}
         >
           {/* Current chapter indicator */}
           {activeChapter && (
@@ -678,7 +715,7 @@ export default function ChatbotLayout({ children }) {
             </div>
           )}
           
-          {/* Messages Container - No background image here anymore */}
+          {/* Messages Container */}
           <div 
             className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" 
             style={{ scrollBehavior: 'smooth' }}
@@ -695,7 +732,7 @@ export default function ChatbotLayout({ children }) {
                         ? "bg-blue-600 text-white rounded-tr-none" 
                         : msg.role === "system" 
                           ? "bg-yellow-100 text-yellow-800 rounded-tl-none border border-yellow-200" 
-                          : "bg-gray-100 text-gray-800 rounded-tl-none border border-gray-200"
+                          : "bg-white text-gray-800 rounded-tl-none border border-gray-200"
                     } text-sm sm:text-base markdown-content`}
                     >
                       {msg.role === "user" ? (
@@ -714,7 +751,7 @@ export default function ChatbotLayout({ children }) {
                 <div ref={chatEndRef} />
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-gray-50 rounded-xl p-8 shadow-sm">
+              <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl p-8 shadow-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
@@ -727,7 +764,7 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* Message Input */}
-          <div className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4">
+          <div className="border-t border-gray-200 bg-white bg-opacity-90 backdrop-blur-sm p-3 sm:p-4 shadow-lg">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <input
