@@ -666,7 +666,10 @@ export default function ChatbotLayout({ children }) {
             backgroundImage: `url(${CHAT_BACKGROUND})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
+            backgroundRepeat: 'no-repeat',
+            backgroundAttachment: 'fixed',
+            height: '100%',
+            width: '100%'
           }}
         >
           {/* Current chapter indicator */}
@@ -697,7 +700,7 @@ export default function ChatbotLayout({ children }) {
                     key={index}
                     className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg shadow-sm p-3 ${
+                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg shadow-md p-3 ${
                       msg.role === "user" 
                         ? "bg-blue-600 text-white rounded-tr-none" 
                         : msg.role === "system" 
@@ -721,12 +724,12 @@ export default function ChatbotLayout({ children }) {
                 <div ref={chatEndRef} />
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-white bg-opacity-80 rounded-lg p-6">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl p-8 shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
-                <p className="text-center text-lg font-medium">Start a conversation!</p>
-                <p className="text-center text-sm mt-2">
+                <p className="text-center text-xl font-medium">Start a conversation!</p>
+                <p className="text-center text-base mt-3">
                   {activeChapter ? "Ask questions about this chapter" : "Select a chapter or ask a general question"}
                 </p>
               </div>
@@ -734,7 +737,7 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* Message Input */}
-          <div className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4">
+          <div className="border-t border-gray-300 bg-white bg-opacity-90 backdrop-blur-sm p-3 sm:p-4 shadow-lg">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <input
