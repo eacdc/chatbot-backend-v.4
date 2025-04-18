@@ -815,6 +815,14 @@ export default function ChatbotLayout({ children }) {
               </div>
             )}
           </div>
+          
+          {/* Direct Test Button - For easier testing */}
+          <button
+            onClick={seedTestNotifications}
+            className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded-md shadow-sm transition-colors"
+          >
+            Add Test Notifications
+          </button>
         </div>
         
         {/* Carousel of book covers */}
