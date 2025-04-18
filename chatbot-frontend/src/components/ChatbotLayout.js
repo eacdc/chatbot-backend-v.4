@@ -62,6 +62,15 @@ export default function ChatbotLayout({ children }) {
         });
         
         console.log("Subscriptions data:", response.data);
+        // Log the structure of each subscription to check for bookCoverImgLink
+        if (response.data && response.data.length > 0) {
+          console.log("First subscription details:", {
+            _id: response.data[0]._id,
+            bookId: response.data[0].bookId,
+            bookTitle: response.data[0].bookTitle,
+            bookCoverImgLink: response.data[0].bookCoverImgLink
+          });
+        }
         setSubscribedBooks(response.data);
         setLoading(false);
       } catch (error) {
@@ -187,6 +196,14 @@ export default function ChatbotLayout({ children }) {
 
   // Handle chapter selection
   const handleChapterSelect = async (chapter, bookId, bookCoverImgLink) => {
+    console.log("Chapter select - BEFORE setting state:", {
+      existingBookId: currentBookId,
+      existingCover: currentBookCover,
+      newChapter: chapter._id,
+      newBookId: bookId,
+      newCover: bookCoverImgLink
+    });
+    
     setActiveChapter(chapter._id);
     setCurrentChapterTitle(chapter.title);
     setCurrentBookId(bookId);
@@ -201,6 +218,19 @@ export default function ChatbotLayout({ children }) {
     
     // Fetch chat history for this chapter
     await fetchChapterChatHistory(chapter._id);
+    
+    console.log("Chapter select - AFTER state should be updated:", {
+      currentBookId,
+      currentBookCover
+    });
+    
+    // Force-check state after a delay to ensure it's updated
+    setTimeout(() => {
+      console.log("Chapter select - State after delay:", {
+        currentBookId,
+        currentBookCover
+      });
+    }, 500);
   };
 
   const handleSendMessage = async () => {
@@ -489,8 +519,14 @@ export default function ChatbotLayout({ children }) {
 
   // Chat Area background style with error handling
   const getChatAreaStyle = () => {
-    if (!currentBookCover) return {};
+    console.log("Getting chat area style with current book cover:", currentBookCover);
     
+    if (!currentBookCover) {
+      console.log("No book cover set, returning empty style");
+      return {};
+    }
+    
+    console.log("Returning style with background image:", currentBookCover);
     return {
       backgroundImage: `url(${currentBookCover})`,
       backgroundSize: 'cover',

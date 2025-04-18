@@ -37,7 +37,8 @@ router.post("/", authenticateUser, async (req, res) => {
       userId,
       userName: user.fullname,
       bookId,
-      bookTitle: book.title
+      bookTitle: book.title,
+      bookCoverImgLink: book.bookCoverImgLink
     });
 
     await newSubscription.save();
@@ -73,6 +74,32 @@ router.get("/:userId", async (req, res) => {
   }
 });
 
+// Update existing subscriptions with book cover links
+router.post("/update-covers", authenticateUser, async (req, res) => {
+  try {
+    const subscriptions = await Subscription.find({});
+    let updated = 0;
+
+    for (const subscription of subscriptions) {
+      // Find the associated book
+      const book = await Book.findById(subscription.bookId);
+      if (book && book.bookCoverImgLink) {
+        // Update the subscription with the book cover link
+        subscription.bookCoverImgLink = book.bookCoverImgLink;
+        await subscription.save();
+        updated++;
+      }
+    }
+
+    res.status(200).json({ 
+      message: `Updated ${updated} of ${subscriptions.length} subscriptions with book cover links` 
+    });
+  } catch (err) {
+    console.error("Error updating subscriptions with book covers:", err.message);
+    res.status(500).json({ error: `Failed to update subscriptions: ${err.message}` });
+  }
+});
+
 // ✅ Unsubscribe from a book
 router.delete("/:bookId", authenticateUser, async (req, res) => {
   try {
@@ -91,6 +118,33 @@ router.delete("/:bookId", authenticateUser, async (req, res) => {
   } catch (err) {
     console.error("Error unsubscribing:", err.message);
     res.status(500).json({ error: `Failed to unsubscribe: ${err.message}` });
+  }
+});
+
+// Admin endpoint to update all subscriptions with book cover links (no auth for easy updating)
+router.get("/admin/update-all-covers", async (req, res) => {
+  try {
+    const subscriptions = await Subscription.find({});
+    let updated = 0;
+
+    for (const subscription of subscriptions) {
+      // Find the associated book
+      const book = await Book.findById(subscription.bookId);
+      if (book && book.bookCoverImgLink) {
+        // Update the subscription with the book cover link
+        subscription.bookCoverImgLink = book.bookCoverImgLink;
+        await subscription.save();
+        updated++;
+      }
+    }
+
+    res.status(200).json({ 
+      message: `Updated ${updated} of ${subscriptions.length} subscriptions with book cover links`,
+      subscriptions: await Subscription.find({})
+    });
+  } catch (err) {
+    console.error("Error updating subscriptions with book covers:", err.message);
+    res.status(500).json({ error: `Failed to update subscriptions: ${err.message}` });
   }
 });
 

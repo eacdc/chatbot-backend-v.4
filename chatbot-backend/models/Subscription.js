@@ -5,6 +5,7 @@ const SubscriptionSchema = new mongoose.Schema({
   userName: { type: String, required: true },
   bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true },
   bookTitle: { type: String, required: true },
+  bookCoverImgLink: { type: String, default: "" },
   subscribedAt: { type: Date, default: Date.now }
 });
 
