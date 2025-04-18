@@ -350,6 +350,10 @@ export default function ChatbotLayout({ children }) {
     const token = getToken();
     if (!userId || !token) return;
     
+    // Reset audio state immediately to restore normal UI
+    const audioBlobCopy = audioBlob;
+    setAudioBlob(null);
+    
     // Create message indicating audio is being processed
     const newChat = [...chatHistory, { 
       role: "user", 
@@ -360,7 +364,7 @@ export default function ChatbotLayout({ children }) {
     try {
       // Create form data to send the audio file for transcription
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
+      formData.append('audio', audioBlobCopy, 'recording.webm');
       
       // Use our secure backend endpoint for transcription
       const transcriptionResponse = await axios.post(
@@ -412,9 +416,6 @@ export default function ChatbotLayout({ children }) {
         content: errorMessage
       }]);
     }
-    
-    // Reset audio state
-    setAudioBlob(null);
   };
 
   // Clear active chapter
