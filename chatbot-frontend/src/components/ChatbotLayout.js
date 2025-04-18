@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm';
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
+  const [publisherBooks, setPublisherBooks] = useState([]);
   const [expandedBook, setExpandedBook] = useState(null);
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
@@ -20,6 +21,7 @@ export default function ChatbotLayout({ children }) {
   const [currentBookCover, setCurrentBookCover] = useState("");
   const chatEndRef = useRef(null);
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
+  const carouselRef = useRef(null);
   // Audio recording states
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
@@ -89,6 +91,40 @@ export default function ChatbotLayout({ children }) {
     
     fetchUserSubscriptions();
   }, [navigate]);
+
+  // Fetch publisher books for the carousel
+  useEffect(() => {
+    const fetchPublisherBooks = async () => {
+      const token = getToken();
+      if (!token) return;
+      
+      try {
+        // First get user data to determine publisher
+        const userResponse = await axios.get(API_ENDPOINTS.GET_USER, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const userPublisher = userResponse.data.publisher;
+        
+        if (!userPublisher) {
+          console.log("User has no publisher preference set");
+          return;
+        }
+        
+        // Then fetch books filtered by this publisher
+        const booksResponse = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?publisher=${userPublisher}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        setPublisherBooks(booksResponse.data);
+        console.log(`Fetched ${booksResponse.data.length} books from publisher ${userPublisher}`);
+      } catch (error) {
+        console.error("Error fetching publisher books:", error);
+      }
+    };
+    
+    fetchPublisherBooks();
+  }, []);
 
   // Fetch chat history for a specific chapter
   const fetchChapterChatHistory = async (chapterId) => {
@@ -578,6 +614,42 @@ export default function ChatbotLayout({ children }) {
           </svg>
           <span className="text-xl font-bold tracking-wide">BookChat</span>
         </div>
+        
+        {/* Carousel of book covers */}
+        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-12">
+          {publisherBooks.length > 0 && (
+            <div 
+              ref={carouselRef}
+              className="whitespace-nowrap animate-slider h-full"
+              style={{
+                animationDuration: `${Math.max(30, publisherBooks.length * 5)}s`,
+                animationTimingFunction: 'linear',
+                animationIterationCount: 'infinite'
+              }}
+            >
+              {/* Duplicate the books to create seamless looping */}
+              {[...publisherBooks, ...publisherBooks].map((book, index) => (
+                <div 
+                  key={`${book._id}-${index}`} 
+                  className="inline-block mx-3 rounded-md overflow-hidden shadow-md h-10 w-8 hover:scale-110 transition-transform duration-200 cursor-pointer"
+                  title={book.title}
+                  onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
+                >
+                  <img 
+                    src={book.bookCoverImgLink} 
+                    alt={book.title}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
         {/* Mobile menu toggle button */}
         <button 
           className="lg:hidden flex items-center justify-center p-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
