@@ -616,7 +616,7 @@ export default function ChatbotLayout({ children }) {
         </div>
         
         {/* Carousel of book covers */}
-        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-20">
+        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-32 carousel-container">
           {publisherBooks.length > 0 && (
             <div 
               ref={carouselRef}
