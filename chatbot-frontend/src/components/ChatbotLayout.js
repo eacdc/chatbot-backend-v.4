@@ -37,6 +37,10 @@ export default function ChatbotLayout({ children }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const notificationRef = useRef(null);
 
+  // Add state for current notification popup
+  const [currentNotification, setCurrentNotification] = useState(null);
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+
   const getUserId = () => localStorage.getItem("userId");
   const getToken = () => localStorage.getItem("token");
 
@@ -44,10 +48,11 @@ export default function ChatbotLayout({ children }) {
   useEffect(() => {
     if (isAuthenticated()) {
       updateLastActivity();
+      
+      // Fetch user notifications and first unseen notification on login
       fetchUserNotifications();
       
-      // Only fetch first unseen notification on initial login
-      // We'll set a flag in sessionStorage to track if we've shown a notification this session
+      // Only attempt to show notification popup if not shown already in this session
       if (!sessionStorage.getItem('notificationShown')) {
         fetchFirstUnseenNotification();
       }
@@ -617,9 +622,12 @@ export default function ChatbotLayout({ children }) {
         }
       });
 
-      setNotifications(response.data);
-      const unreadNotifications = response.data.filter(notif => notif.seen_status === "no");
-      setUnreadCount(unreadNotifications.length);
+      if (Array.isArray(response.data)) {
+        setNotifications(response.data);
+        const unreadNotifications = response.data.filter(notif => notif.seen_status === "no");
+        setUnreadCount(unreadNotifications.length);
+        console.log(`Fetched ${response.data.length} notifications (${unreadNotifications.length} unread)`);
+      }
     } catch (error) {
       console.error("Error fetching notifications:", error);
     }
@@ -638,12 +646,21 @@ export default function ChatbotLayout({ children }) {
       });
 
       if (response.data) {
-        setNotifications(prev => [...prev, response.data]);
-        setUnreadCount(prev => prev + 1);
+        // Show the notification popup
+        console.log("Found unseen notification to display:", response.data);
+        setShowNotificationPopup(true);
+        setCurrentNotification(response.data);
+        
+        // Mark that we've shown a notification this session
+        sessionStorage.setItem('notificationShown', 'true');
+      } else {
+        console.log("No unseen notifications found");
       }
     } catch (error) {
       // If 404, it means there are no unseen notifications
-      if (error.response && error.response.status !== 404) {
+      if (error.response && error.response.status === 404) {
+        console.log("No unseen notifications to display");
+      } else {
         console.error("Error fetching unseen notification:", error);
       }
     }
@@ -684,9 +701,10 @@ export default function ChatbotLayout({ children }) {
 
   // Handle notification popup confirmation
   const handleNotificationConfirm = () => {
-    if (notifications.length > 0) {
-      markNotificationAsSeen(notifications[0]._id);
-      setShowNotifications(false);
+    if (currentNotification && currentNotification._id) {
+      markNotificationAsSeen(currentNotification._id);
+      setShowNotificationPopup(false);
+      setCurrentNotification(null);
     }
   };
 
@@ -749,19 +767,6 @@ export default function ChatbotLayout({ children }) {
     };
   }, []);
 
-  // Add test notifications for demonstration
-  useEffect(() => {
-    // Sample notifications for demo purposes
-    const sampleNotifications = [
-      { id: 1, message: "New chapter available in Pride and Prejudice", timestamp: new Date(), read: false },
-      { id: 2, message: "Your question about Chapter 3 has been answered", timestamp: new Date(Date.now() - 3600000), read: false },
-      { id: 3, message: "Welcome to the Literary Companion App!", timestamp: new Date(Date.now() - 86400000), read: true }
-    ];
-    
-    setNotifications(sampleNotifications);
-    setUnreadCount(sampleNotifications.filter(n => !n.read).length);
-  }, []);
-
   // Format timestamp to readable format
   const formatTimestamp = (timestamp) => {
     const now = new Date();
@@ -788,6 +793,50 @@ export default function ChatbotLayout({ children }) {
     return new Date(timestamp).toLocaleDateString();
   };
 
+  // Mark all notifications as read
+  const markAllNotificationsAsSeen = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      // Since there's no specific endpoint for marking all as seen in the backend yet,
+      // we'll implement a workaround by marking each unseen notification individually
+      const unseenNotifications = notifications.filter(notif => notif.seen_status === 'no');
+      
+      if (unseenNotifications.length === 0) {
+        return; // No unseen notifications to mark
+      }
+      
+      // Create promises for each notification update
+      const markPromises = unseenNotifications.map(notif => 
+        axios.put(
+          API_ENDPOINTS.MARK_NOTIFICATION_SEEN.replace(':notificationId', notif._id),
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        )
+      );
+      
+      // Execute all promises
+      await Promise.all(markPromises);
+      console.log(`Marked ${unseenNotifications.length} notifications as seen`);
+
+      // Update local state
+      setNotifications(prevNotifications => 
+        prevNotifications.map(notif => ({ ...notif, seen_status: 'yes' }))
+      );
+      setUnreadCount(0);
+      
+      // Close notifications panel
+      setShowNotifications(false);
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col bg-gray-50">
       {/* Hidden image to preload and validate book cover */}
@@ -811,67 +860,68 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* Notifications Button */}
-          <div className="flex items-center ml-4 relative" ref={notificationRef}>
-            <button
-              className="relative p-2 text-gray-700 hover:text-blue-600 transition-colors"
+          <div className="relative" ref={notificationRef}>
+            <button 
+              className="p-2 rounded-full bg-blue-700 hover:bg-blue-800 transition-colors duration-200 focus:outline-none"
               onClick={() => setShowNotifications(!showNotifications)}
               aria-label="Notifications"
             >
-              <FaBell className="w-6 h-6" />
+              <FaBell className="h-5 w-5" />
               {unreadCount > 0 && (
-                <span className="notification-badge">{unreadCount}</span>
+                <span className="notification-badge">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
               )}
             </button>
             
+            {/* Notifications Panel */}
             {showNotifications && (
-              <div className="notification-popup-container absolute top-[60px] right-[100px] w-80">
-                <div className="notification-popup bg-white rounded-lg overflow-hidden">
-                  <div className="py-2 px-3 bg-blue-50 border-b border-blue-100 flex justify-between items-center">
-                    <h3 className="font-medium text-blue-800">Notifications</h3>
-                    {unreadCount > 0 && (
-                      <button 
-                        className="text-xs text-blue-600 hover:text-blue-800"
-                        onClick={() => {
-                          setNotifications(notifications.map(n => ({ ...n, read: true })));
-                          setUnreadCount(0);
-                        }}
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-                    {notifications.length > 0 ? (
-                      notifications.map(notification => (
-                        <div 
-                          key={notification.id} 
-                          className={`p-3 hover:bg-gray-50 cursor-pointer ${!notification.read ? 'unread-notification' : ''}`}
-                          onClick={() => markNotificationAsRead(notification.id)}
-                        >
-                          <div className="text-sm">{notification.message}</div>
-                          <div className="text-xs text-gray-500 mt-1">{formatTimestamp(notification.timestamp)}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-3 text-center text-gray-500">No notifications</div>
-                    )}
-                  </div>
-                  
-                  <div className="border-t border-gray-100 p-2 bg-gray-50 text-center">
+              <div className="notification-panel mt-2 right-0 left-auto absolute">
+                <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
+                  <h3 className="font-semibold text-gray-700">Notifications</h3>
+                  {unreadCount > 0 && (
                     <button 
-                      className="text-xs text-gray-600 hover:text-blue-600"
-                      onClick={() => setShowNotifications(false)}
+                      onClick={markAllNotificationsAsSeen}
+                      className="text-xs text-blue-600 hover:text-blue-800"
                     >
-                      Close
+                      Mark all as read
                     </button>
-                  </div>
+                  )}
+                  <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-gray-700 ml-2">
+                    <FaTimes />
+                  </button>
                 </div>
                 
-                <div 
-                  className="w-4 h-4 bg-white absolute top-[-8px] right-[60px] transform rotate-45 border-t border-l border-blue-100"
-                  style={{ borderColor: '#e5e7eb' }}
-                ></div>
+                <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                  {notifications.length > 0 ? (
+                    notifications.map(notification => (
+                      <div 
+                        key={notification._id} 
+                        className={`p-3 hover:bg-gray-50 ${notification.seen_status === 'no' ? 'unread-notification' : ''}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-800">{notification.title}</h4>
+                            <p className="mt-1 text-sm text-gray-600">{notification.message}</p>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {new Date(notification.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                          {notification.seen_status === 'no' && (
+                            <button
+                              onClick={() => markNotificationAsSeen(notification._id)}
+                              className="ml-2 mt-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                            >
+                              Mark as read
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-gray-500">No notifications</div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1319,6 +1369,49 @@ export default function ChatbotLayout({ children }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Popup */}
+      {showNotificationPopup && currentNotification && (
+        <div 
+          className="fixed z-50 notification-popup-container"
+          style={{
+            top: '70px', // Position below header
+            right: '20px', // Align with right side
+            width: '280px' // Keep it small
+          }}
+        >
+          <div className="bg-white rounded-lg shadow-lg p-3 notification-popup relative">
+            {/* Small triangle pointing to notification icon */}
+            <div 
+              className="absolute w-4 h-4 bg-white transform rotate-45"
+              style={{
+                top: '-8px',
+                right: '20px'
+              }}
+            ></div>
+            
+            <div className="relative">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mr-3">
+                  <FaBell className="h-5 w-5 text-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-gray-800 mb-1">{currentNotification.title}</h3>
+                  <p className="text-xs text-gray-600 mb-2">{currentNotification.message}</p>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleNotificationConfirm}
+                      className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors font-medium"
+                    >
+                      OK
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
