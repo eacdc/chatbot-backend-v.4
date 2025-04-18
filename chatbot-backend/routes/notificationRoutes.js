@@ -12,7 +12,10 @@ router.get('/first-unseen', authenticateUser, notificationController.getFirstUns
 // Mark a notification as seen
 router.put('/:notificationId/mark-seen', authenticateUser, notificationController.updateNotification);
 
-// Seed test notifications (for development only)
-router.post('/seed', authenticateUser, notificationController.seedNotifications);
+// Mark all notifications as seen
+router.put('/mark-all-seen', authenticateUser, notificationController.markAllAsSeen);
+
+// Seed test notifications (for development/testing)
+router.post('/seed', authenticateUser, notificationController.seedTestNotifications);
 
 module.exports = router; 

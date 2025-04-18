@@ -123,4 +123,74 @@ exports.createSystemNotification = async (userId, title, message) => {
     console.error('Error creating system notification:', error);
     return null;
   }
+};
+
+// Seed test notifications for testing
+exports.seedTestNotifications = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Define test notifications
+    const notifications = [
+      {
+        userId,
+        title: 'Welcome to BookChat!',
+        message: 'Thank you for joining our platform. Start exploring books and engage with AI-powered discussions about your favorite chapters.',
+        seen_status: 'no',
+        created_at: new Date()
+      },
+      {
+        userId,
+        title: 'New Book Added',
+        message: 'A new book "The Future of AI" has been added to our collections. Check it out and add it to your library!',
+        seen_status: 'no',
+        created_at: new Date(Date.now() - 1000 * 60 * 30) // 30 minutes ago
+      },
+      {
+        userId,
+        title: 'Limited Time Offer',
+        message: 'For the next 7 days, get access to premium content for free! Explore our exclusive collection now.',
+        seen_status: 'no',
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 24) // 1 day ago
+      },
+      {
+        userId,
+        title: 'Chapter Summary Available',
+        message: 'The summary for your recently viewed chapter is now available. Click to view.',
+        seen_status: 'no',
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 48) // 2 days ago
+      }
+    ];
+    
+    // First delete any existing notifications for this user
+    await Notification.deleteMany({ userId });
+    
+    // Insert new notifications
+    await Notification.insertMany(notifications);
+    
+    res.status(200).json({ message: 'Test notifications added successfully', count: notifications.length });
+  } catch (error) {
+    console.error('Error seeding test notifications:', error);
+    res.status(500).json({ error: error.message || 'Server Error' });
+  }
+};
+
+// Mark all notifications as seen for a user
+exports.markAllAsSeen = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const result = await Notification.updateMany(
+      { userId, seen_status: 'no' },
+      { $set: { seen_status: 'yes' } }
+    );
+    
+    res.status(200).json({ 
+      message: 'All notifications marked as seen', 
+      count: result.modifiedCount 
+    });
+  } catch (error) {
+    console.error('Error marking all notifications as seen:', error);
+    res.status(500).json({ error: error.message || 'Server Error' });
+  }
 }; 

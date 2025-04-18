@@ -502,6 +502,10 @@ export default function ChatbotLayout({ children }) {
   const confirmLogout = () => {
     localStorage.removeItem("userId");
     localStorage.removeItem("token");
+    
+    // Clear the notification session flag so notifications will show on next login
+    sessionStorage.removeItem('notificationShown');
+    
     setShowLogoutPopup(false);
     navigate("/login");
   };
@@ -714,7 +718,18 @@ export default function ChatbotLayout({ children }) {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      await axios.post(
+      // First, close the notifications panel if it's open
+      setShowNotifications(false);
+      
+      // Show loading notification
+      setNotification({
+        show: true,
+        type: "info",
+        message: "Adding test notifications..."
+      });
+
+      // Call the backend endpoint to create notifications
+      const response = await axios.post(
         API_ENDPOINTS.SEED_NOTIFICATIONS,
         {},
         {
@@ -724,24 +739,40 @@ export default function ChatbotLayout({ children }) {
         }
       );
 
-      // Refresh notifications
-      fetchUserNotifications();
-      fetchFirstUnseenNotification();
+      console.log("Test notifications added:", response.data);
+      
+      // Clear the notifications seen flag so they show up immediately
+      sessionStorage.removeItem('notificationShown');
+      
+      // Refresh notifications data
+      await fetchUserNotifications();
+      
+      // Also show the first unseen notification
+      await fetchFirstUnseenNotification();
       
       // Show success message
       setNotification({
         show: true,
         type: "success",
-        message: "Test notifications added successfully!"
+        message: `Added ${response.data.count || 4} test notifications successfully!`
       });
       
       // Hide notification after 3 seconds
       setTimeout(() => {
-        setNotification({ ...notification, show: false });
+        setNotification({ show: false });
       }, 3000);
       
     } catch (error) {
       console.error("Error seeding test notifications:", error);
+      setNotification({
+        show: true,
+        type: "error",
+        message: "Failed to add test notifications: " + (error.response?.data?.error || error.message)
+      });
+      
+      setTimeout(() => {
+        setNotification({ show: false });
+      }, 3000);
     }
   };
 
@@ -922,11 +953,28 @@ export default function ChatbotLayout({ children }) {
                     <div className="p-4 text-center text-gray-500">No notifications</div>
                   )}
                 </div>
+                
+                {/* Add back the test button for easier testing */}
+                <div className="p-2 border-t border-gray-200 bg-gray-50">
+                  <button
+                    onClick={seedTestNotifications}
+                    className="w-full p-2 bg-blue-100 hover:bg-blue-200 text-xs text-blue-700 rounded transition-colors"
+                  >
+                    Add Test Notifications
+                  </button>
+                </div>
               </div>
             )}
           </div>
           
-          {/* Direct Test Button - Removed */}
+          {/* Direct Test Button - For easier testing during development */}
+          <button
+            onClick={seedTestNotifications}
+            className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 rounded-md shadow-sm transition-colors"
+            title="Add test notifications for this user"
+          >
+            Test Notifications
+          </button>
         </div>
         
         {/* Carousel of book covers */}
