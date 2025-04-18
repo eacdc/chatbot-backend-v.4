@@ -907,16 +907,16 @@ export default function ChatbotLayout({ children }) {
             
             {/* Notifications Panel */}
             {showNotifications && (
-              <div className="notification-panel mt-2 right-0 left-auto absolute w-72">
-                <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center flex-wrap">
-                  <h3 className="font-semibold text-gray-700 mr-auto">Notifications</h3>
-                  <div className="flex items-center">
+              <div className="notification-panel mt-2 absolute" style={{ right: 0, left: 'auto' }}>
+                <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
+                  <h3 className="font-semibold text-gray-700">Notifications</h3>
+                  <div className="flex items-center space-x-2">
                     {unreadCount > 0 && (
                       <button 
                         onClick={markAllNotificationsAsSeen}
-                        className="text-xs text-blue-600 hover:text-blue-800 mr-2"
+                        className="text-xs text-blue-600 hover:text-blue-800"
                       >
-                        Mark all
+                        Mark all as read
                       </button>
                     )}
                     <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-gray-700">
@@ -933,8 +933,8 @@ export default function ChatbotLayout({ children }) {
                         className={`p-3 hover:bg-gray-50 ${notification.seen_status === 'no' ? 'unread-notification' : ''}`}
                       >
                         <div className="flex justify-between items-start">
-                          <div className="flex-1 min-w-0 pr-2">
-                            <h4 className="font-medium text-gray-800 break-words">{notification.title}</h4>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-gray-800 truncate">{notification.title}</h4>
                             <p className="mt-1 text-sm text-gray-600 break-words">{notification.message}</p>
                             <div className="text-xs text-gray-500 mt-1">
                               {new Date(notification.created_at).toLocaleDateString()}

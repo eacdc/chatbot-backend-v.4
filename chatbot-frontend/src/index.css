@@ -299,23 +299,14 @@ code {
   top: 100%;
   right: 0;
   width: 300px;
+  max-width: calc(100vw - 20px);
   max-height: 400px;
   overflow-y: auto;
   background-color: white;
   border-radius: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  z-index: 50;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  max-width: 90vw; /* Limit width on small screens */
-}
-
-.notification-panel h4, 
-.notification-panel p {
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  word-break: break-word;
-  hyphens: auto;
+  z-index: 9999;
+  transform: translateX(0);
 }
 
 .notification-popup {
