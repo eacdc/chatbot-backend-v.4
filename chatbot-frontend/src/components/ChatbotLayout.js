@@ -1424,35 +1424,27 @@ export default function ChatbotLayout({ children }) {
       {/* Notification Popup */}
       {showNotificationPopup && currentNotification && (
         <div 
-          className="fixed z-50 notification-popup-container"
-          style={{
-            top: '70px', // Position below header
-            right: '20px', // Align with right side
-            width: '280px' // Keep it small
-          }}
+          className="fixed inset-0 flex items-center justify-center z-[9999]"
+          style={{pointerEvents: 'none'}}
         >
-          <div className="bg-white rounded-lg shadow-lg p-3 notification-popup relative">
-            {/* Small triangle pointing to notification icon */}
-            <div 
-              className="absolute w-4 h-4 bg-white transform rotate-45"
-              style={{
-                top: '-8px',
-                right: '20px'
-              }}
-            ></div>
-            
-            <div className="relative">
+          <div className="notification-popup-container mx-auto" 
+               style={{
+                 maxWidth: '320px',
+                 pointerEvents: 'auto',
+                 margin: '0 auto'
+               }}>
+            <div className="bg-white rounded-lg shadow-lg p-4 notification-popup relative border border-blue-200">
               <div className="flex items-start">
                 <div className="flex-shrink-0 mr-3">
                   <FaBell className="h-5 w-5 text-blue-500" />
                 </div>
                 <div className="flex-1">
                   <h3 className="text-sm font-bold text-gray-800 mb-1">{currentNotification.title}</h3>
-                  <p className="text-xs text-gray-600 mb-2">{currentNotification.message}</p>
+                  <p className="text-xs text-gray-600 mb-3">{currentNotification.message}</p>
                   <div className="flex justify-end">
                     <button
                       onClick={handleNotificationConfirm}
-                      className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors font-medium"
+                      className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors font-medium"
                     >
                       OK
                     </button>
