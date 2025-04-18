@@ -910,7 +910,7 @@ export default function ChatbotLayout({ children }) {
               <div 
                 className="notification-panel" 
                 style={{ 
-                  maxWidth: '350px',
+                  maxWidth: '450px',
                   width: '95%',
                   position: 'absolute',
                   top: '50px',
