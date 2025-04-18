@@ -551,8 +551,8 @@ export default function ChatbotLayout({ children }) {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(255, 255, 255, 0.7)',
-      backdropFilter: 'blur(8px)',
+      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+      backdropFilter: 'blur(1px)',
       zIndex: 1
     };
   };
@@ -801,7 +801,7 @@ export default function ChatbotLayout({ children }) {
                           ? "bg-blue-600 text-white rounded-tr-none" 
                           : msg.role === "system" 
                             ? "bg-yellow-100 text-yellow-800 rounded-tl-none border border-yellow-200" 
-                            : "bg-white text-gray-800 rounded-tl-none border border-gray-200"
+                            : "bg-white bg-opacity-95 text-gray-800 rounded-tl-none border border-gray-200"
                       } text-sm sm:text-base markdown-content`}
                       >
                         {msg.role === "user" ? (
@@ -820,7 +820,7 @@ export default function ChatbotLayout({ children }) {
                   <div ref={chatEndRef} />
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-75 rounded-xl p-8 shadow-md">
+                <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 rounded-xl p-8 shadow-md">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                   </svg>
