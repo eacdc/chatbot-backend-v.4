@@ -533,6 +533,23 @@ export default function ChatbotLayout({ children }) {
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
       backgroundAttachment: 'fixed',
+      position: 'relative',
+    };
+  };
+
+  // Apply content overlay for better readability
+  const getContentOverlayStyle = () => {
+    if (!currentBookCover) return {};
+    
+    return {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(255, 255, 255, 0.7)',
+      backdropFilter: 'blur(8px)',
+      zIndex: 1
     };
   };
 
@@ -742,28 +759,32 @@ export default function ChatbotLayout({ children }) {
           className="flex flex-col flex-1 overflow-hidden w-full transition-all duration-300 ease-in-out bg-white"
           style={getChatAreaStyle()}
         >
+          {currentBookCover && <div style={getContentOverlayStyle()}></div>}
+          
           {/* Current chapter indicator */}
-          {activeChapter && (
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-3 shadow-sm flex justify-between items-center">
-              <div>
-                <span className="text-xs font-medium uppercase tracking-wider text-blue-200">Active Chapter</span>
-                <h3 className="text-sm sm:text-base font-medium">{currentChapterTitle}</h3>
+          <div className="relative z-10">
+            {activeChapter && (
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-3 shadow-sm flex justify-between items-center">
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wider text-blue-200">Active Chapter</span>
+                  <h3 className="text-sm sm:text-base font-medium">{currentChapterTitle}</h3>
+                </div>
+                <button 
+                  className="text-xs bg-indigo-800 hover:bg-indigo-900 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
+                  onClick={clearActiveChapter}
+                >
+                  Exit Chapter
+                </button>
               </div>
-              <button 
-                className="text-xs bg-indigo-800 hover:bg-indigo-900 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
-                onClick={clearActiveChapter}
-              >
-                Exit Chapter
-              </button>
-            </div>
-          )}
+            )}
+          </div>
           
           {/* Messages Container */}
           <div 
-            className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" 
+            className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 relative z-10" 
             style={{ scrollBehavior: 'smooth' }}
           >
-            <div className={`h-full ${currentBookCover ? 'bg-white bg-opacity-50 backdrop-blur-sm rounded-lg p-4' : ''}`}>
+            <div className="h-full">
               {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
                 <div className="space-y-4">
                   {chatHistory.map((msg, index) => (
@@ -776,7 +797,7 @@ export default function ChatbotLayout({ children }) {
                           ? "bg-blue-600 text-white rounded-tr-none" 
                           : msg.role === "system" 
                             ? "bg-yellow-100 text-yellow-800 rounded-tl-none border border-yellow-200" 
-                            : "bg-white bg-opacity-90 backdrop-blur-sm text-gray-800 rounded-tl-none border border-gray-200"
+                            : "bg-white text-gray-800 rounded-tl-none border border-gray-200"
                       } text-sm sm:text-base markdown-content`}
                       >
                         {msg.role === "user" ? (
@@ -795,7 +816,7 @@ export default function ChatbotLayout({ children }) {
                   <div ref={chatEndRef} />
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl p-8 shadow-lg">
+                <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-75 rounded-xl p-8 shadow-md">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                   </svg>
@@ -809,7 +830,7 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* Message Input */}
-          <div className="border-t border-gray-200 bg-white bg-opacity-90 backdrop-blur-sm p-3 sm:p-4 shadow-lg">
+          <div className="border-t border-gray-200 p-3 sm:p-4 relative z-10">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <input
