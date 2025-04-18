@@ -910,9 +910,13 @@ export default function ChatbotLayout({ children }) {
               <div 
                 className="notification-panel" 
                 style={{ 
-                  maxWidth: '95vw',
+                  maxWidth: '350px',
+                  width: '95%',
+                  position: 'absolute',
+                  top: '50px',
+                  right: '20px',
                   left: 'auto',
-                  right: '10px'
+                  zIndex: 1000
                 }}
               >
                 <div className="p-3 bg-gray-50 border-b flex justify-between items-center">
@@ -930,7 +934,7 @@ export default function ChatbotLayout({ children }) {
                 {notifications.length === 0 ? (
                   <div className="p-4 text-center text-gray-500">No notifications</div>
                 ) : (
-                  <div>
+                  <div className="max-h-[50vh] overflow-y-auto">
                     {notifications.map((notification, index) => (
                       <div 
                         key={index}
