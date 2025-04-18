@@ -636,6 +636,9 @@ export default function ChatbotLayout({ children }) {
       if (response.data) {
         setCurrentNotification(response.data);
         setShowNotificationPopup(true);
+        
+        // Log for debugging
+        console.log("Found unseen notification:", response.data);
       }
     } catch (error) {
       // If 404, it means there are no unseen notifications
@@ -687,6 +690,11 @@ export default function ChatbotLayout({ children }) {
   const handleNotificationConfirm = () => {
     if (currentNotification) {
       markNotificationAsSeen(currentNotification._id);
+      
+      // After marking as seen, check for next unseen notification
+      setTimeout(() => {
+        fetchFirstUnseenNotification();
+      }, 500);
     }
   };
 
@@ -766,7 +774,7 @@ export default function ChatbotLayout({ children }) {
             
             {/* Notifications Panel */}
             {showNotificationsPanel && (
-              <div className="notification-panel mt-2">
+              <div className="notification-panel mt-2 right-0 left-auto">
                 <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
                   <h3 className="font-semibold text-gray-700">Notifications</h3>
                   <button onClick={() => setShowNotificationsPanel(false)} className="text-gray-500 hover:text-gray-700">
@@ -803,8 +811,8 @@ export default function ChatbotLayout({ children }) {
                   )}
                 </div>
                 
-                {/* For testing: Button to seed notifications */}
-                <div className="p-2 border-t border-gray-200 bg-gray-50">
+                {/* Button to seed notifications - hidden in UI but available in panel for testing */}
+                <div className="p-2 border-t border-gray-200 bg-gray-50 hidden">
                   <button
                     onClick={seedTestNotifications}
                     className="w-full p-2 bg-gray-200 hover:bg-gray-300 text-sm text-gray-700 rounded transition-colors"
@@ -816,13 +824,7 @@ export default function ChatbotLayout({ children }) {
             )}
           </div>
           
-          {/* Direct Test Button - For easier testing */}
-          <button
-            onClick={seedTestNotifications}
-            className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded-md shadow-sm transition-colors"
-          >
-            Add Test Notifications
-          </button>
+          {/* Direct Test Button - Removed */}
         </div>
         
         {/* Carousel of book covers */}
@@ -1228,21 +1230,23 @@ export default function ChatbotLayout({ children }) {
 
       {/* Notification Popup */}
       {showNotificationPopup && currentNotification && (
-        <div className="fixed bottom-5 right-5 max-w-sm w-full bg-white rounded-lg shadow-lg border border-gray-200 p-4 notification-popup z-50">
-          <div className="flex">
-            <div className="flex-shrink-0 mr-3 mt-1">
-              <FaBell className="h-5 w-5 text-blue-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-800 mb-1">{currentNotification.title}</h3>
-              <p className="text-gray-600 mb-3">{currentNotification.message}</p>
-              <div className="flex justify-end">
-                <button
-                  onClick={handleNotificationConfirm}
-                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                >
-                  OK
-                </button>
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-5 notification-popup mx-4">
+            <div className="flex">
+              <div className="flex-shrink-0 mr-4">
+                <FaBell className="h-6 w-6 text-blue-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-gray-800 mb-2">{currentNotification.title}</h3>
+                <p className="text-gray-600 mb-4">{currentNotification.message}</p>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleNotificationConfirm}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors font-medium"
+                  >
+                    OK
+                  </button>
+                </div>
               </div>
             </div>
           </div>

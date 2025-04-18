@@ -282,4 +282,7 @@ code {
 
 .notification-popup {
   animation: fadeIn 0.3s ease-out forwards;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  z-index: 9999;
 }
