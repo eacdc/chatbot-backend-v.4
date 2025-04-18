@@ -53,6 +53,8 @@ const adminRoutes = require("./routes/adminRoutes");
 const bookRoutes = require("./routes/bookRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const promptRoutes = require("./routes/promptRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -87,6 +89,8 @@ app.use("/api/admins", adminRoutes);
 app.use("/api/books", bookRoutes);
 app.use("/api/chapters", chapterRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
+app.use("/api/prompts", promptRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Add root route handler
 app.get("/", (req, res) => {

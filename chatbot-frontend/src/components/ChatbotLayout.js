@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaUserEdit, FaSignOutAlt, FaBook, FaChevronDown, FaChevronRight, FaPlus, FaMicrophone, FaStop, FaTimes } from "react-icons/fa";
+import { FaUserEdit, FaSignOutAlt, FaBook, FaChevronDown, FaChevronRight, FaPlus, FaMicrophone, FaStop, FaTimes, FaBell } from "react-icons/fa";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
 import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
@@ -31,16 +31,23 @@ export default function ChatbotLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
 
+  // Notification states
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
+  const [currentNotification, setCurrentNotification] = useState(null);
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+
   const getUserId = () => localStorage.getItem("userId");
   const getToken = () => localStorage.getItem("token");
 
-  // Update activity timestamp on component mount
+  // Update activity timestamp on component mount and check for notifications
   useEffect(() => {
-    // Check if user is authenticated and update activity timestamp
     if (isAuthenticated()) {
       updateLastActivity();
+      fetchUserNotifications();
+      fetchFirstUnseenNotification();
     } else {
-      // Redirect to login if not authenticated
       navigate("/login");
     }
   }, [navigate]);
@@ -594,6 +601,132 @@ export default function ChatbotLayout({ children }) {
     };
   };
 
+  // Fetch all user notifications
+  const fetchUserNotifications = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await axios.get(API_ENDPOINTS.GET_NOTIFICATIONS, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      setNotifications(response.data);
+      const unreadNotifications = response.data.filter(notif => notif.seen_status === "no");
+      setUnreadCount(unreadNotifications.length);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
+  };
+
+  // Fetch first unseen notification
+  const fetchFirstUnseenNotification = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await axios.get(API_ENDPOINTS.GET_FIRST_UNSEEN, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.data) {
+        setCurrentNotification(response.data);
+        setShowNotificationPopup(true);
+      }
+    } catch (error) {
+      // If 404, it means there are no unseen notifications
+      if (error.response && error.response.status !== 404) {
+        console.error("Error fetching unseen notification:", error);
+      }
+    }
+  };
+
+  // Mark notification as seen
+  const markNotificationAsSeen = async (notificationId) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      await axios.put(
+        API_ENDPOINTS.MARK_NOTIFICATION_SEEN.replace(':notificationId', notificationId),
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      // Update local state
+      setNotifications(prevNotifications => 
+        prevNotifications.map(notif => 
+          notif._id === notificationId ? { ...notif, seen_status: 'yes' } : notif
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      
+      if (currentNotification && currentNotification._id === notificationId) {
+        setShowNotificationPopup(false);
+        setCurrentNotification(null);
+      }
+    } catch (error) {
+      console.error("Error marking notification as seen:", error);
+    }
+  };
+
+  // Toggle notifications panel
+  const toggleNotificationsPanel = () => {
+    setShowNotificationsPanel(prev => !prev);
+  };
+
+  // Handle notification popup confirmation
+  const handleNotificationConfirm = () => {
+    if (currentNotification) {
+      markNotificationAsSeen(currentNotification._id);
+    }
+  };
+
+  // For development: Seed test notifications
+  const seedTestNotifications = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      await axios.post(
+        API_ENDPOINTS.SEED_NOTIFICATIONS,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      // Refresh notifications
+      fetchUserNotifications();
+      fetchFirstUnseenNotification();
+      
+      // Show success message
+      setNotification({
+        show: true,
+        type: "success",
+        message: "Test notifications added successfully!"
+      });
+      
+      // Hide notification after 3 seconds
+      setTimeout(() => {
+        setNotification({ ...notification, show: false });
+      }, 3000);
+      
+    } catch (error) {
+      console.error("Error seeding test notifications:", error);
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col bg-gray-50">
       {/* Hidden image to preload and validate book cover */}
@@ -607,12 +740,81 @@ export default function ChatbotLayout({ children }) {
       )}
     
       <div className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-3 sm:p-4 flex justify-between items-center shadow-md">
-        <div className="flex items-center space-x-2 bg-blue-700 px-3 py-2 rounded-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-            <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-          </svg>
-          <span className="text-xl font-bold tracking-wide">BookChat</span>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 bg-blue-700 px-3 py-2 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+              <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+            </svg>
+            <span className="text-xl font-bold tracking-wide">BookChat</span>
+          </div>
+          
+          {/* Notifications Button */}
+          <div className="relative">
+            <button 
+              className="p-2 rounded-full bg-blue-700 hover:bg-blue-800 transition-colors duration-200 focus:outline-none"
+              onClick={toggleNotificationsPanel}
+              aria-label="Notifications"
+            >
+              <FaBell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="notification-badge">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            
+            {/* Notifications Panel */}
+            {showNotificationsPanel && (
+              <div className="notification-panel mt-2">
+                <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
+                  <h3 className="font-semibold text-gray-700">Notifications</h3>
+                  <button onClick={() => setShowNotificationsPanel(false)} className="text-gray-500 hover:text-gray-700">
+                    <FaTimes />
+                  </button>
+                </div>
+                
+                <div className="divide-y divide-gray-100">
+                  {notifications.length > 0 ? (
+                    notifications.map(notif => (
+                      <div 
+                        key={notif._id} 
+                        className={`p-3 ${notif.seen_status === 'no' ? 'bg-blue-50' : ''}`}
+                      >
+                        <div className="flex justify-between">
+                          <h4 className="font-medium text-gray-800">{notif.title}</h4>
+                          <span className="text-xs text-gray-500">
+                            {new Date(notif.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-600">{notif.message}</p>
+                        {notif.seen_status === 'no' && (
+                          <button
+                            onClick={() => markNotificationAsSeen(notif._id)}
+                            className="mt-2 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                          >
+                            Mark as read
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-gray-500">No notifications</div>
+                  )}
+                </div>
+                
+                {/* For testing: Button to seed notifications */}
+                <div className="p-2 border-t border-gray-200 bg-gray-50">
+                  <button
+                    onClick={seedTestNotifications}
+                    className="w-full p-2 bg-gray-200 hover:bg-gray-300 text-sm text-gray-700 rounded transition-colors"
+                  >
+                    Add Test Notifications
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Carousel of book covers */}
@@ -1011,6 +1213,29 @@ export default function ChatbotLayout({ children }) {
               >
                 Logout
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Popup */}
+      {showNotificationPopup && currentNotification && (
+        <div className="fixed bottom-5 right-5 max-w-sm w-full bg-white rounded-lg shadow-lg border border-gray-200 p-4 notification-popup z-50">
+          <div className="flex">
+            <div className="flex-shrink-0 mr-3 mt-1">
+              <FaBell className="h-5 w-5 text-blue-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-800 mb-1">{currentNotification.title}</h3>
+              <p className="text-gray-600 mb-3">{currentNotification.message}</p>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleNotificationConfirm}
+                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  OK
+                </button>
+              </div>
             </div>
           </div>
         </div>

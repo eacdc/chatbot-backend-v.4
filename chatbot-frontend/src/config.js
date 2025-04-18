@@ -26,7 +26,13 @@ export const API_ENDPOINTS = {
   // Chapter preparation endpoints
   PROCESS_TEXT: `${API_URL}/api/chapters/process-text`,
   GENERATE_QNA: `${API_URL}/api/chapters/generate-qna`,
-  GENERATE_FINAL_PROMPT: `${API_URL}/api/chapters/generate-final-prompt`
+  GENERATE_FINAL_PROMPT: `${API_URL}/api/chapters/generate-final-prompt`,
+  
+  // Notification endpoints
+  GET_NOTIFICATIONS: `${API_URL}/api/notifications`,
+  GET_FIRST_UNSEEN: `${API_URL}/api/notifications/first-unseen`,
+  MARK_NOTIFICATION_SEEN: `${API_URL}/api/notifications/:notificationId/mark-seen`,
+  SEED_NOTIFICATIONS: `${API_URL}/api/notifications/seed`,
 };
 
 export default API_URL; 
