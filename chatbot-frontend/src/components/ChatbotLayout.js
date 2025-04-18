@@ -912,7 +912,7 @@ export default function ChatbotLayout({ children }) {
                 style={{ 
                   maxWidth: '95vw',
                   left: 'auto',
-                  right: isSmallScreen ? '10px' : '0'
+                  right: '10px'
                 }}
               >
                 <div className="p-3 bg-gray-50 border-b flex justify-between items-center">
