@@ -302,11 +302,13 @@ code {
   max-width: calc(100vw - 20px);
   max-height: 400px;
   overflow-y: auto;
+  overflow-x: hidden;
   background-color: white;
   border-radius: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   z-index: 9999;
   transform: translateX(0);
+  transform-origin: top right;
 }
 
 .notification-popup {
@@ -338,4 +340,12 @@ code {
 .unread-notification {
   border-left: 3px solid #3b82f6;
   background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

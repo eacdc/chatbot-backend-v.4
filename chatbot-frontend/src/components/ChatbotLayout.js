@@ -907,64 +907,52 @@ export default function ChatbotLayout({ children }) {
             
             {/* Notifications Panel */}
             {showNotifications && (
-              <div className="notification-panel mt-2 absolute" style={{ right: 0, left: 'auto' }}>
-                <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="font-semibold text-gray-700">Notifications</h3>
-                  <div className="flex items-center space-x-2">
-                    {unreadCount > 0 && (
-                      <button 
-                        onClick={markAllNotificationsAsSeen}
-                        className="text-xs text-blue-600 hover:text-blue-800"
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                    <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-gray-700">
-                      <FaTimes />
+              <div 
+                className="notification-panel" 
+                style={{ 
+                  maxWidth: '95vw',
+                  left: 'auto',
+                  right: isSmallScreen ? '10px' : '0'
+                }}
+              >
+                <div className="p-3 bg-gray-50 border-b flex justify-between items-center">
+                  <h3 className="font-medium">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={markAllNotificationsAsSeen}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Mark all as read
                     </button>
-                  </div>
-                </div>
-                
-                <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-                  {notifications.length > 0 ? (
-                    notifications.map(notification => (
-                      <div 
-                        key={notification._id} 
-                        className={`p-3 hover:bg-gray-50 ${notification.seen_status === 'no' ? 'unread-notification' : ''}`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-gray-800 truncate">{notification.title}</h4>
-                            <p className="mt-1 text-sm text-gray-600 break-words">{notification.message}</p>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {new Date(notification.created_at).toLocaleDateString()}
-                            </div>
-                          </div>
-                          {notification.seen_status === 'no' && (
-                            <button
-                              onClick={() => markNotificationAsSeen(notification._id)}
-                              className="ml-2 mt-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 flex-shrink-0"
-                            >
-                              Mark as read
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">No notifications</div>
                   )}
                 </div>
                 
-                {/* Add back the test button for easier testing */}
-                <div className="p-2 border-t border-gray-200 bg-gray-50">
-                  <button
-                    onClick={seedTestNotifications}
-                    className="w-full p-2 bg-blue-100 hover:bg-blue-200 text-xs text-blue-700 rounded transition-colors"
-                  >
-                    Add Test Notifications
-                  </button>
-                </div>
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">No notifications</div>
+                ) : (
+                  <div>
+                    {notifications.map((notification, index) => (
+                      <div 
+                        key={index}
+                        className={`p-3 border-b flex ${notification.read ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate">{notification.title}</div>
+                          <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
+                          <div className="text-xs text-gray-400 mt-1">{notification.time}</div>
+                        </div>
+                        {!notification.read && (
+                          <button 
+                            onClick={() => markNotificationAsSeen(notification._id)}
+                            className="text-xs text-blue-600 hover:text-blue-800 ml-2 flex-shrink-0 self-start mt-1"
+                          >
+                            Mark as read
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
