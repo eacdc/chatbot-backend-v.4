@@ -907,20 +907,22 @@ export default function ChatbotLayout({ children }) {
             
             {/* Notifications Panel */}
             {showNotifications && (
-              <div className="notification-panel mt-2 right-0 left-auto absolute">
-                <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="font-semibold text-gray-700">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <button 
-                      onClick={markAllNotificationsAsSeen}
-                      className="text-xs text-blue-600 hover:text-blue-800"
-                    >
-                      Mark all as read
+              <div className="notification-panel mt-2 right-0 left-auto absolute w-72">
+                <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center flex-wrap">
+                  <h3 className="font-semibold text-gray-700 mr-auto">Notifications</h3>
+                  <div className="flex items-center">
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={markAllNotificationsAsSeen}
+                        className="text-xs text-blue-600 hover:text-blue-800 mr-2"
+                      >
+                        Mark all
+                      </button>
+                    )}
+                    <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-gray-700">
+                      <FaTimes />
                     </button>
-                  )}
-                  <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-gray-700 ml-2">
-                    <FaTimes />
-                  </button>
+                  </div>
                 </div>
                 
                 <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
@@ -931,9 +933,9 @@ export default function ChatbotLayout({ children }) {
                         className={`p-3 hover:bg-gray-50 ${notification.seen_status === 'no' ? 'unread-notification' : ''}`}
                       >
                         <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-800">{notification.title}</h4>
-                            <p className="mt-1 text-sm text-gray-600">{notification.message}</p>
+                          <div className="flex-1 min-w-0 pr-2">
+                            <h4 className="font-medium text-gray-800 break-words">{notification.title}</h4>
+                            <p className="mt-1 text-sm text-gray-600 break-words">{notification.message}</p>
                             <div className="text-xs text-gray-500 mt-1">
                               {new Date(notification.created_at).toLocaleDateString()}
                             </div>
@@ -941,7 +943,7 @@ export default function ChatbotLayout({ children }) {
                           {notification.seen_status === 'no' && (
                             <button
                               onClick={() => markNotificationAsSeen(notification._id)}
-                              className="ml-2 mt-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                              className="ml-2 mt-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 flex-shrink-0"
                             >
                               Mark as read
                             </button>
