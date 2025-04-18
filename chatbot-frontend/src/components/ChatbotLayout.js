@@ -32,11 +32,10 @@ export default function ChatbotLayout({ children }) {
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
 
   // Notification states
+  const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
-  const [currentNotification, setCurrentNotification] = useState(null);
-  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  const notificationRef = useRef(null);
 
   const getUserId = () => localStorage.getItem("userId");
   const getToken = () => localStorage.getItem("token");
@@ -46,7 +45,12 @@ export default function ChatbotLayout({ children }) {
     if (isAuthenticated()) {
       updateLastActivity();
       fetchUserNotifications();
-      fetchFirstUnseenNotification();
+      
+      // Only fetch first unseen notification on initial login
+      // We'll set a flag in sessionStorage to track if we've shown a notification this session
+      if (!sessionStorage.getItem('notificationShown')) {
+        fetchFirstUnseenNotification();
+      }
     } else {
       navigate("/login");
     }
@@ -634,11 +638,8 @@ export default function ChatbotLayout({ children }) {
       });
 
       if (response.data) {
-        setCurrentNotification(response.data);
-        setShowNotificationPopup(true);
-        
-        // Log for debugging
-        console.log("Found unseen notification:", response.data);
+        setNotifications(prev => [...prev, response.data]);
+        setUnreadCount(prev => prev + 1);
       }
     } catch (error) {
       // If 404, it means there are no unseen notifications
@@ -671,11 +672,6 @@ export default function ChatbotLayout({ children }) {
         )
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
-      
-      if (currentNotification && currentNotification._id === notificationId) {
-        setShowNotificationPopup(false);
-        setCurrentNotification(null);
-      }
     } catch (error) {
       console.error("Error marking notification as seen:", error);
     }
@@ -683,18 +679,14 @@ export default function ChatbotLayout({ children }) {
 
   // Toggle notifications panel
   const toggleNotificationsPanel = () => {
-    setShowNotificationsPanel(prev => !prev);
+    setShowNotifications(!showNotifications);
   };
 
   // Handle notification popup confirmation
   const handleNotificationConfirm = () => {
-    if (currentNotification) {
-      markNotificationAsSeen(currentNotification._id);
-      
-      // After marking as seen, check for next unseen notification
-      setTimeout(() => {
-        fetchFirstUnseenNotification();
-      }, 500);
+    if (notifications.length > 0) {
+      markNotificationAsSeen(notifications[0]._id);
+      setShowNotifications(false);
     }
   };
 
@@ -735,6 +727,67 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
+  // Add this function to handle notification clicks
+  const markNotificationAsRead = (id) => {
+    setNotifications(notifications.map(notification => 
+      notification.id === id ? { ...notification, read: true } : notification
+    ));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  // Add click outside handler for notifications
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    }
+    
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Add test notifications for demonstration
+  useEffect(() => {
+    // Sample notifications for demo purposes
+    const sampleNotifications = [
+      { id: 1, message: "New chapter available in Pride and Prejudice", timestamp: new Date(), read: false },
+      { id: 2, message: "Your question about Chapter 3 has been answered", timestamp: new Date(Date.now() - 3600000), read: false },
+      { id: 3, message: "Welcome to the Literary Companion App!", timestamp: new Date(Date.now() - 86400000), read: true }
+    ];
+    
+    setNotifications(sampleNotifications);
+    setUnreadCount(sampleNotifications.filter(n => !n.read).length);
+  }, []);
+
+  // Format timestamp to readable format
+  const formatTimestamp = (timestamp) => {
+    const now = new Date();
+    const diff = now - new Date(timestamp);
+    
+    // Less than a minute
+    if (diff < 60000) {
+      return 'Just now';
+    }
+    
+    // Less than an hour
+    if (diff < 3600000) {
+      const minutes = Math.floor(diff / 60000);
+      return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+    }
+    
+    // Less than a day
+    if (diff < 86400000) {
+      const hours = Math.floor(diff / 3600000);
+      return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+    }
+    
+    // Format as date for older notifications
+    return new Date(timestamp).toLocaleDateString();
+  };
+
   return (
     <div className="flex h-screen flex-col bg-gray-50">
       {/* Hidden image to preload and validate book cover */}
@@ -758,68 +811,67 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* Notifications Button */}
-          <div className="relative">
-            <button 
-              className="p-2 rounded-full bg-blue-700 hover:bg-blue-800 transition-colors duration-200 focus:outline-none"
-              onClick={toggleNotificationsPanel}
+          <div className="flex items-center ml-4 relative" ref={notificationRef}>
+            <button
+              className="relative p-2 text-gray-700 hover:text-blue-600 transition-colors"
+              onClick={() => setShowNotifications(!showNotifications)}
               aria-label="Notifications"
             >
-              <FaBell className="h-5 w-5" />
+              <FaBell className="w-6 h-6" />
               {unreadCount > 0 && (
-                <span className="notification-badge">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+                <span className="notification-badge">{unreadCount}</span>
               )}
             </button>
             
-            {/* Notifications Panel */}
-            {showNotificationsPanel && (
-              <div className="notification-panel mt-2 right-0 left-auto">
-                <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="font-semibold text-gray-700">Notifications</h3>
-                  <button onClick={() => setShowNotificationsPanel(false)} className="text-gray-500 hover:text-gray-700">
-                    <FaTimes />
-                  </button>
-                </div>
-                
-                <div className="divide-y divide-gray-100">
-                  {notifications.length > 0 ? (
-                    notifications.map(notif => (
-                      <div 
-                        key={notif._id} 
-                        className={`p-3 ${notif.seen_status === 'no' ? 'bg-blue-50' : ''}`}
+            {showNotifications && (
+              <div className="notification-popup-container absolute top-[60px] right-[100px] w-80">
+                <div className="notification-popup bg-white rounded-lg overflow-hidden">
+                  <div className="py-2 px-3 bg-blue-50 border-b border-blue-100 flex justify-between items-center">
+                    <h3 className="font-medium text-blue-800">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button 
+                        className="text-xs text-blue-600 hover:text-blue-800"
+                        onClick={() => {
+                          setNotifications(notifications.map(n => ({ ...n, read: true })));
+                          setUnreadCount(0);
+                        }}
                       >
-                        <div className="flex justify-between">
-                          <h4 className="font-medium text-gray-800">{notif.title}</h4>
-                          <span className="text-xs text-gray-500">
-                            {new Date(notif.created_at).toLocaleDateString()}
-                          </span>
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                    {notifications.length > 0 ? (
+                      notifications.map(notification => (
+                        <div 
+                          key={notification.id} 
+                          className={`p-3 hover:bg-gray-50 cursor-pointer ${!notification.read ? 'unread-notification' : ''}`}
+                          onClick={() => markNotificationAsRead(notification.id)}
+                        >
+                          <div className="text-sm">{notification.message}</div>
+                          <div className="text-xs text-gray-500 mt-1">{formatTimestamp(notification.timestamp)}</div>
                         </div>
-                        <p className="mt-1 text-sm text-gray-600">{notif.message}</p>
-                        {notif.seen_status === 'no' && (
-                          <button
-                            onClick={() => markNotificationAsSeen(notif._id)}
-                            className="mt-2 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                          >
-                            Mark as read
-                          </button>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">No notifications</div>
-                  )}
+                      ))
+                    ) : (
+                      <div className="p-3 text-center text-gray-500">No notifications</div>
+                    )}
+                  </div>
+                  
+                  <div className="border-t border-gray-100 p-2 bg-gray-50 text-center">
+                    <button 
+                      className="text-xs text-gray-600 hover:text-blue-600"
+                      onClick={() => setShowNotifications(false)}
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
                 
-                {/* Button to seed notifications - hidden in UI but available in panel for testing */}
-                <div className="p-2 border-t border-gray-200 bg-gray-50 hidden">
-                  <button
-                    onClick={seedTestNotifications}
-                    className="w-full p-2 bg-gray-200 hover:bg-gray-300 text-sm text-gray-700 rounded transition-colors"
-                  >
-                    Add Test Notifications
-                  </button>
-                </div>
+                <div 
+                  className="w-4 h-4 bg-white absolute top-[-8px] right-[60px] transform rotate-45 border-t border-l border-blue-100"
+                  style={{ borderColor: '#e5e7eb' }}
+                ></div>
               </div>
             )}
           </div>
@@ -1223,31 +1275,6 @@ export default function ChatbotLayout({ children }) {
               >
                 Logout
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Notification Popup */}
-      {showNotificationPopup && currentNotification && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
-          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-5 notification-popup mx-4">
-            <div className="flex">
-              <div className="flex-shrink-0 mr-4">
-                <FaBell className="h-6 w-6 text-blue-500" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-gray-800 mb-2">{currentNotification.title}</h3>
-                <p className="text-gray-600 mb-4">{currentNotification.message}</p>
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleNotificationConfirm}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors font-medium"
-                  >
-                    OK
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
