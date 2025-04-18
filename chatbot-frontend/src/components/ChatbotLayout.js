@@ -636,7 +636,7 @@ export default function ChatbotLayout({ children }) {
                   title={book.title}
                   onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
                 >
-                  <div className="h-14 w-10">
+                  <div className="h-20 w-16">
                     <img 
                       src={book.bookCoverImgLink} 
                       alt={book.title}
@@ -647,7 +647,7 @@ export default function ChatbotLayout({ children }) {
                       }}
                     />
                   </div>
-                  <div className="w-16 text-white text-xs truncate px-1 bg-blue-600 bg-opacity-90 rounded-b-md">
+                  <div className="book-title-container">
                     {book.title}
                   </div>
                 </div>
