@@ -893,7 +893,7 @@ export default function ChatbotLayout({ children }) {
           {/* Notifications Button */}
           <div className="relative" ref={notificationRef}>
             <button 
-              className="p-2 rounded-full bg-blue-700 hover:bg-blue-800 transition-colors duration-200 focus:outline-none"
+              className={`p-2 rounded-full bg-blue-700 hover:bg-blue-800 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
               onClick={() => setShowNotifications(!showNotifications)}
               aria-label="Notifications"
             >
@@ -1430,17 +1430,18 @@ export default function ChatbotLayout({ children }) {
           <div className="notification-popup-container mx-auto" 
                style={{
                  maxWidth: '320px',
+                 width: '90%',
                  pointerEvents: 'auto',
                  margin: '0 auto'
                }}>
-            <div className="bg-white rounded-lg shadow-lg p-4 notification-popup relative border border-blue-200">
+            <div className="bg-white rounded-lg shadow-lg p-4 notification-popup relative border border-blue-200 w-full">
               <div className="flex items-start">
                 <div className="flex-shrink-0 mr-3">
                   <FaBell className="h-5 w-5 text-blue-500" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-gray-800 mb-1">{currentNotification.title}</h3>
-                  <p className="text-xs text-gray-600 mb-3">{currentNotification.message}</p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-gray-800 mb-1 break-words">{currentNotification.title}</h3>
+                  <p className="text-xs text-gray-600 mb-3 break-words">{currentNotification.message}</p>
                   <div className="flex justify-end">
                     <button
                       onClick={handleNotificationConfirm}
