@@ -908,18 +908,21 @@ export default function ChatbotLayout({ children }) {
             {/* Notifications Panel */}
             {showNotifications && (
               <div 
-                className="notification-panel" 
+                className="notification-panel bg-white rounded-lg shadow-xl border border-gray-200" 
                 style={{ 
-                  maxWidth: '450px',
-                  width: '95%',
+                  width: '400px',
+                  maxWidth: 'calc(100vw - 40px)',
                   position: 'absolute',
                   top: '50px',
                   right: '20px',
                   left: 'auto',
-                  zIndex: 1000
+                  zIndex: 1000,
+                  overflowY: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
                 }}
               >
-                <div className="p-3 bg-gray-50 border-b flex justify-between items-center">
+                <div className="p-3 bg-gray-50 border-b flex justify-between items-center sticky top-0">
                   <h3 className="font-medium">Notifications</h3>
                   {unreadCount > 0 && (
                     <button 
@@ -934,18 +937,18 @@ export default function ChatbotLayout({ children }) {
                 {notifications.length === 0 ? (
                   <div className="p-4 text-center text-gray-500">No notifications</div>
                 ) : (
-                  <div className="max-h-[50vh] overflow-y-auto">
+                  <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
                     {notifications.map((notification, index) => (
                       <div 
                         key={index}
-                        className={`p-3 border-b flex ${notification.read ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
+                        className={`p-3 border-b flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
                       >
                         <div className="min-w-0 flex-1">
                           <div className="font-medium truncate">{notification.title}</div>
                           <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
-                          <div className="text-xs text-gray-400 mt-1">{notification.time}</div>
+                          <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
                         </div>
-                        {!notification.read && (
+                        {notification.seen_status === 'no' && (
                           <button 
                             onClick={() => markNotificationAsSeen(notification._id)}
                             className="text-xs text-blue-600 hover:text-blue-800 ml-2 flex-shrink-0 self-start mt-1"
