@@ -205,13 +205,13 @@ code {
 /* Book cover slider animation */
 @keyframes slide {
   0% {
-    transform: translateX(0);
+    transform: translateX(100%);
   }
   100% {
-    transform: translateX(-50%);
+    transform: translateX(-100%);
   }
 }
 
 .animate-slider {
-  animation: slide 30s linear infinite;
+  animation: slide 40s linear infinite;
 }

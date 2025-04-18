@@ -616,34 +616,40 @@ export default function ChatbotLayout({ children }) {
         </div>
         
         {/* Carousel of book covers */}
-        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-12">
+        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-20">
           {publisherBooks.length > 0 && (
             <div 
               ref={carouselRef}
               className="whitespace-nowrap animate-slider h-full"
               style={{
-                animationDuration: `${Math.max(30, publisherBooks.length * 5)}s`,
+                animationDuration: `${Math.max(40, publisherBooks.length * 8)}s`,
                 animationTimingFunction: 'linear',
-                animationIterationCount: 'infinite'
+                animationIterationCount: 'infinite',
+                animationDelay: '-2s' // Start with content slightly moved in
               }}
             >
               {/* Duplicate the books to create seamless looping */}
               {[...publisherBooks, ...publisherBooks].map((book, index) => (
                 <div 
                   key={`${book._id}-${index}`} 
-                  className="inline-block mx-3 rounded-md overflow-hidden shadow-md h-10 w-8 hover:scale-110 transition-transform duration-200 cursor-pointer"
+                  className="inline-block mx-3 rounded-md overflow-hidden shadow-md hover:scale-105 transition-transform duration-200 cursor-pointer text-center"
                   title={book.title}
                   onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
                 >
-                  <img 
-                    src={book.bookCoverImgLink} 
-                    alt={book.title}
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
-                    }}
-                  />
+                  <div className="h-14 w-10">
+                    <img 
+                      src={book.bookCoverImgLink} 
+                      alt={book.title}
+                      className="h-full w-full object-cover rounded-t-md"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
+                      }}
+                    />
+                  </div>
+                  <div className="w-16 text-white text-xs truncate px-1 bg-blue-600 bg-opacity-90 rounded-b-md">
+                    {book.title}
+                  </div>
                 </div>
               ))}
             </div>
