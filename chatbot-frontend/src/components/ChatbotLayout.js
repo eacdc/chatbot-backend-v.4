@@ -339,6 +339,10 @@ export default function ChatbotLayout({ children }) {
     }
   };
   
+  const cancelRecording = () => {
+    setAudioBlob(null);
+  };
+  
   const sendAudioMessage = async () => {
     if (!audioBlob) return;
     
@@ -855,25 +859,39 @@ export default function ChatbotLayout({ children }) {
               
               {/* Audio recording button */}
               {!isRecording ? (
-                <button 
-                  className={`${audioBlob ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto ${!activeChapter ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={audioBlob ? sendAudioMessage : startRecording}
-                  disabled={!activeChapter}
-                >
-                  {audioBlob ? (
-                    <span className="flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                audioBlob ? (
+                  <div className="flex space-x-2">
+                    <button 
+                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      onClick={sendAudioMessage}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                       </svg>
                       Send Audio
-                    </span>
-                  ) : (
+                    </button>
+                    <button 
+                      className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                      onClick={cancelRecording}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={startRecording}
+                    disabled={!activeChapter}
+                  >
                     <span className="flex items-center">
                       <FaMicrophone className="mr-2" /> 
                       Voice
                     </span>
-                  )}
-                </button>
+                  </button>
+                )
               ) : (
                 <button 
                   className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
