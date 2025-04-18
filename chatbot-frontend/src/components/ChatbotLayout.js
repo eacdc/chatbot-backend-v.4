@@ -607,7 +607,7 @@ export default function ChatbotLayout({ children }) {
       )}
     
       <div className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-3 sm:p-4 flex justify-between items-center shadow-md">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 bg-blue-700 px-3 py-2 rounded-lg">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
             <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
             <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
@@ -632,23 +632,25 @@ export default function ChatbotLayout({ children }) {
               {[...publisherBooks, ...publisherBooks].map((book, index) => (
                 <div 
                   key={`${book._id}-${index}`} 
-                  className="inline-block mx-3 rounded-md overflow-hidden shadow-md hover:scale-105 transition-transform duration-200 cursor-pointer text-center"
+                  className="inline-block mx-3 rounded-md overflow-hidden shadow-md hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top"
                   title={book.title}
                   onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
                 >
-                  <div className="h-20 w-16">
-                    <img 
-                      src={book.bookCoverImgLink} 
-                      alt={book.title}
-                      className="h-full w-full object-cover rounded-t-md"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
-                      }}
-                    />
-                  </div>
-                  <div className="book-title-container">
-                    {book.title}
+                  <div className="flex flex-col items-center">
+                    <div className="h-20 w-16">
+                      <img 
+                        src={book.bookCoverImgLink} 
+                        alt={book.title}
+                        className="h-full w-full object-cover rounded-t-md"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
+                        }}
+                      />
+                    </div>
+                    <div className="book-title-container mx-auto">
+                      {book.title}
+                    </div>
                   </div>
                 </div>
               ))}
