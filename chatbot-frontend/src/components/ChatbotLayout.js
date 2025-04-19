@@ -20,6 +20,7 @@ export default function ChatbotLayout({ children }) {
   const [currentBookId, setCurrentBookId] = useState(null);
   const [currentBookCover, setCurrentBookCover] = useState("");
   const chatEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   const carouselRef = useRef(null);
   // Audio recording states
@@ -580,13 +581,10 @@ export default function ChatbotLayout({ children }) {
 
   // Chat Area background style with error handling
   const getChatAreaStyle = () => {
-    // Fallback to inline base64 if SVG doesn't load
-    const fallbackBgColor = '#FFF9F5'; // Light peachy background as fallback
-    
     return {
-      background: `${fallbackBgColor} url(${process.env.PUBLIC_URL}/images/educational-pattern-bg.svg) repeat`,
+      background: `#FFF9F5 url('/images/educational-pattern-bg.svg')`,
       backgroundSize: '400px',
-      backgroundPosition: 'center',
+      backgroundRepeat: 'repeat',
       position: 'relative',
       zIndex: 0
     };
@@ -600,7 +598,7 @@ export default function ChatbotLayout({ children }) {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(255, 255, 255, 0.85)', // More transparent to see pattern better
+      backgroundColor: 'rgba(255, 255, 255, 0.8)', 
       zIndex: 1
     };
   };
@@ -1219,12 +1217,9 @@ export default function ChatbotLayout({ children }) {
         </aside>
         
         {/* Main Chat Area */}
-        <div 
-          className="flex-1 overflow-hidden flex flex-col relative"
-          style={getChatAreaStyle()}
-        >
+        <div className="flex-1 overflow-hidden flex flex-col relative chat-area-background">
           {/* Content overlay for better readability over the pattern */}
-          <div style={getContentOverlayStyle()}></div>
+          <div className="chat-content-overlay"></div>
           
           {/* Current chapter indicator */}
           <div className="relative z-10">

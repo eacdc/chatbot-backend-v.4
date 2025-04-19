@@ -370,3 +370,35 @@ code {
     animation: none;
   }
 }
+
+/* Chat background styles */
+.chat-area-background {
+  background-color: #FFF9F5;
+  background-image: url('/images/educational-pattern-bg.svg'), url('/images/educational-pattern-simple.svg');
+  background-size: 400px;
+  background-repeat: repeat;
+  position: relative;
+  z-index: 0;
+}
+
+.chat-content-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 1;
+}
+
+/* Fallback background for when SVG doesn't load */
+.chat-area-background::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #FFF9F5;
+  z-index: -1;
+}
