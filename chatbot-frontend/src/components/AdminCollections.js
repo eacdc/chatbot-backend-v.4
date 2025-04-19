@@ -3,14 +3,17 @@ import axios from "axios";
 import adminAxiosInstance from "../utils/adminAxios";
 import { API_ENDPOINTS } from "../config";
 import { useNavigate } from "react-router-dom";
+import ChaptersModal from "./ChaptersModal";
 
 export default function AdminCollections() {
   const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedBookData, setSelectedBookData] = useState(null);
   const [chapters, setChapters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
+  const [showChaptersModal, setShowChaptersModal] = useState(false);
   const navigate = useNavigate();
 
   // Check admin authentication
@@ -43,9 +46,9 @@ export default function AdminCollections() {
   const fetchChapters = async (bookId) => {
     setLoading(true);
     
-    // Find the book title for the selected book (do this outside try/catch)
-    const selectedBookData = books.find(book => book._id === bookId);
-    const bookTitle = selectedBookData ? selectedBookData.title : "Selected Book";
+    // Find the book data for the selected book
+    const bookData = books.find(book => book._id === bookId);
+    setSelectedBookData(bookData);
     
     try {
       const response = await adminAxiosInstance.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId));
@@ -58,14 +61,15 @@ export default function AdminCollections() {
         setChapters([]);
       }
       setSelectedBook(bookId);
+      setShowChaptersModal(true);
     } catch (error) {
       console.log("Caught error in fetchChapters:", error.message);
       
       // Specifically handle 404 errors as "No chapters found"
       if (error.response && error.response.status === 404) {
-        console.log("No chapters found for book:", bookTitle);
         setChapters([]);
         setSelectedBook(bookId);
+        setShowChaptersModal(true);
       } else {
         // For other errors, show a notification instead of just logging
         console.error("Error fetching chapters:", error);
@@ -78,6 +82,11 @@ export default function AdminCollections() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Close the chapters modal
+  const closeChaptersModal = () => {
+    setShowChaptersModal(false);
   };
 
   if (error) {
@@ -164,6 +173,15 @@ export default function AdminCollections() {
         </div>
       )}
 
+      {/* Chapters Modal */}
+      <ChaptersModal
+        isOpen={showChaptersModal}
+        onClose={closeChaptersModal}
+        book={selectedBookData}
+        chapters={chapters}
+        isAdmin={true}
+      />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-10">
           <div>
@@ -242,51 +260,6 @@ export default function AdminCollections() {
                     <div className="h-3 w-24 bg-blue-200 rounded"></div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {selectedBook && (
-              <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 mb-8">
-                <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Chapters
-                </h2>
-                {loading ? (
-                  <div className="flex justify-center items-center h-32">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
-                  </div>
-                ) : chapters.length > 0 ? (
-                  <ul className="divide-y divide-gray-200">
-                    {chapters.map((chapter) => (
-                      <li key={chapter._id} className="py-3 flex items-center hover:bg-gray-50 rounded-lg px-2 transition-colors duration-150">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-gray-800">{chapter.title}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="bg-gray-50 rounded-lg p-6 text-center">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 mb-4">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <p className="text-gray-600 mb-4">No chapters have been added to this book yet.</p>
-                    <button
-                      onClick={() => navigate('/admin/add-chapter')}
-                      className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Add Chapter
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </>
