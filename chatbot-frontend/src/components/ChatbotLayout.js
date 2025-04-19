@@ -836,7 +836,7 @@ export default function ChatbotLayout({ children }) {
   // Inline styles for background patterns
   const chatBackgroundStyle = {
     backgroundColor: '#FFFFFF',
-    backgroundImage: `url('/images/educational-pattern.svg')`,
+    backgroundImage: `url(${process.env.PUBLIC_URL}/images/educational-pattern.svg)`,
     backgroundSize: 'auto',
     backgroundRepeat: 'repeat',
     position: 'relative',
