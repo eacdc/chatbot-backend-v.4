@@ -7,6 +7,7 @@ import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import a
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import backgroundImage from '../chat-background.jpg';
+import bookLogo from '../book-logo1.jpeg';
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -872,9 +873,14 @@ export default function ChatbotLayout({ children }) {
         <div className="flex items-center space-x-4">
           <div className="flex flex-col items-center bg-blue-50 px-3 py-2 rounded-lg">
             <img 
-              src={`${process.env.PUBLIC_URL}/images/book logo1.jpeg`}
+              src={bookLogo}
               alt="Book Logo" 
               className="h-10 w-auto object-contain rounded mb-1"
+              onError={(e) => {
+                console.error("Failed to load book logo");
+                e.target.onerror = null;
+                e.target.src = `${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`;
+              }}
             />
             <span className="text-sm font-bold tracking-wide text-gray-800">TestYourLearning</span>
           </div>
