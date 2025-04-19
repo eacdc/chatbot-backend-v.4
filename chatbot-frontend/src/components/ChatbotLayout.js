@@ -580,9 +580,9 @@ export default function ChatbotLayout({ children }) {
 
   // Chat Area background style with error handling
   const getChatAreaStyle = () => {
-    // Use a static gradient background instead of book cover
+    // Use a modern color scheme inspired by the Dribbble reference
     return {
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#F7F9FC',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
@@ -599,8 +599,8 @@ export default function ChatbotLayout({ children }) {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(255, 255, 255, 0.4)',
-      backdropFilter: 'blur(2px)',
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      backdropFilter: 'blur(1px)',
       zIndex: 1
     };
   };
@@ -871,99 +871,16 @@ export default function ChatbotLayout({ children }) {
         />
       )}
     
-      <div className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-3 sm:p-4 flex justify-between items-center shadow-md">
+      <div className="w-full bg-white text-gray-800 p-3 sm:p-4 flex justify-between items-center shadow-sm border-b border-gray-100">
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 bg-blue-700 px-3 py-2 rounded-lg">
+          <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
             <img 
               src={`${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`}
               alt="TestYourLearning Logo" 
               className="h-8 w-auto"
             />
-            <span className="text-xl font-bold tracking-wide hidden sm:inline">TestYourLearning</span>
+            <span className="text-xl font-bold tracking-wide hidden sm:inline text-gray-800">TestYourLearning</span>
           </div>
-          
-          {/* Notifications Button */}
-          <div className="relative" ref={notificationRef}>
-            <button 
-              className={`p-2 rounded-full bg-blue-700 hover:bg-blue-800 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
-              onClick={() => setShowNotifications(!showNotifications)}
-              aria-label="Notifications"
-            >
-              <FaBell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <span className="notification-badge">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-            
-            {/* Notifications Panel */}
-            {showNotifications && (
-              <div 
-                className="notification-panel bg-white rounded-lg shadow-xl border border-gray-200" 
-                style={{ 
-                  width: '400px',
-                  maxWidth: 'calc(100vw - 40px)',
-                  position: 'absolute',
-                  top: '45px',
-                  right: '0',
-                  left: 'auto',
-                  zIndex: 1000,
-                  overflowY: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <div className="p-3 bg-gray-50 border-b flex justify-between items-center sticky top-0">
-                  <h3 className="font-medium">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <button 
-                      onClick={markAllNotificationsAsSeen}
-                      className="text-xs text-blue-600 hover:text-blue-800"
-                    >
-                      Mark all as read
-                    </button>
-                  )}
-                </div>
-                
-                {notifications.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">No notifications</div>
-                ) : (
-                  <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
-                    {notifications.map((notification, index) => (
-                      <div 
-                        key={index}
-                        className={`p-3 border-b flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate">{notification.title}</div>
-                          <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
-                          <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
-                        </div>
-                        {notification.seen_status === 'no' && (
-                          <button 
-                            onClick={() => markNotificationAsSeen(notification._id)}
-                            className="text-xs text-blue-600 hover:text-blue-800 ml-2 flex-shrink-0 self-start mt-1"
-                          >
-                            Mark as read
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          
-          {/* Direct Test Button - For easier testing during development */}
-          <button
-            onClick={seedTestNotifications}
-            className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 rounded-md shadow-sm transition-colors"
-            title="Add test notifications for this user"
-          >
-            Test Notifications
-          </button>
         </div>
         
         {/* Carousel of book covers */}
@@ -983,7 +900,7 @@ export default function ChatbotLayout({ children }) {
               {[...publisherBooks, ...publisherBooks].map((book, index) => (
                 <div 
                   key={`${book._id}-${index}`} 
-                  className="inline-block mx-3 rounded-md overflow-hidden shadow-md hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top"
+                  className="inline-block mx-3 rounded-md overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top"
                   title={book.title}
                   onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
                 >
@@ -999,7 +916,7 @@ export default function ChatbotLayout({ children }) {
                         }}
                       />
                     </div>
-                    <div className="book-title-container mx-auto">
+                    <div className="book-title-container w-16 text-xs line-clamp-2 overflow-hidden p-1 bg-gray-50 rounded-b-md text-gray-700">
                       {book.title}
                     </div>
                   </div>
@@ -1009,16 +926,101 @@ export default function ChatbotLayout({ children }) {
           )}
         </div>
         
-        {/* Mobile menu toggle button */}
-        <button 
-          className="lg:hidden flex items-center justify-center p-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          aria-label="Toggle menu"
-        >
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
+        <div className="flex items-center space-x-4">
+          {/* Notifications Button */}
+          <div className="relative" ref={notificationRef}>
+            <button 
+              className={`p-2 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
+              onClick={() => setShowNotifications(!showNotifications)}
+              aria-label="Notifications"
+            >
+              <FaBell className="h-5 w-5 text-blue-500" />
+              {unreadCount > 0 && (
+                <span className="notification-badge">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            
+            {/* Notifications Panel */}
+            {showNotifications && (
+              <div 
+                className="notification-panel bg-white rounded-lg shadow-md border border-gray-100" 
+                style={{ 
+                  width: '350px',
+                  maxWidth: 'calc(100vw - 40px)',
+                  position: 'absolute',
+                  top: '45px',
+                  right: '0',
+                  left: 'auto',
+                  zIndex: 1000,
+                  overflowY: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+              >
+                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center sticky top-0">
+                  <h3 className="font-medium text-gray-800">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={markAllNotificationsAsSeen}
+                      className="text-xs text-blue-500 hover:text-blue-600"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+                
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">No notifications</div>
+                ) : (
+                  <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
+                    {notifications.map((notification, index) => (
+                      <div 
+                        key={index}
+                        className={`p-3 border-b border-gray-100 flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-gray-800 truncate">{notification.title}</div>
+                          <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
+                          <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
+                        </div>
+                        {notification.seen_status === 'no' && (
+                          <button 
+                            onClick={() => markNotificationAsSeen(notification._id)}
+                            className="text-xs text-blue-500 hover:text-blue-600 ml-2 flex-shrink-0 self-start mt-1"
+                          >
+                            Mark as read
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
+          {/* Test Notifications button - styled to match the design */}
+          <button
+            onClick={seedTestNotifications}
+            className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-3 py-1 rounded-md shadow-sm transition-colors duration-200"
+            title="Add test notifications for this user"
+          >
+            Test Notifications
+          </button>
+          
+          {/* Mobile menu toggle button */}
+          <button 
+            className="lg:hidden flex items-center justify-center p-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            aria-label="Toggle menu"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div className="flex flex-1 overflow-hidden relative w-full">
         {/* Sidebar overlay for mobile - only shows when sidebar is open */}
@@ -1031,12 +1033,12 @@ export default function ChatbotLayout({ children }) {
         )}
         
         {/* Sidebar */}
-        <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-gray-800 text-white fixed lg:static z-20 h-full overflow-y-auto shadow-lg flex flex-col flex-shrink-0`}>
+        <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-white text-gray-800 fixed lg:static z-20 h-full overflow-y-auto shadow-sm flex flex-col flex-shrink-0 border-r border-gray-100`}>
           <div className="p-4 flex-1">
             <div className="flex justify-between items-center lg:hidden mb-4">
-              <h2 className="text-lg font-semibold">My Library</h2>
+              <h2 className="text-lg font-semibold text-gray-800">My Library</h2>
               <button 
-                className="p-2 rounded-full text-white hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
+                className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
                 onClick={() => setIsSidebarOpen(false)}
                 aria-label="Close menu"
               >
@@ -1046,7 +1048,7 @@ export default function ChatbotLayout({ children }) {
               </button>
             </div>
             
-            <h2 className="text-lg font-semibold mb-4 hidden lg:block">My Library</h2>
+            <h2 className="text-lg font-semibold mb-4 hidden lg:block text-gray-800">My Library</h2>
             
             {loading ? (
               <div className="py-10 flex justify-center">
@@ -1055,9 +1057,9 @@ export default function ChatbotLayout({ children }) {
             ) : subscribedBooks.length > 0 ? (
               <div className="space-y-2 mb-6">
                 {subscribedBooks.map((sub) => (
-                  <div key={sub._id} className="bg-gray-700 rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-600 transition-colors duration-200" onClick={() => toggleBookExpansion(sub.bookId)}>
-                      <span className="font-medium truncate flex-1">{sub.bookTitle}</span>
+                  <div key={sub._id} className="bg-gray-50 rounded-lg overflow-hidden shadow-sm">
+                    <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200" onClick={() => toggleBookExpansion(sub.bookId)}>
+                      <span className="font-medium truncate flex-1 text-gray-700">{sub.bookTitle}</span>
                       <div className="flex items-center">
                         <button
                           className="mr-2 text-gray-400 hover:text-red-500 focus:outline-none"
@@ -1066,7 +1068,7 @@ export default function ChatbotLayout({ children }) {
                         >
                           <FaTimes className="h-4 w-4" />
                         </button>
-                        <span className="text-gray-300 transform transition-transform duration-200">
+                        <span className="text-gray-400 transform transition-transform duration-200">
                           {expandedBook === sub.bookId ? 
                             <FaChevronDown className="h-4 w-4" /> : 
                             <FaChevronRight className="h-4 w-4" />
@@ -1076,7 +1078,7 @@ export default function ChatbotLayout({ children }) {
                     </div>
                     
                     {expandedBook === sub.bookId && (
-                      <div className="border-t border-gray-600">
+                      <div className="border-t border-gray-200">
                         {bookChapters[sub.bookId] ? (
                           bookChapters[sub.bookId].length > 0 ? (
                             <div className="max-h-64 overflow-y-auto">
@@ -1085,8 +1087,8 @@ export default function ChatbotLayout({ children }) {
                                   key={chapter._id} 
                                   className={`p-2 pl-6 cursor-pointer transition-colors duration-200 text-sm ${
                                     activeChapter === chapter._id 
-                                      ? "bg-blue-600 text-white" 
-                                      : "text-gray-300 hover:bg-gray-600 hover:text-white"
+                                      ? "bg-blue-500 text-white" 
+                                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                                   }`}
                                   onClick={() => {
                                     handleChapterSelect(chapter, sub.bookId, sub.bookCoverImgLink);
@@ -1098,7 +1100,7 @@ export default function ChatbotLayout({ children }) {
                               ))}
                             </div>
                           ) : (
-                            <div className="p-3 text-sm text-gray-400">No chapters available</div>
+                            <div className="p-3 text-sm text-gray-500">No chapters available</div>
                           )
                         ) : (
                           <div className="p-3 flex justify-center">
@@ -1111,10 +1113,10 @@ export default function ChatbotLayout({ children }) {
                 ))}
               </div>
             ) : (
-              <div className="bg-gray-700 rounded-lg p-4 text-center">
-                <p className="text-gray-300 mb-4">No books in your library</p>
+              <div className="bg-gray-50 rounded-lg p-4 text-center shadow-sm">
+                <p className="text-gray-600 mb-4">No books in your library</p>
                 <button 
-                  className="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                  className="inline-flex items-center px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white"
                   onClick={() => {
                     navigate("/collections");
                     setIsSidebarOpen(false);
@@ -1126,30 +1128,30 @@ export default function ChatbotLayout({ children }) {
             )}
             
             {/* For mobile only - showing controls in the main sidebar area */}
-            <div className="pt-4 mt-6 border-t border-gray-700 lg:hidden">
+            <div className="pt-4 mt-6 border-t border-gray-200 lg:hidden">
               <nav className="space-y-2">
                 <button 
-                  className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onClick={() => {
                     navigate("/profile");
                     setIsSidebarOpen(false);
                   }}
                 >
-                  <FaUserEdit className="h-5 w-5 text-gray-400" /> 
-                  <span>Profile</span>
+                  <FaUserEdit className="h-5 w-5 text-gray-500" /> 
+                  <span className="text-gray-700">Profile</span>
                 </button>
                 <button
-                  className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onClick={() => {
                     navigate("/collections");
                     setIsSidebarOpen(false);
                   }}
                 >
-                  <FaBook className="h-5 w-5 text-gray-400" /> 
-                  <span>Collections</span>
+                  <FaBook className="h-5 w-5 text-gray-500" /> 
+                  <span className="text-gray-700">Collections</span>
                 </button>
                 <button
-                  className="w-full flex items-center gap-2 p-3 rounded-lg bg-red-600 hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full flex items-center gap-2 p-3 rounded-lg bg-red-50 hover:bg-red-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 text-red-600"
                   onClick={handleLogout}
                 >
                   <FaSignOutAlt className="h-5 w-5" /> 
@@ -1160,27 +1162,27 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* For desktop only - controls fixed at the bottom */}
-          <div className="hidden lg:block border-t border-gray-700 mt-auto">
+          <div className="hidden lg:block border-t border-gray-200 mt-auto">
             <nav className="p-4 space-y-2">
               <button 
-                className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onClick={() => navigate("/profile")}
               >
-                <FaUserEdit className="h-5 w-5 text-gray-400" /> 
-                <span>Profile</span>
+                <FaUserEdit className="h-5 w-5 text-gray-500" /> 
+                <span className="text-gray-700">Profile</span>
               </button>
               <button
-                className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onClick={() => {
                   navigate("/collections");
                   setIsSidebarOpen(false);
                 }}
               >
-                <FaBook className="h-5 w-5 text-gray-400" /> 
-                <span>Collections</span>
+                <FaBook className="h-5 w-5 text-gray-500" /> 
+                <span className="text-gray-700">Collections</span>
               </button>
               <button
-                className="w-full flex items-center gap-2 p-3 rounded-lg bg-red-600 hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full flex items-center gap-2 p-3 rounded-lg bg-red-50 hover:bg-red-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 text-red-600"
                 onClick={handleLogout}
               >
                 <FaSignOutAlt className="h-5 w-5" /> 
@@ -1200,13 +1202,13 @@ export default function ChatbotLayout({ children }) {
           {/* Current chapter indicator */}
           <div className="relative z-10">
             {activeChapter && (
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-3 shadow-sm flex justify-between items-center">
+              <div className="bg-white text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
                 <div>
-                  <span className="text-xs font-medium uppercase tracking-wider text-blue-200">Active Chapter</span>
-                  <h3 className="text-sm sm:text-base font-medium">{currentChapterTitle}</h3>
+                  <span className="text-xs font-medium uppercase tracking-wider text-blue-500">Active Chapter</span>
+                  <h3 className="text-sm sm:text-base font-medium text-gray-800">{currentChapterTitle}</h3>
                 </div>
                 <button 
-                  className="text-xs bg-indigo-800 hover:bg-indigo-900 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
+                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
                   onClick={clearActiveChapter}
                 >
                   Exit Chapter
@@ -1217,8 +1219,8 @@ export default function ChatbotLayout({ children }) {
           
           {/* Messages Container */}
           <div 
-            className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 relative z-10" 
-            style={{ scrollBehavior: 'smooth' }}
+            className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 relative z-10 font-sans" 
+            style={{ scrollBehavior: 'smooth', fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" }}
           >
             <div className="h-full">
               {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
@@ -1228,12 +1230,12 @@ export default function ChatbotLayout({ children }) {
                       key={index}
                       className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                     >
-                      <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg shadow-md p-3 ${
+                      <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl shadow-sm p-3 ${
                         msg.role === "user" 
-                          ? "bg-blue-600 text-white rounded-tr-none" 
+                          ? "bg-blue-500 text-white rounded-tr-sm" 
                           : msg.role === "system" 
-                            ? "bg-yellow-100 text-yellow-800 rounded-tl-none border border-yellow-200" 
-                            : "bg-white bg-opacity-95 text-gray-800 rounded-tl-none border border-gray-200"
+                            ? "bg-yellow-50 text-yellow-800 rounded-tl-sm border border-yellow-100" 
+                            : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
                       } text-sm sm:text-base markdown-content`}
                       >
                         {msg.role === "user" ? (
@@ -1252,7 +1254,7 @@ export default function ChatbotLayout({ children }) {
                   <div ref={chatEndRef} />
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 rounded-xl p-8 shadow-md">
+                <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 rounded-xl p-8 shadow-sm">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                   </svg>
@@ -1266,13 +1268,14 @@ export default function ChatbotLayout({ children }) {
           </div>
           
           {/* Message Input */}
-          <div className="border-t border-gray-200 p-3 sm:p-4 relative z-10">
+          <div className="border-t border-gray-100 p-3 sm:p-4 relative z-10 bg-white">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <input
                   type="text"
                   placeholder={activeChapter ? "Ask about this chapter..." : "Type a message..."}
-                  className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                  className="w-full pl-4 pr-10 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base font-sans"
+                  style={{ fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" }}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
