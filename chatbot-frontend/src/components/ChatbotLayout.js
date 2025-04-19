@@ -884,7 +884,7 @@ export default function ChatbotLayout({ children }) {
         </div>
         
         {/* Carousel of book covers */}
-        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-36 carousel-container">
+        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-44 carousel-container">
           {publisherBooks.length > 0 && (
             <div 
               ref={carouselRef}
@@ -900,7 +900,7 @@ export default function ChatbotLayout({ children }) {
               {[...publisherBooks, ...publisherBooks].map((book, index) => (
                 <div 
                   key={`${book._id}-${index}`} 
-                  className="inline-block mx-3 rounded-md overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top"
+                  className="inline-block mx-4 rounded-md overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top"
                   title={book.title}
                   onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
                 >
@@ -916,8 +916,8 @@ export default function ChatbotLayout({ children }) {
                         }}
                       />
                     </div>
-                    <div className="book-title-container w-20 text-sm line-clamp-3 overflow-hidden p-1.5 bg-gray-50 rounded-b-md text-gray-800 min-h-[60px] flex items-center justify-center">
-                      <span className="break-words text-center">{book.title}</span>
+                    <div className="book-title-container w-24 text-base line-clamp-4 overflow-hidden p-2 bg-white rounded-b-md text-gray-800 min-h-[72px] flex items-center justify-center shadow-sm border border-gray-100">
+                      <span className="break-words text-center" style={{ wordBreak: 'break-word', hyphens: 'auto' }}>{book.title}</span>
                     </div>
                   </div>
                 </div>
