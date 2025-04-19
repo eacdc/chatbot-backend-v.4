@@ -349,3 +349,24 @@ code {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Add smooth animation for carousel */
+@keyframes slider {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-slider {
+  animation: slider 40s linear infinite;
+}
+
+/* Prevent animation during screen readers and reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-slider {
+    animation: none;
+  }
+}

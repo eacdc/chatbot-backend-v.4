@@ -883,47 +883,73 @@ export default function ChatbotLayout({ children }) {
           </div>
         </div>
         
-        {/* Carousel of book covers */}
-        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-44 carousel-container">
-          {publisherBooks.length > 0 && (
-            <div 
-              ref={carouselRef}
-              className="whitespace-nowrap animate-slider h-full"
-              style={{
-                animationDuration: `${Math.max(40, publisherBooks.length * 8)}s`,
-                animationTimingFunction: 'linear',
-                animationIterationCount: 'infinite',
-                animationDelay: '-2s' // Start with content slightly moved in
-              }}
-            >
-              {/* Duplicate the books to create seamless looping */}
-              {[...publisherBooks, ...publisherBooks].map((book, index) => (
-                <div 
-                  key={`${book._id}-${index}`} 
-                  className="inline-block mx-4 rounded-md overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top"
-                  title={book.title}
-                  onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
-                >
-                  <div className="flex flex-col items-center">
-                    <div className="h-20 w-20">
-                      <img 
-                        src={book.bookCoverImgLink} 
-                        alt={book.title}
-                        className="h-full w-full object-cover rounded-t-md"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
-                        }}
-                      />
-                    </div>
-                    <div className="book-title-container w-24 text-base line-clamp-4 overflow-hidden p-2 bg-white rounded-b-md text-gray-800 min-h-[72px] flex items-center justify-center shadow-sm border border-gray-100">
-                      <span className="break-words text-center" style={{ wordBreak: 'break-word', hyphens: 'auto' }}>{book.title}</span>
+        {/* Carousel of book covers - updated to match image style */}
+        <div className="hidden md:block flex-1 mx-8 overflow-hidden carousel-container">
+          <h2 className="text-2xl font-bold text-center text-blue-500 mb-4">Your Educational Resources</h2>
+          <div className="h-64 overflow-hidden">
+            {publisherBooks.length > 0 && (
+              <div 
+                ref={carouselRef}
+                className="whitespace-nowrap animate-slider h-full"
+                style={{
+                  animationDuration: `${Math.max(40, publisherBooks.length * 8)}s`,
+                  animationTimingFunction: 'linear',
+                  animationIterationCount: 'infinite',
+                  animationDelay: '-2s' // Start with content slightly moved in
+                }}
+              >
+                {/* Duplicate the books to create seamless looping */}
+                {[...publisherBooks, ...publisherBooks].map((book, index) => (
+                  <div 
+                    key={`${book._id}-${index}`} 
+                    className="inline-block mx-8 rounded-xl overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top bg-white border border-gray-100"
+                    title={book.title}
+                    onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
+                    style={{ width: '180px' }}
+                  >
+                    <div className="flex flex-col items-center p-4">
+                      <div className="h-28 w-28 mb-4 bg-blue-50 rounded-lg p-2 flex items-center justify-center">
+                        <img 
+                          src={book.bookCoverImgLink} 
+                          alt={book.title}
+                          className="h-full object-contain"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
+                          }}
+                        />
+                      </div>
+                      <h3 className="text-lg font-medium text-center text-blue-500 uppercase tracking-wide mb-2">
+                        {book.title.split(' ').slice(0, 2).join(' ')}
+                      </h3>
+                      <p className="text-gray-600 text-sm line-clamp-3 w-full">
+                        {book.title.length > 40 ? book.title.substring(0, 40) + "..." : book.title}
+                      </p>
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
+            {publisherBooks.length === 0 && (
+              <div className="flex justify-center h-full">
+                <div className="flex flex-col items-center justify-center">
+                  <div className="w-28 h-28 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                    <FaBook className="text-blue-500 text-4xl" />
+                  </div>
+                  <h3 className="text-lg font-medium text-blue-500 mb-2">No Books Available</h3>
+                  <p className="text-gray-600 text-center max-w-md">
+                    Visit collections to find interesting books to add to your library
+                  </p>
+                  <button 
+                    onClick={() => navigate("/collections")}
+                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    Browse Collections
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center space-x-4">
