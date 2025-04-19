@@ -1,0 +1,298 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1200" viewBox="0 0 1000 1200">
+  <rect width="1000" height="1200" fill="#FFFFFF"/>
+  
+  <!-- Pattern elements in peachy color -->
+  <g fill="#FCDECD" stroke="#FCDECD" stroke-width="1">
+    <!-- Atoms -->
+    <g transform="translate(30, 50)">
+      <circle cx="20" cy="20" r="15" fill="none"/>
+      <circle cx="20" cy="20" r="3"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(45 20 20)" fill="none"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(-45 20 20)" fill="none"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(0 20 20)" fill="none"/>
+    </g>
+    
+    <g transform="translate(500, 200)">
+      <circle cx="20" cy="20" r="15" fill="none"/>
+      <circle cx="20" cy="20" r="3"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(45 20 20)" fill="none"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(-45 20 20)" fill="none"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(0 20 20)" fill="none"/>
+    </g>
+    
+    <g transform="translate(800, 500)">
+      <circle cx="20" cy="20" r="15" fill="none"/>
+      <circle cx="20" cy="20" r="3"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(45 20 20)" fill="none"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(-45 20 20)" fill="none"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(0 20 20)" fill="none"/>
+    </g>
+    
+    <g transform="translate(200, 700)">
+      <circle cx="20" cy="20" r="15" fill="none"/>
+      <circle cx="20" cy="20" r="3"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(45 20 20)" fill="none"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(-45 20 20)" fill="none"/>
+      <ellipse cx="20" cy="20" rx="20" ry="7" transform="rotate(0 20 20)" fill="none"/>
+    </g>
+    
+    <!-- Microscopes -->
+    <g transform="translate(150, 100)">
+      <rect x="5" y="0" width="6" height="15"/>
+      <rect x="0" y="15" width="16" height="5"/>
+      <rect x="3" y="20" width="10" height="8"/>
+    </g>
+    
+    <g transform="translate(700, 150)">
+      <rect x="5" y="0" width="6" height="15"/>
+      <rect x="0" y="15" width="16" height="5"/>
+      <rect x="3" y="20" width="10" height="8"/>
+    </g>
+    
+    <g transform="translate(400, 650)">
+      <rect x="5" y="0" width="6" height="15"/>
+      <rect x="0" y="15" width="16" height="5"/>
+      <rect x="3" y="20" width="10" height="8"/>
+    </g>
+    
+    <!-- Books -->
+    <g transform="translate(420, 180)">
+      <rect x="0" y="0" width="25" height="20" rx="1"/>
+      <line x1="12" y1="0" x2="12" y2="20" stroke-width="1"/>
+    </g>
+    
+    <g transform="translate(650, 450)">
+      <rect x="0" y="0" width="25" height="20" rx="1"/>
+      <line x1="12" y1="0" x2="12" y2="20" stroke-width="1"/>
+    </g>
+    
+    <g transform="translate(120, 550)">
+      <rect x="0" y="0" width="25" height="20" rx="1"/>
+      <line x1="12" y1="0" x2="12" y2="20" stroke-width="1"/>
+    </g>
+    
+    <!-- Open Books -->
+    <g transform="translate(450, 20)">
+      <path d="M0,5 L20,5 L20,20 L0,20 Z" fill="none"/>
+      <path d="M20,5 L40,5 L40,20 L20,20 Z" fill="none"/>
+      <line x1="20" y1="5" x2="20" y2="20" />
+      <line x1="5" y1="8" x2="15" y2="8" />
+      <line x1="5" y1="11" x2="15" y2="11" />
+      <line x1="5" y1="14" x2="15" y2="14" />
+      <line x1="5" y1="17" x2="15" y2="17" />
+      <line x1="25" y1="8" x2="35" y2="8" />
+      <line x1="25" y1="11" x2="35" y2="11" />
+      <line x1="25" y1="14" x2="35" y2="14" />
+      <line x1="25" y1="17" x2="35" y2="17" />
+    </g>
+    
+    <g transform="translate(750, 380)">
+      <path d="M0,5 L20,5 L20,20 L0,20 Z" fill="none"/>
+      <path d="M20,5 L40,5 L40,20 L20,20 Z" fill="none"/>
+      <line x1="20" y1="5" x2="20" y2="20" />
+      <line x1="5" y1="8" x2="15" y2="8" />
+      <line x1="5" y1="11" x2="15" y2="11" />
+      <line x1="5" y1="14" x2="15" y2="14" />
+      <line x1="5" y1="17" x2="15" y2="17" />
+      <line x1="25" y1="8" x2="35" y2="8" />
+      <line x1="25" y1="11" x2="35" y2="11" />
+      <line x1="25" y1="14" x2="35" y2="14" />
+      <line x1="25" y1="17" x2="35" y2="17" />
+    </g>
+    
+    <!-- Globes -->
+    <g transform="translate(50, 80)">
+      <circle cx="15" cy="15" r="15" fill="none"/>
+      <ellipse cx="15" cy="15" rx="15" ry="5" fill="none"/>
+      <line x1="0" y1="15" x2="30" y2="15" />
+      <line x1="15" y1="0" x2="15" y2="30" />
+    </g>
+    
+    <g transform="translate(350, 380)">
+      <circle cx="15" cy="15" r="15" fill="none"/>
+      <ellipse cx="15" cy="15" rx="15" ry="5" fill="none"/>
+      <line x1="0" y1="15" x2="30" y2="15" />
+      <line x1="15" y1="0" x2="15" y2="30" />
+    </g>
+    
+    <g transform="translate(630, 750)">
+      <circle cx="15" cy="15" r="15" fill="none"/>
+      <ellipse cx="15" cy="15" rx="15" ry="5" fill="none"/>
+      <line x1="0" y1="15" x2="30" y2="15" />
+      <line x1="15" y1="0" x2="15" y2="30" />
+    </g>
+    
+    <!-- Rulers -->
+    <g transform="translate(200, 450)">
+      <line x1="0" y1="0" x2="40" y2="0" />
+      <line x1="5" y1="-3" x2="5" y2="3" />
+      <line x1="10" y1="-3" x2="10" y2="3" />
+      <line x1="15" y1="-3" x2="15" y2="3" />
+      <line x1="20" y1="-3" x2="20" y2="3" />
+      <line x1="25" y1="-3" x2="25" y2="3" />
+      <line x1="30" y1="-3" x2="30" y2="3" />
+      <line x1="35" y1="-3" x2="35" y2="3" />
+    </g>
+    
+    <g transform="translate(600, 250)">
+      <line x1="0" y1="0" x2="40" y2="0" />
+      <line x1="5" y1="-3" x2="5" y2="3" />
+      <line x1="10" y1="-3" x2="10" y2="3" />
+      <line x1="15" y1="-3" x2="15" y2="3" />
+      <line x1="20" y1="-3" x2="20" y2="3" />
+      <line x1="25" y1="-3" x2="25" y2="3" />
+      <line x1="30" y1="-3" x2="30" y2="3" />
+      <line x1="35" y1="-3" x2="35" y2="3" />
+    </g>
+    
+    <!-- Triangles -->
+    <g transform="translate(280, 150)">
+      <path d="M0,20 L20,0 L20,20 Z" fill="none"/>
+    </g>
+    
+    <g transform="translate(580, 550)">
+      <path d="M0,20 L20,0 L20,20 Z" fill="none"/>
+    </g>
+    
+    <g transform="translate(50, 700)">
+      <path d="M0,20 L20,0 L20,20 Z" fill="none"/>
+    </g>
+    
+    <!-- Lab flask -->
+    <g transform="translate(80, 350)">
+      <path d="M8,0 L12,0 L12,10 L15,20 L5,20 L8,10 Z" fill="none"/>
+    </g>
+    
+    <g transform="translate(550, 100)">
+      <path d="M8,0 L12,0 L12,10 L15,20 L5,20 L8,10 Z" fill="none"/>
+    </g>
+    
+    <g transform="translate(300, 650)">
+      <path d="M8,0 L12,0 L12,10 L15,20 L5,20 L8,10 Z" fill="none"/>
+    </g>
+    
+    <!-- Light bulbs -->
+    <g transform="translate(380, 120)">
+      <circle cx="10" cy="10" r="8" fill="none"/>
+      <path d="M10,18 L10,22" />
+      <path d="M7,20 L13,20" />
+    </g>
+    
+    <g transform="translate(780, 250)">
+      <circle cx="10" cy="10" r="8" fill="none"/>
+      <path d="M10,18 L10,22" />
+      <path d="M7,20 L13,20" />
+    </g>
+    
+    <g transform="translate(180, 580)">
+      <circle cx="10" cy="10" r="8" fill="none"/>
+      <path d="M10,18 L10,22" />
+      <path d="M7,20 L13,20" />
+    </g>
+    
+    <!-- Graduation cap -->
+    <g transform="translate(350, 500)">
+      <rect x="5" y="3" width="10" height="5" />
+      <path d="M0,5 L20,5 L10,10 Z" fill="none"/>
+    </g>
+    
+    <g transform="translate(720, 650)">
+      <rect x="5" y="3" width="10" height="5" />
+      <path d="M0,5 L20,5 L10,10 Z" fill="none"/>
+    </g>
+    
+    <!-- Stars -->
+    <g>
+      <path d="M100,150 L105,140 L110,150 L120,152 L110,155 L105,165 L100,155 L90,152 Z" fill="none"/>
+      <path d="M350,80 L355,70 L360,80 L370,82 L360,85 L355,95 L350,85 L340,82 Z" fill="none"/>
+      <path d="M520,350 L525,340 L530,350 L540,352 L530,355 L525,365 L520,355 L510,352 Z" fill="none"/>
+      <path d="M800,150 L805,140 L810,150 L820,152 L810,155 L805,165 L800,155 L790,152 Z" fill="none"/>
+      <path d="M250,550 L255,540 L260,550 L270,552 L260,555 L255,565 L250,555 L240,552 Z" fill="none"/>
+      <path d="M680,480 L685,470 L690,480 L700,482 L690,485 L685,495 L680,485 L670,482 Z" fill="none"/>
+      <path d="M500,700 L505,690 L510,700 L520,702 L510,705 L505,715 L500,705 L490,702 Z" fill="none"/>
+    </g>
+    
+    <!-- Scissors -->
+    <g transform="translate(250, 320)">
+      <circle cx="5" cy="5" r="5" fill="none"/>
+      <circle cx="25" cy="25" r="5" fill="none"/>
+      <path d="M10,10 L20,20" />
+      <path d="M10,20 L20,10" />
+    </g>
+    
+    <g transform="translate(750, 520)">
+      <circle cx="5" cy="5" r="5" fill="none"/>
+      <circle cx="25" cy="25" r="5" fill="none"/>
+      <path d="M10,10 L20,20" />
+      <path d="M10,20 L20,10" />
+    </g>
+    
+    <!-- Molecules -->
+    <g transform="translate(200, 200)">
+      <circle cx="10" cy="10" r="3" />
+      <circle cx="25" cy="10" r="3" />
+      <circle cx="17.5" cy="25" r="3" />
+      <line x1="10" y1="10" x2="25" y2="10" />
+      <line x1="10" y1="10" x2="17.5" y2="25" />
+      <line x1="25" y1="10" x2="17.5" y2="25" />
+    </g>
+    
+    <g transform="translate(600, 350)">
+      <circle cx="10" cy="10" r="3" />
+      <circle cx="25" cy="10" r="3" />
+      <circle cx="17.5" cy="25" r="3" />
+      <line x1="10" y1="10" x2="25" y2="10" />
+      <line x1="10" y1="10" x2="17.5" y2="25" />
+      <line x1="25" y1="10" x2="17.5" y2="25" />
+    </g>
+    
+    <g transform="translate(450, 600)">
+      <circle cx="10" cy="10" r="3" />
+      <circle cx="25" cy="10" r="3" />
+      <circle cx="17.5" cy="25" r="3" />
+      <line x1="10" y1="10" x2="25" y2="10" />
+      <line x1="10" y1="10" x2="17.5" y2="25" />
+      <line x1="25" y1="10" x2="17.5" y2="25" />
+    </g>
+    
+    <!-- Dots -->
+    <circle cx="150" cy="170" r="2" />
+    <circle cx="350" cy="140" r="2" />
+    <circle cx="550" cy="250" r="2" />
+    <circle cx="750" cy="300" r="2" />
+    <circle cx="200" cy="380" r="2" />
+    <circle cx="420" cy="450" r="2" />
+    <circle cx="630" cy="500" r="2" />
+    <circle cx="830" cy="600" r="2" />
+    <circle cx="150" cy="650" r="2" />
+    <circle cx="300" cy="750" r="2" />
+    <circle cx="480" cy="800" r="2" />
+    <circle cx="680" cy="850" r="2" />
+    <circle cx="350" cy="920" r="2" />
+    <circle cx="520" cy="980" r="2" />
+    
+    <!-- JD Editions Text -->
+    <g font-family="Arial, sans-serif" font-style="italic" font-weight="bold" font-size="20">
+      <text x="70" y="50">JD Editions</text>
+      <text x="300" y="100">JD Editions</text>
+      <text x="500" y="150">JD Editions</text>
+      <text x="150" y="220">JD Editions</text>
+      <text x="400" y="300">JD Editions</text>
+      <text x="650" y="200">JD Editions</text>
+      <text x="250" y="380">JD Editions</text>
+      <text x="480" y="420">JD Editions</text>
+      <text x="120" y="500">JD Editions</text>
+      <text x="350" y="580">JD Editions</text>
+      <text x="580" y="640">JD Editions</text>
+      <text x="780" y="450">JD Editions</text>
+      <text x="200" y="680">JD Editions</text>
+      <text x="420" y="750">JD Editions</text>
+      <text x="630" y="830">JD Editions</text>
+      <text x="300" y="900">JD Editions</text>
+      <text x="500" y="950">JD Editions</text>
+      <text x="700" y="1000">JD Editions</text>
+      <text x="180" y="1070">JD Editions</text>
+      <text x="450" y="1120">JD Editions</text>
+    </g>
+  </g>
+</svg> 

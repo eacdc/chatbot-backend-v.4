@@ -6,6 +6,7 @@ import { API_ENDPOINTS } from "../config";
 import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import backgroundPattern from '../images/educational-pattern.svg';
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -836,7 +837,7 @@ export default function ChatbotLayout({ children }) {
   // Inline styles for background patterns
   const chatBackgroundStyle = {
     backgroundColor: '#FFFFFF',
-    backgroundImage: `url(${process.env.PUBLIC_URL}/images/educational-pattern.svg)`,
+    backgroundImage: `url(${backgroundPattern})`,
     backgroundSize: 'auto',
     backgroundRepeat: 'repeat',
     position: 'relative',

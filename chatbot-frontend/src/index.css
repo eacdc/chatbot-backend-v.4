@@ -377,7 +377,7 @@ code {
   /* Fallback first (will be overridden by the next rule in browsers that support it) */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23FFF9F5'/%3E%3Cg fill='%23FCDECD'%3E%3Ccircle cx='50' cy='50' r='10'/%3E%3Ccircle cx='150' cy='150' r='10'/%3E%3Ctext x='30' y='120' font-size='14' font-family='Arial' font-style='italic'%3EJD Editions%3C/text%3E%3C/g%3E%3C/svg%3E");
   /* Try loading SVG files */
-  background-image: url('/images/educational-pattern-bg.svg'), url('/images/educational-pattern-simple.svg');
+  background-image: url('./images/educational-pattern.svg');
   background-size: 400px;
   background-repeat: repeat;
   position: relative;
