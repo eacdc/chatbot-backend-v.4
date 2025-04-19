@@ -834,11 +834,13 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
-  // Inline styles for background patterns
+  // Inline styles for background patterns - using only chat-background.jpg
   const chatBackgroundStyle = {
     backgroundColor: '#FFFFFF',
     backgroundImage: `url(${process.env.PUBLIC_URL}/images/chat-background.jpg)`,
     backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
     position: 'relative',
     zIndex: 0
   };
@@ -850,7 +852,7 @@ export default function ChatbotLayout({ children }) {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     zIndex: 1
   };
 
