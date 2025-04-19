@@ -874,11 +874,12 @@ export default function ChatbotLayout({ children }) {
       <div className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-3 sm:p-4 flex justify-between items-center shadow-md">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 bg-blue-700 px-3 py-2 rounded-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-              <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-            </svg>
-            <span className="text-xl font-bold tracking-wide">BookChat</span>
+            <img 
+              src={`${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`}
+              alt="TestYourLearning Logo" 
+              className="h-8 w-auto"
+            />
+            <span className="text-xl font-bold tracking-wide hidden sm:inline">TestYourLearning</span>
           </div>
           
           {/* Notifications Button */}

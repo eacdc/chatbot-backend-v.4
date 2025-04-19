@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Roof/Graduation cap -->
+  <path d="M382 330 L382 330 L256 250 L130 330 L130 330 L256 170 L382 330 Z" fill="#001a57"/>
+  <path d="M425 313 L425 313 L410 330 L256 170 L102 330 L87 313 L256 140 L425 313 Z" fill="#001a57"/>
+  <!-- Graduation cap tassel -->
+  <path d="M420 430 L430 415 L390 330 L380 345 L420 430 Z" fill="#001a57"/>
+  
+  <!-- Question mark curves -->
+  <path d="M340 430 C320 380 300 340 265 330 C230 320 190 340 180 380 C170 420 190 460 230 470 C270 480 310 460 320 420" fill="none" stroke="#39A1F4" stroke-width="25"/>
+  <path d="M320 420 C330 380 310 340 275 330 C240 320 200 340 190 380 C180 420 200 460 240 470 C280 480 320 460 330 420" fill="none" stroke="#48BB78" stroke-width="25"/>
+  
+  <!-- Question mark dot -->
+  <circle cx="325" cy="475" r="25" fill="#00B5D8"/>
+</svg> 
