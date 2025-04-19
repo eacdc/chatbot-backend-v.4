@@ -871,22 +871,22 @@ export default function ChatbotLayout({ children }) {
         />
       )}
     
-      <div className="w-full bg-white text-gray-800 p-3 sm:p-4 flex justify-between items-center shadow-sm border-b border-gray-100">
+      <div className="w-full bg-white text-gray-800 p-2 sm:p-3 flex justify-between items-center shadow-sm border-b border-gray-100">
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
+          <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1.5 rounded-lg">
             <img 
               src={`${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`}
               alt="TestYourLearning Logo" 
-              className="h-8 w-auto"
+              className="h-6 w-auto"
             />
-            <span className="text-xl font-bold tracking-wide hidden sm:inline text-gray-800">TestYourLearning</span>
+            <span className="text-lg font-bold tracking-wide hidden sm:inline text-gray-800">TestYourLearning</span>
           </div>
         </div>
         
         {/* Carousel of book covers - updated to match image style */}
         <div className="hidden md:block flex-1 mx-8 overflow-hidden carousel-container">
-          <h2 className="text-2xl font-bold text-center text-blue-500 mb-4">Your Educational Resources</h2>
-          <div className="h-64 overflow-hidden">
+          <h2 className="text-xl font-bold text-center text-blue-500 mb-2">Your Educational Resources</h2>
+          <div className="h-48 overflow-hidden">
             {publisherBooks.length > 0 && (
               <div 
                 ref={carouselRef}
@@ -905,10 +905,10 @@ export default function ChatbotLayout({ children }) {
                     className="inline-block mx-8 rounded-xl overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top bg-white border border-gray-100"
                     title={book.title}
                     onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
-                    style={{ width: '180px' }}
+                    style={{ width: '160px' }}
                   >
-                    <div className="flex flex-col items-center p-4">
-                      <div className="h-28 w-28 mb-4 bg-blue-50 rounded-lg p-2 flex items-center justify-center">
+                    <div className="flex flex-col items-center p-2">
+                      <div className="h-24 w-24 mb-2 bg-blue-50 rounded-lg p-2 flex items-center justify-center">
                         <img 
                           src={book.bookCoverImgLink} 
                           alt={book.title}
@@ -919,10 +919,10 @@ export default function ChatbotLayout({ children }) {
                           }}
                         />
                       </div>
-                      <h3 className="text-lg font-medium text-center text-blue-500 uppercase tracking-wide mb-2">
+                      <h3 className="text-base font-medium text-center text-blue-500 uppercase tracking-wide mb-1">
                         {book.title.split(' ').slice(0, 2).join(' ')}
                       </h3>
-                      <p className="text-gray-600 text-sm line-clamp-3 w-full">
+                      <p className="text-xs text-gray-600 line-clamp-2 w-full">
                         {book.title.length > 40 ? book.title.substring(0, 40) + "..." : book.title}
                       </p>
                     </div>
@@ -933,16 +933,16 @@ export default function ChatbotLayout({ children }) {
             {publisherBooks.length === 0 && (
               <div className="flex justify-center h-full">
                 <div className="flex flex-col items-center justify-center">
-                  <div className="w-28 h-28 bg-blue-50 rounded-full flex items-center justify-center mb-4">
-                    <FaBook className="text-blue-500 text-4xl" />
+                  <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-2">
+                    <FaBook className="text-blue-500 text-2xl" />
                   </div>
-                  <h3 className="text-lg font-medium text-blue-500 mb-2">No Books Available</h3>
-                  <p className="text-gray-600 text-center max-w-md">
-                    Visit collections to find interesting books to add to your library
+                  <h3 className="text-base font-medium text-blue-500 mb-1">No Books Available</h3>
+                  <p className="text-xs text-gray-600 text-center max-w-md">
+                    Visit collections to find books
                   </p>
                   <button 
                     onClick={() => navigate("/collections")}
-                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    className="mt-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs"
                   >
                     Browse Collections
                   </button>
@@ -956,11 +956,11 @@ export default function ChatbotLayout({ children }) {
           {/* Notifications Button */}
           <div className="relative" ref={notificationRef}>
             <button 
-              className={`p-2 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
+              className={`p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
               onClick={() => setShowNotifications(!showNotifications)}
               aria-label="Notifications"
             >
-              <FaBell className="h-5 w-5 text-blue-500" />
+              <FaBell className="h-4 w-4 text-blue-500" />
               {unreadCount > 0 && (
                 <span className="notification-badge">
                   {unreadCount > 9 ? '9+' : unreadCount}
@@ -1030,7 +1030,7 @@ export default function ChatbotLayout({ children }) {
           {/* Test Notifications button - styled to match the design */}
           <button
             onClick={seedTestNotifications}
-            className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-3 py-1 rounded-md shadow-sm transition-colors duration-200"
+            className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-2 py-1 rounded-md shadow-sm transition-colors duration-200"
             title="Add test notifications for this user"
           >
             Test Notifications
@@ -1038,11 +1038,11 @@ export default function ChatbotLayout({ children }) {
           
           {/* Mobile menu toggle button */}
           <button 
-            className="lg:hidden flex items-center justify-center p-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
+            className="lg:hidden flex items-center justify-center p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors duration-200 focus:outline-none"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             aria-label="Toggle menu"
           >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
