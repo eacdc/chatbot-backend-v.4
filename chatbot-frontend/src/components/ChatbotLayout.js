@@ -884,7 +884,7 @@ export default function ChatbotLayout({ children }) {
         </div>
         
         {/* Carousel of book covers */}
-        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-32 carousel-container">
+        <div className="hidden md:block flex-1 mx-8 overflow-hidden h-36 carousel-container">
           {publisherBooks.length > 0 && (
             <div 
               ref={carouselRef}
@@ -905,7 +905,7 @@ export default function ChatbotLayout({ children }) {
                   onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
                 >
                   <div className="flex flex-col items-center">
-                    <div className="h-20 w-16">
+                    <div className="h-20 w-20">
                       <img 
                         src={book.bookCoverImgLink} 
                         alt={book.title}
@@ -916,8 +916,8 @@ export default function ChatbotLayout({ children }) {
                         }}
                       />
                     </div>
-                    <div className="book-title-container w-16 text-xs line-clamp-2 overflow-hidden p-1 bg-gray-50 rounded-b-md text-gray-700">
-                      {book.title}
+                    <div className="book-title-container w-20 text-sm line-clamp-3 overflow-hidden p-1.5 bg-gray-50 rounded-b-md text-gray-800 min-h-[60px] flex items-center justify-center">
+                      <span className="break-words text-center">{book.title}</span>
                     </div>
                   </div>
                 </div>
