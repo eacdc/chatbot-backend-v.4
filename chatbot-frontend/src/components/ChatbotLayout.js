@@ -580,16 +580,9 @@ export default function ChatbotLayout({ children }) {
 
   // Chat Area background style with error handling
   const getChatAreaStyle = () => {
-    console.log("Getting chat area style with current book cover:", currentBookCover);
-    
-    if (!currentBookCover) {
-      console.log("No book cover set, returning empty style");
-      return {};
-    }
-    
-    console.log("Returning style with background image:", currentBookCover);
+    // Use a static gradient background instead of book cover
     return {
-      backgroundImage: `url(${currentBookCover})`,
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
@@ -600,16 +593,14 @@ export default function ChatbotLayout({ children }) {
 
   // Apply content overlay for better readability
   const getContentOverlayStyle = () => {
-    if (!currentBookCover) return {};
-    
     return {
       position: 'absolute',
       top: 0,
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(255, 255, 255, 0.3)',
-      backdropFilter: 'blur(1px)',
+      backgroundColor: 'rgba(255, 255, 255, 0.4)',
+      backdropFilter: 'blur(2px)',
       zIndex: 1
     };
   };
@@ -1203,7 +1194,7 @@ export default function ChatbotLayout({ children }) {
           className="flex flex-col flex-1 overflow-hidden w-full transition-all duration-300 ease-in-out bg-white"
           style={getChatAreaStyle()}
         >
-          {currentBookCover && <div style={getContentOverlayStyle()}></div>}
+          <div style={getContentOverlayStyle()}></div>
           
           {/* Current chapter indicator */}
           <div className="relative z-10">
