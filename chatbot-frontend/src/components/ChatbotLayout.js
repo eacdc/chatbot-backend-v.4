@@ -870,13 +870,13 @@ export default function ChatbotLayout({ children }) {
     
       <div className="w-full bg-white text-gray-800 p-2 sm:p-3 flex justify-between items-center shadow-sm border-b border-gray-100">
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1.5 rounded-lg">
+          <div className="flex flex-col items-center bg-blue-50 px-3 py-2 rounded-lg">
             <img 
               src={`${process.env.PUBLIC_URL}/images/book logo1.jpeg`}
               alt="Book Logo" 
-              className="h-8 w-auto rounded"
+              className="h-10 w-auto object-contain rounded mb-1"
             />
-            <span className="text-lg font-bold tracking-wide hidden sm:inline text-gray-800">TestYourLearning</span>
+            <span className="text-sm font-bold tracking-wide text-gray-800">TestYourLearning</span>
           </div>
         </div>
         
