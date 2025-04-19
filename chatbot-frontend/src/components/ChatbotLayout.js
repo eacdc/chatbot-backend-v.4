@@ -579,30 +579,6 @@ export default function ChatbotLayout({ children }) {
     setCurrentBookCover("");
   };
 
-  // Chat Area background style with error handling
-  const getChatAreaStyle = () => {
-    return {
-      background: `#FFF9F5 url('/images/educational-pattern-bg.svg')`,
-      backgroundSize: '400px',
-      backgroundRepeat: 'repeat',
-      position: 'relative',
-      zIndex: 0
-    };
-  };
-
-  // Apply content overlay for better readability
-  const getContentOverlayStyle = () => {
-    return {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(255, 255, 255, 0.8)', 
-      zIndex: 1
-    };
-  };
-
   // Fetch all user notifications
   const fetchUserNotifications = async () => {
     try {
@@ -855,6 +831,27 @@ export default function ChatbotLayout({ children }) {
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
+  };
+
+  // Inline styles for background patterns
+  const chatBackgroundStyle = {
+    backgroundColor: '#FFF9F5',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23FCDECD' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E")`,
+    backgroundSize: '60px',
+    backgroundRepeat: 'repeat',
+    position: 'relative',
+    zIndex: 0
+  };
+
+  // Apply content overlay for better readability
+  const overlayStyle = {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    zIndex: 1
   };
 
   return (
@@ -1218,16 +1215,11 @@ export default function ChatbotLayout({ children }) {
         
         {/* Main Chat Area */}
         <div 
-          className="flex-1 overflow-hidden flex flex-col relative chat-area-background"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23FFF9F5'/%3E%3Cg fill='%23FCDECD'%3E%3Ccircle cx='50' cy='50' r='10'/%3E%3Ccircle cx='150' cy='150' r='10'/%3E%3Ctext x='30' y='120' font-size='14' font-family='Arial' font-style='italic'%3EJD Editions%3C/text%3E%3C/g%3E%3C/svg%3E")`,
-            backgroundColor: '#FFF9F5',
-            backgroundSize: '400px',
-            backgroundRepeat: 'repeat'
-          }}
+          className="flex-1 overflow-hidden flex flex-col relative"
+          style={chatBackgroundStyle}
         >
-          {/* Content overlay for better readability over the pattern */}
-          <div className="chat-content-overlay"></div>
+          {/* Semi-transparent overlay */}
+          <div style={overlayStyle}></div>
           
           {/* Current chapter indicator */}
           <div className="relative z-10">
