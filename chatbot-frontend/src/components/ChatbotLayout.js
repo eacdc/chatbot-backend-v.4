@@ -872,9 +872,9 @@ export default function ChatbotLayout({ children }) {
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1.5 rounded-lg">
             <img 
-              src={`${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`}
-              alt="TestYourLearning Logo" 
-              className="h-6 w-auto"
+              src={`${process.env.PUBLIC_URL}/images/book logo1.jpeg`}
+              alt="Book Logo" 
+              className="h-8 w-auto rounded"
             />
             <span className="text-lg font-bold tracking-wide hidden sm:inline text-gray-800">TestYourLearning</span>
           </div>
