@@ -580,12 +580,15 @@ export default function ChatbotLayout({ children }) {
 
   // Chat Area background style with error handling
   const getChatAreaStyle = () => {
-    // Use the educational pattern background
+    // Fallback to inline base64 if SVG doesn't load
+    const fallbackBgColor = '#FFF9F5'; // Light peachy background as fallback
+    
     return {
-      background: `url(${process.env.PUBLIC_URL}/images/educational-pattern-bg.svg) repeat`,
+      background: `${fallbackBgColor} url(${process.env.PUBLIC_URL}/images/educational-pattern-bg.svg) repeat`,
       backgroundSize: '400px',
       backgroundPosition: 'center',
       position: 'relative',
+      zIndex: 0
     };
   };
 
@@ -597,8 +600,7 @@ export default function ChatbotLayout({ children }) {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(255, 255, 255, 0.92)', // More opaque background for better readability
-      backdropFilter: 'blur(1px)',
+      backgroundColor: 'rgba(255, 255, 255, 0.85)', // More transparent to see pattern better
       zIndex: 1
     };
   };
@@ -1216,17 +1218,18 @@ export default function ChatbotLayout({ children }) {
           </div>
         </aside>
         
-        {/* Chat Area */}
+        {/* Main Chat Area */}
         <div 
-          className="flex flex-col flex-1 overflow-hidden w-full transition-all duration-300 ease-in-out bg-white"
+          className="flex-1 overflow-hidden flex flex-col relative"
           style={getChatAreaStyle()}
         >
+          {/* Content overlay for better readability over the pattern */}
           <div style={getContentOverlayStyle()}></div>
           
           {/* Current chapter indicator */}
           <div className="relative z-10">
             {activeChapter && (
-              <div className="bg-white text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
+              <div className="bg-white bg-opacity-90 text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
                 <div>
                   <span className="text-xs font-medium uppercase tracking-wider text-blue-500">Active Chapter</span>
                   <h3 className="text-sm sm:text-base font-medium text-gray-800">{currentChapterTitle}</h3>
@@ -1241,14 +1244,14 @@ export default function ChatbotLayout({ children }) {
             )}
           </div>
           
-          {/* Messages Container */}
+          {/* Chat Messages Area */}
           <div 
-            className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 relative z-10 font-sans" 
-            style={{ scrollBehavior: 'smooth', fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" }}
+            className="flex-1 overflow-y-auto p-4 sm:p-6 relative z-10"
+            ref={chatContainerRef}
           >
-            <div className="h-full">
+            <div className="flex flex-col space-y-4">
               {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
-                <div className="space-y-4">
+                <>
                   {chatHistory.map((msg, index) => (
                     <div
                       key={index}
@@ -1276,7 +1279,7 @@ export default function ChatbotLayout({ children }) {
                     </div>
                   ))}
                   <div ref={chatEndRef} />
-                </div>
+                </>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 rounded-xl p-8 shadow-sm">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
