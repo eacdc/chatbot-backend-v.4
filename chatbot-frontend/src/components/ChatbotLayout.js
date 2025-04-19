@@ -580,13 +580,11 @@ export default function ChatbotLayout({ children }) {
 
   // Chat Area background style with error handling
   const getChatAreaStyle = () => {
-    // Use a modern color scheme inspired by the Dribbble reference
+    // Use the educational pattern background
     return {
-      background: '#F7F9FC',
-      backgroundSize: 'cover',
+      background: `url(${process.env.PUBLIC_URL}/images/educational-pattern-bg.svg) repeat`,
+      backgroundSize: '400px',
       backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat',
-      backgroundAttachment: 'fixed',
       position: 'relative',
     };
   };
@@ -599,7 +597,7 @@ export default function ChatbotLayout({ children }) {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: 'rgba(255, 255, 255, 0.92)', // More opaque background for better readability
       backdropFilter: 'blur(1px)',
       zIndex: 1
     };

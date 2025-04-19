@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <defs>
+    <pattern id="educationalPattern" patternUnits="userSpaceOnUse" width="400" height="400" patternTransform="rotate(0)">
+      <!-- Background -->
+      <rect x="0" y="0" width="400" height="400" fill="#FFF9F5"/>
+      
+      <!-- Atom symbols -->
+      <g fill="#FCDECD" transform="translate(40, 40) scale(0.5)">
+        <circle cx="50" cy="50" r="20"/>
+        <ellipse cx="50" cy="50" rx="45" ry="15" transform="rotate(45 50 50)" fill="none" stroke="#FCDECD" stroke-width="2"/>
+        <ellipse cx="50" cy="50" rx="45" ry="15" transform="rotate(-45 50 50)" fill="none" stroke="#FCDECD" stroke-width="2"/>
+        <ellipse cx="50" cy="50" rx="45" ry="15" transform="rotate(0 50 50)" fill="none" stroke="#FCDECD" stroke-width="2"/>
+      </g>
+      
+      <g fill="#FCDECD" transform="translate(300, 220) scale(0.5)">
+        <circle cx="50" cy="50" r="20"/>
+        <ellipse cx="50" cy="50" rx="45" ry="15" transform="rotate(45 50 50)" fill="none" stroke="#FCDECD" stroke-width="2"/>
+        <ellipse cx="50" cy="50" rx="45" ry="15" transform="rotate(-45 50 50)" fill="none" stroke="#FCDECD" stroke-width="2"/>
+        <ellipse cx="50" cy="50" rx="45" ry="15" transform="rotate(0 50 50)" fill="none" stroke="#FCDECD" stroke-width="2"/>
+      </g>
+      
+      <!-- Books -->
+      <g fill="#FCDECD" transform="translate(150, 80)">
+        <rect x="0" y="0" width="40" height="30" rx="2"/>
+        <line x1="20" y1="0" x2="20" y2="30" stroke="#FFF5EF" stroke-width="2"/>
+      </g>
+      
+      <g fill="#FCDECD" transform="translate(280, 350)">
+        <rect x="0" y="0" width="40" height="30" rx="2"/>
+        <line x1="20" y1="0" x2="20" y2="30" stroke="#FFF5EF" stroke-width="2"/>
+      </g>
+      
+      <!-- Microscope -->
+      <g fill="#FCDECD" transform="translate(200, 200)">
+        <rect x="10" y="0" width="10" height="30"/>
+        <rect x="0" y="30" width="30" height="10"/>
+        <rect x="5" y="40" width="20" height="15"/>
+      </g>
+      
+      <!-- Rulers -->
+      <g stroke="#FCDECD" stroke-width="2" transform="translate(100, 300)">
+        <line x1="0" y1="0" x2="80" y2="0"/>
+        <line x1="10" y1="-5" x2="10" y2="5"/>
+        <line x1="20" y1="-5" x2="20" y2="5"/>
+        <line x1="30" y1="-5" x2="30" y2="5"/>
+        <line x1="40" y1="-5" x2="40" y2="5"/>
+        <line x1="50" y1="-5" x2="50" y2="5"/>
+        <line x1="60" y1="-5" x2="60" y2="5"/>
+        <line x1="70" y1="-5" x2="70" y2="5"/>
+      </g>
+      
+      <!-- Stars -->
+      <g fill="#FCDECD">
+        <path d="M30 350 L33 340 L40 338 L33 336 L30 326 L27 336 L20 338 L27 340 Z"/>
+        <path d="M350 50 L353 40 L360 38 L353 36 L350 26 L347 36 L340 38 L347 40 Z"/>
+        <path d="M180 380 L183 370 L190 368 L183 366 L180 356 L177 366 L170 368 L177 370 Z"/>
+      </g>
+      
+      <!-- Flask -->
+      <g fill="#FCDECD" transform="translate(350, 120)">
+        <path d="M10 0 L20 0 L20 15 L25 30 L5 30 L10 15 Z"/>
+      </g>
+      
+      <!-- Text "JD Editions" repeated across pattern -->
+      <g fill="#FCDECD" font-family="Arial" font-style="italic" font-weight="bold">
+        <text x="50" y="150" font-size="14">JD Editions</text>
+        <text x="200" y="50" font-size="14">JD Editions</text>
+        <text x="300" y="180" font-size="14">JD Editions</text>
+        <text x="120" y="250" font-size="14">JD Editions</text>
+        <text x="250" y="300" font-size="14">JD Editions</text>
+        <text x="30" y="350" font-size="14">JD Editions</text>
+      </g>
+      
+      <!-- More atoms, globes, and school items -->
+      <g fill="#FCDECD" transform="translate(80, 180) scale(0.2)">
+        <circle cx="50" cy="50" r="40" fill="none" stroke="#FCDECD" stroke-width="6"/>
+        <ellipse cx="50" cy="50" rx="40" ry="20" fill="none" stroke="#FCDECD" stroke-width="6"/>
+        <line x1="10" y1="50" x2="90" y2="50" stroke="#FCDECD" stroke-width="6"/>
+      </g>
+      
+      <g fill="#FCDECD" transform="translate(330, 280) scale(0.3)">
+        <circle cx="50" cy="50" r="30" fill="none" stroke="#FCDECD" stroke-width="4"/>
+        <path d="M50 20 L50 80 M20 50 L80 50" stroke="#FCDECD" stroke-width="4" fill="none"/>
+      </g>
+    </pattern>
+  </defs>
+  
+  <!-- Apply the pattern to a background rectangle -->
+  <rect width="100%" height="100%" fill="url(#educationalPattern)"/>
+</svg> 
