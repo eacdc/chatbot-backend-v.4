@@ -87,9 +87,10 @@ export default function Collections() {
         
         // Build query parameters
         const queryParams = new URLSearchParams();
-        if (userGrade) {
-          queryParams.append('grade', userGrade);
-        }
+        // Temporarily removed grade filtering
+        // if (userGrade) {
+        //   queryParams.append('grade', userGrade);
+        // }
         if (userPublisher) {
           queryParams.append('publisher', userPublisher);
         }
