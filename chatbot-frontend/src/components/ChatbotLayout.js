@@ -874,12 +874,11 @@ export default function ChatbotLayout({ children }) {
       <div className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-3 sm:p-4 flex justify-between items-center shadow-md">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 bg-blue-700 px-3 py-2 rounded-lg">
-            <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-teal-400 flex items-center justify-center">
-                <span className="text-white text-xl font-bold">?</span>
-              </div>
-              <div className="absolute -top-1 -left-1 w-4 h-4 bg-gray-900 transform rotate-45"></div>
-            </div>
+            <img 
+              src={`${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`}
+              alt="TestYourLearning Logo" 
+              className="h-8 w-auto"
+            />
             <span className="text-xl font-bold tracking-wide hidden sm:inline">TestYourLearning</span>
           </div>
           
