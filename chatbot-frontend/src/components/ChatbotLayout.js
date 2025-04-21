@@ -915,11 +915,11 @@ export default function ChatbotLayout({ children }) {
     
       <div className="w-full bg-white text-gray-800 p-2 sm:p-3 flex justify-between items-center shadow-sm border-b border-gray-100">
         <div className="flex items-center space-x-4">
-          <div className="flex flex-col items-center bg-blue-50 px-3 py-2 rounded-lg">
+          <div className="flex flex-col items-center bg-blue-50 px-3 py-3 rounded-lg">
             <img 
               src={bookLogo}
               alt="Book Logo" 
-              className="h-10 w-auto object-contain rounded mb-1"
+              className="h-12 w-auto object-contain rounded mb-1"
               onError={(e) => {
                 console.error("Failed to load book logo");
                 e.target.onerror = null;
