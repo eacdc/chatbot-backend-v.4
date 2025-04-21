@@ -6,7 +6,6 @@ import { API_ENDPOINTS } from "../config";
 import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import backgroundImage from '../chat-background.jpg';
 import bookLogo from '../book-logo1.jpeg';
 import SubscribedBooksView from "./SubscribedBooksView"; // Import the new component
 
@@ -845,7 +844,10 @@ export default function ChatbotLayout({ children }) {
 
   // Inline styles for background patterns - with fallback to gradient
   const chatBackgroundStyle = {
-    background: 'linear-gradient(to bottom right, #f0f9ff, #e0f2fe, #dbeafe)',
+    backgroundImage: `url(${process.env.PUBLIC_URL}/images/chat-background.jpg)`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
     position: 'relative',
     zIndex: 0
   };
@@ -857,7 +859,7 @@ export default function ChatbotLayout({ children }) {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     zIndex: 1
   };
 

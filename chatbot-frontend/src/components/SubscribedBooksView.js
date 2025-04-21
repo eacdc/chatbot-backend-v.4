@@ -47,7 +47,8 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
 
   // Handler for selecting a chapter to test
   const handleTestChapter = (chapter, bookId, bookCoverImgLink) => {
-    onSelectChapter(chapter, bookId, bookCoverImgLink);
+    // Call the parent component's handleChapterSelect with the correct parameters
+    onSelectChapter(bookId, chapter._id, chapter.title);
     setShowChaptersModal(false);
   };
   
