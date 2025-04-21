@@ -254,7 +254,14 @@ export default function ChatbotLayout({ children }) {
     try {
       setCurrentChapterTitle(chapterTitle);
       setActiveChapter({ bookId, chapterId });
+      setCurrentBookId(bookId);
+      setExpandedBook(bookId); // Expand the book in sidebar
       setLoading(true);
+      
+      // If chapters for this book aren't loaded yet, fetch them
+      if (!bookChapters[bookId]) {
+        await fetchBookChapters(bookId);
+      }
       
       // Fetch chat history for this chapter
       const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_HISTORY.replace(':chapterId', chapterId), {
