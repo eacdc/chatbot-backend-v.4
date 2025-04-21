@@ -28,6 +28,7 @@ export default function ChatbotLayout({ children }) {
   // Audio recording states
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false); // New state to track message processing
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const navigate = useNavigate();
@@ -312,6 +313,9 @@ export default function ChatbotLayout({ children }) {
         return;
       }
       
+      // Set processing state to true
+      setIsProcessing(true);
+      
       // Add user message to chat history immediately for better UX
       const newMessage = { role: "user", content: message };
       setChatHistory([...chatHistory, newMessage]);
@@ -340,6 +344,9 @@ export default function ChatbotLayout({ children }) {
         role: "system", 
         content: "Failed to send message. Please try again." 
       }]);
+    } finally {
+      // Set processing state back to false
+      setIsProcessing(false);
     }
   };
 
@@ -417,6 +424,9 @@ export default function ChatbotLayout({ children }) {
     const token = getToken();
     if (!userId || !token) return;
     
+    // Set processing state to true
+    setIsProcessing(true);
+    
     // Reset audio state immediately to restore normal UI
     const audioBlobCopy = audioBlob;
     setAudioBlob(null);
@@ -482,6 +492,9 @@ export default function ChatbotLayout({ children }) {
         role: "system", 
         content: errorMessage
       }]);
+    } finally {
+      // Set processing state back to false
+      setIsProcessing(false);
     }
   };
 
@@ -1333,6 +1346,20 @@ export default function ChatbotLayout({ children }) {
                         </div>
                       ))}
                       
+                      {/* Show typing indicator when processing a message */}
+                      {isProcessing && (
+                        <div className="flex justify-start">
+                          <div className="bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100 p-3 shadow-sm max-w-[85%] sm:max-w-[75%]">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse delay-150"></div>
+                              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse delay-300"></div>
+                              <span className="text-xs text-gray-500 ml-2">AI is thinking...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Add Start Test button if there's only the system welcome message */}
                       {chatHistory.length === 1 && chatHistory[0].role === 'system' && (
                         <div className="flex justify-center mt-4">
@@ -1400,17 +1427,17 @@ export default function ChatbotLayout({ children }) {
                     <input
                       type="text"
                       placeholder="Ask about this chapter..."
-                      className="w-full pl-4 pr-10 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base font-sans"
+                      className={`w-full pl-4 pr-10 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base font-sans ${isProcessing ? 'bg-gray-100 text-gray-500' : ''}`}
                       style={{ fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" }}
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                      disabled={isRecording}
+                      disabled={isRecording || isProcessing}
                     />
                     <button 
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500 p-2 rounded-full focus:outline-none"
+                      className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${isProcessing || !message.trim() ? 'text-gray-300' : 'text-gray-400 hover:text-blue-500'} p-2 rounded-full focus:outline-none`}
                       onClick={handleSendMessage}
-                      disabled={isRecording || !message.trim()}
+                      disabled={isRecording || isProcessing || !message.trim()}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
@@ -1423,8 +1450,9 @@ export default function ChatbotLayout({ children }) {
                     audioBlob ? (
                       <div className="flex space-x-2">
                         <button 
-                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                          className={`bg-green-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'} text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
                           onClick={sendAudioMessage}
+                          disabled={isProcessing}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
@@ -1432,8 +1460,9 @@ export default function ChatbotLayout({ children }) {
                           Send Audio
                         </button>
                         <button 
-                          className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                          className={`bg-gray-500 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-600'} text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500`}
                           onClick={cancelRecording}
+                          disabled={isProcessing}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -1443,8 +1472,9 @@ export default function ChatbotLayout({ children }) {
                       </div>
                     ) : (
                       <button 
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto"
+                        className={`bg-blue-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'} text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto`}
                         onClick={startRecording}
+                        disabled={isProcessing}
                       >
                         <span className="flex items-center">
                           <FaMicrophone className="mr-2" /> 
