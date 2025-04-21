@@ -88,6 +88,10 @@ export default function Collections() {
         const userGrade = user?.grade || localStorage.getItem("userGrade");
         const userPublisher = user?.publisher || localStorage.getItem("userPublisher");
         
+        // PUBLISHER FILTER TEMPORARILY DISABLED
+        // To re-enable filtering, uncomment the code below and remove the unfiltered request
+        
+        /*
         // Build query parameters
         const queryParams = new URLSearchParams();
         // Temporarily removed grade filtering
@@ -100,9 +104,14 @@ export default function Collections() {
         
         // Construct URL with query parameters
         const url = `${API_ENDPOINTS.GET_BOOKS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        */
+        
+        // Unfiltered request - fetch all books without filtering
+        const url = API_ENDPOINTS.GET_BOOKS;
         
         const response = await axios.get(url);
         setBooks(response.data);
+        console.log(`Loaded ${response.data.length} books (publisher filtering disabled)`);
       } catch (error) {
         console.error("Error fetching books:", error);
         setError("Failed to fetch books");
