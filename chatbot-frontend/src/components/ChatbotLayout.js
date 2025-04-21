@@ -255,9 +255,6 @@ export default function ChatbotLayout({ children }) {
       setCurrentChapterTitle(chapterTitle);
       setActiveChapter({ bookId, chapterId });
       setLoading(true);
-
-      // Clear chat history for new chapter
-      setChatHistory([]);
       
       // Fetch chat history for this chapter
       const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_HISTORY.replace(':chapterId', chapterId), {
@@ -267,13 +264,14 @@ export default function ChatbotLayout({ children }) {
         }
       });
       
-      if (response.data && Array.isArray(response.data)) {
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        // Use existing chat history if available
         setChatHistory(response.data);
       } else {
-        // If no history, add a welcome message
+        // If no history, show an empty chat with welcome message
         setChatHistory([{
           role: 'system',
-          content: `Welcome to chapter "${chapterTitle}". What would you like to know about this chapter?`
+          content: `Welcome to chapter "${chapterTitle}". Click the "Start Test" button below to begin.`
         }]);
       }
 
@@ -285,10 +283,10 @@ export default function ChatbotLayout({ children }) {
       }, 100);
     } catch (error) {
       console.error("Error loading chat history:", error);
-      // Add welcome message instead of showing error
+      // Add welcome message for empty chat
       setChatHistory([{
         role: 'system',
-        content: `Welcome to chapter "${chapterTitle}". What would you like to know about this chapter?`
+        content: `Welcome to chapter "${chapterTitle}". Click the "Start Test" button below to begin.`
       }]);
     } finally {
       setLoading(false);
@@ -846,18 +844,18 @@ export default function ChatbotLayout({ children }) {
   useEffect(() => {
     // Preload the background image
     const img = new Image();
-    img.src = `${process.env.PUBLIC_URL}/images/chat-background.jpg`;
+    img.src = "/images/chat-background.jpg";
     img.onload = () => {
       console.log('Background image successfully loaded');
     };
-    img.onerror = () => {
-      console.error('Failed to load background image');
+    img.onerror = (error) => {
+      console.error('Failed to load background image', error);
     };
   }, []);
 
   // Inline styles for background patterns - with fallback to gradient
   const chatBackgroundStyle = {
-    backgroundImage: `url(${process.env.PUBLIC_URL}/images/chat-background.jpg)`,
+    backgroundImage: `url('/images/chat-background.jpg')`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
@@ -1266,7 +1264,7 @@ export default function ChatbotLayout({ children }) {
             <div 
               className="flex-1 flex flex-col overflow-hidden" 
               style={{
-                backgroundImage: `url(${process.env.PUBLIC_URL}/images/chat-background.jpg)`,
+                backgroundImage: `url('/images/chat-background.jpg')`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
@@ -1327,6 +1325,51 @@ export default function ChatbotLayout({ children }) {
                           </div>
                         </div>
                       ))}
+                      
+                      {/* Add Start Test button if there's only the system welcome message */}
+                      {chatHistory.length === 1 && chatHistory[0].role === 'system' && (
+                        <div className="flex justify-center mt-4">
+                          <button
+                            onClick={() => {
+                              // Send "Let's Start" message when button is clicked
+                              const newMessage = { role: "user", content: "Let's Start" };
+                              setChatHistory([...chatHistory, newMessage]);
+                              
+                              // Then call handleSendMessage with this content
+                              axios.post(`${API_ENDPOINTS.CHAT}/send`, {
+                                message: "Let's Start",
+                                userId: getUserId(),
+                                ...(activeChapter && { chapterId: activeChapter.chapterId }),
+                              }, {
+                                headers: {
+                                  'Authorization': `Bearer ${getToken()}`
+                                }
+                              }).then(response => {
+                                if (response.data && response.data.response) {
+                                  setChatHistory(prev => [...prev, { 
+                                    role: "assistant", 
+                                    content: response.data.response 
+                                  }]);
+                                }
+                              }).catch(error => {
+                                console.error("Error sending initial message:", error);
+                                setChatHistory(prev => [...prev, { 
+                                  role: "system", 
+                                  content: "Failed to start test. Please try again." 
+                                }]);
+                              });
+                            }}
+                            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 flex items-center"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3-2a1 1 0 000-1.664z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Start Test
+                          </button>
+                        </div>
+                      )}
+                      
                       <div ref={chatEndRef} />
                     </>
                   ) : (
