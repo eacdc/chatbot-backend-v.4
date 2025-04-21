@@ -1012,89 +1012,178 @@ export default function ChatbotLayout({ children }) {
           </div>
         </div>
         
-        <div className="flex items-center space-x-4">
-          {/* Notifications Button */}
-          <div className="relative" ref={notificationRef}>
-            <button 
-              className={`p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
-              onClick={() => setShowNotifications(!showNotifications)}
-              aria-label="Notifications"
-            >
-              <FaBell className="h-4 w-4 text-blue-500" />
-              {unreadCount > 0 && (
-                <span className="notification-badge">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-            
-            {/* Notifications Panel */}
-            {showNotifications && (
-              <div 
-                className="notification-panel bg-white rounded-lg shadow-md border border-gray-100" 
-                style={{ 
-                  width: '350px',
-                  maxWidth: 'calc(100vw - 40px)',
-                  position: 'absolute',
-                  top: '45px',
-                  right: '0',
-                  left: 'auto',
-                  zIndex: 1000,
-                  overflowY: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
+        <div className="flex items-center">
+          {/* Container for notification elements - reorganized for mobile */}
+          <div className="hidden sm:flex items-center space-x-4">
+            {/* Notifications Button for desktop */}
+            <div className="relative" ref={notificationRef}>
+              <button 
+                className={`p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
+                onClick={() => setShowNotifications(!showNotifications)}
+                aria-label="Notifications"
               >
-                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center sticky top-0">
-                  <h3 className="font-medium text-gray-800">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <button 
-                      onClick={markAllNotificationsAsSeen}
-                      className="text-xs text-blue-500 hover:text-blue-600"
-                    >
-                      Mark all as read
-                    </button>
+                <FaBell className="h-4 w-4 text-blue-500" />
+                {unreadCount > 0 && (
+                  <span className="notification-badge">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              
+              {/* Notifications Panel */}
+              {showNotifications && (
+                <div 
+                  className="notification-panel bg-white rounded-lg shadow-md border border-gray-100" 
+                  style={{ 
+                    width: '350px',
+                    maxWidth: 'calc(100vw - 40px)',
+                    position: 'absolute',
+                    top: '45px',
+                    right: '0',
+                    left: 'auto',
+                    zIndex: 1000,
+                    overflowY: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center sticky top-0">
+                    <h3 className="font-medium text-gray-800">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={markAllNotificationsAsSeen}
+                        className="text-xs text-blue-500 hover:text-blue-600"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">No notifications</div>
+                  ) : (
+                    <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
+                      {notifications.map((notification, index) => (
+                        <div 
+                          key={index}
+                          className={`p-3 border-b border-gray-100 flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-gray-800 truncate">{notification.title}</div>
+                            <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
+                            <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
+                          </div>
+                          {notification.seen_status === 'no' && (
+                            <button 
+                              onClick={() => markNotificationAsSeen(notification._id)}
+                              className="text-xs text-blue-500 hover:text-blue-600 ml-2 flex-shrink-0 self-start mt-1"
+                            >
+                              Mark as read
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-                
-                {notifications.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">No notifications</div>
-                ) : (
-                  <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
-                    {notifications.map((notification, index) => (
-                      <div 
-                        key={index}
-                        className={`p-3 border-b border-gray-100 flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-gray-800 truncate">{notification.title}</div>
-                          <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
-                          <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
-                        </div>
-                        {notification.seen_status === 'no' && (
-                          <button 
-                            onClick={() => markNotificationAsSeen(notification._id)}
-                            className="text-xs text-blue-500 hover:text-blue-600 ml-2 flex-shrink-0 self-start mt-1"
-                          >
-                            Mark as read
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
+            
+            {/* Test Notifications button for desktop */}
+            <button
+              onClick={seedTestNotifications}
+              className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-2 py-1 rounded-md shadow-sm transition-colors duration-200"
+              title="Add test notifications for this user"
+            >
+              Test Notifications
+            </button>
           </div>
           
-          {/* Test Notifications button - styled to match the design */}
-          <button
-            onClick={seedTestNotifications}
-            className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-2 py-1 rounded-md shadow-sm transition-colors duration-200"
-            title="Add test notifications for this user"
-          >
-            Test Notifications
-          </button>
+          {/* Mobile only notification components */}
+          <div className="sm:hidden flex flex-col items-end mr-4">
+            {/* Notification button for mobile */}
+            <div className="relative" ref={notificationRef}>
+              <button 
+                className={`p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
+                onClick={() => setShowNotifications(!showNotifications)}
+                aria-label="Notifications"
+              >
+                <FaBell className="h-4 w-4 text-blue-500" />
+                {unreadCount > 0 && (
+                  <span className="notification-badge">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              
+              {/* Notifications Panel for mobile */}
+              {showNotifications && (
+                <div 
+                  className="notification-panel bg-white rounded-lg shadow-md border border-gray-100" 
+                  style={{ 
+                    width: '300px',
+                    maxWidth: 'calc(100vw - 40px)',
+                    position: 'absolute',
+                    top: '75px',
+                    right: '0',
+                    left: 'auto',
+                    zIndex: 1000,
+                    overflowY: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center sticky top-0">
+                    <h3 className="font-medium text-gray-800">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={markAllNotificationsAsSeen}
+                        className="text-xs text-blue-500 hover:text-blue-600"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">No notifications</div>
+                  ) : (
+                    <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
+                      {notifications.map((notification, index) => (
+                        <div 
+                          key={index}
+                          className={`p-3 border-b border-gray-100 flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-gray-800 truncate">{notification.title}</div>
+                            <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
+                            <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
+                          </div>
+                          {notification.seen_status === 'no' && (
+                            <button 
+                              onClick={() => markNotificationAsSeen(notification._id)}
+                              className="text-xs text-blue-500 hover:text-blue-600 ml-2 flex-shrink-0 self-start mt-1"
+                            >
+                              Mark as read
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Test Notifications button for mobile - below the notification bell */}
+            <button
+              onClick={seedTestNotifications}
+              className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-2 py-1 rounded-md shadow-sm transition-colors duration-200 mt-2"
+              title="Add test notifications for this user"
+            >
+              Test Notifications
+            </button>
+          </div>
           
           {/* Mobile menu toggle button */}
           <button 
