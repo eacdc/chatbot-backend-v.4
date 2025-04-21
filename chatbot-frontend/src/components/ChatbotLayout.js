@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import backgroundImage from '../chat-background.jpg';
 import bookLogo from '../book-logo1.jpeg';
+import SubscribedBooksView from "./SubscribedBooksView"; // Import the new component
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -249,43 +250,51 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
-  // Handle chapter selection
-  const handleChapterSelect = async (chapter, bookId, bookCoverImgLink) => {
-    console.log("Chapter select - BEFORE setting state:", {
-      existingBookId: currentBookId,
-      existingCover: currentBookCover,
-      newChapter: chapter._id,
-      newBookId: bookId,
-      newCover: bookCoverImgLink
-    });
-    
-    setActiveChapter(chapter._id);
-    setCurrentChapterTitle(chapter.title);
-    setCurrentBookId(bookId);
-    setCurrentBookCover(bookCoverImgLink);
-    
-    console.log("Selected chapter with book cover:", {
-      chapterId: chapter._id,
-      chapterTitle: chapter.title,
-      bookId: bookId,
-      bookCoverImgLink: bookCoverImgLink
-    });
-    
-    // Fetch chat history for this chapter
-    await fetchChapterChatHistory(chapter._id);
-    
-    console.log("Chapter select - AFTER state should be updated:", {
-      currentBookId,
-      currentBookCover
-    });
-    
-    // Force-check state after a delay to ensure it's updated
-    setTimeout(() => {
-      console.log("Chapter select - State after delay:", {
-        currentBookId,
-        currentBookCover
+  // Function to handle chapter selection
+  const handleChapterSelect = async (bookId, chapterId, chapterTitle) => {
+    try {
+      setCurrentChapterTitle(chapterTitle);
+      setActiveChapter({ bookId, chapterId });
+      setLoading(true);
+
+      // Clear chat history for new chapter
+      setChatHistory([]);
+      
+      // Fetch chat history for this chapter
+      const response = await axios.get(API_ENDPOINTS.GET_CHAT_HISTORY
+        .replace(':bookId', bookId)
+        .replace(':chapterId', chapterId), {
+        headers: {
+          Authorization: `Bearer ${getToken()}`
+        }
       });
-    }, 500);
+      
+      if (response.data && Array.isArray(response.data)) {
+        setChatHistory(response.data);
+      } else {
+        // If no history, add a welcome message
+        setChatHistory([{
+          role: 'system',
+          content: `Welcome to chapter "${chapterTitle}". What would you like to know about this chapter?`
+        }]);
+      }
+
+      // Scroll to bottom of chat
+      setTimeout(() => {
+        if (chatEndRef.current) {
+          chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+      setNotification({
+        show: true,
+        message: "Failed to load chat history. Please try again.",
+        type: "error"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -308,7 +317,7 @@ export default function ChatbotLayout({ children }) {
       const response = await axios.post(`${API_ENDPOINTS.CHAT}/send`, {
         message: message,
         userId: getUserId(),
-        ...(activeChapter && { chapterId: activeChapter }),
+        ...(activeChapter && { chapterId: activeChapter.chapterId }),
       }, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -447,7 +456,7 @@ export default function ChatbotLayout({ children }) {
       const response = await axios.post(`${API_ENDPOINTS.CHAT}/send`, {
         message: transcribedText,
         userId: getUserId(),
-        ...(activeChapter && { chapterId: activeChapter }),
+        ...(activeChapter && { chapterId: activeChapter.chapterId }),
       }, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -549,7 +558,7 @@ export default function ChatbotLayout({ children }) {
         setExpandedBook(null);
         if (activeChapter) {
           const chapterBelongsToBook = bookChapters[bookId]?.some(
-            chapter => chapter._id === activeChapter
+            chapter => chapter._id === activeChapter.chapterId
           );
           
           if (chapterBelongsToBook) {
@@ -857,6 +866,26 @@ export default function ChatbotLayout({ children }) {
     zIndex: 1
   };
 
+  // Add this function to fetch chapters for a book and return them
+  const fetchBookChaptersData = async (bookId) => {
+    const token = getToken();
+    if (!token) return [];
+    
+    try {
+      // Use direct axios call without updating state immediately
+      const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      return response.data || [];
+    } catch (error) {
+      console.error("Error fetching chapters data:", error);
+      return [];
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col bg-gray-50">
       {/* Hidden image to preload and validate book cover */}
@@ -1115,12 +1144,12 @@ export default function ChatbotLayout({ children }) {
                                 <div 
                                   key={chapter._id} 
                                   className={`p-2 pl-6 cursor-pointer transition-colors duration-200 text-sm ${
-                                    activeChapter === chapter._id 
+                                    activeChapter && activeChapter.chapterId === chapter._id 
                                       ? "bg-blue-500 text-white" 
                                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                                   }`}
                                   onClick={() => {
-                                    handleChapterSelect(chapter, sub.bookId, sub.bookCoverImgLink);
+                                    handleChapterSelect(sub.bookId, chapter._id, chapter.title);
                                     setIsSidebarOpen(false);
                                   }}
                                 >
@@ -1221,158 +1250,140 @@ export default function ChatbotLayout({ children }) {
           </div>
         </aside>
         
-        {/* Main Chat Area */}
-        <div 
-          className="flex-1 overflow-hidden flex flex-col relative"
-          style={chatBackgroundStyle}
-        >
-          {/* Semi-transparent overlay */}
-          <div style={overlayStyle}></div>
-          
-          {/* Current chapter indicator */}
-          <div className="relative z-10">
-            {activeChapter && (
-              <div className="bg-white bg-opacity-90 text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
-                <div>
-                  <span className="text-xs font-medium uppercase tracking-wider text-blue-500">Active Chapter</span>
-                  <h3 className="text-sm sm:text-base font-medium text-gray-800">{currentChapterTitle}</h3>
-                </div>
-                <button 
-                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
-                  onClick={clearActiveChapter}
-                >
-                  Exit Chapter
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {/* Chat Messages Area */}
-          <div 
-            className="flex-1 overflow-y-auto p-4 sm:p-6 relative z-10"
-            ref={chatContainerRef}
-          >
-            <div className="flex flex-col space-y-4">
-              {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
-                <>
-                  {chatHistory.map((msg, index) => (
-                    <div
-                      key={index}
-                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                      <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl shadow-sm p-3 ${
-                        msg.role === "user" 
-                          ? "bg-blue-500 text-white rounded-tr-sm" 
-                          : msg.role === "system" 
-                            ? "bg-yellow-50 text-yellow-800 rounded-tl-sm border border-yellow-100" 
-                            : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
-                      } text-sm sm:text-base markdown-content`}
-                      >
-                        {msg.role === "user" ? (
-                          msg.content
-                        ) : (
-                          <ReactMarkdown 
-                            remarkPlugins={[remarkGfm]}
-                            className={msg.role === "system" ? "markdown-system" : "markdown-assistant"}
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {activeChapter ? (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Chat Messages Area - Only shown when activeChapter is selected */}
+              <div 
+                className="flex-1 overflow-y-auto p-4 sm:p-6 relative z-10"
+                ref={chatContainerRef}
+              >
+                <div className="flex flex-col space-y-4">
+                  {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
+                    <>
+                      {chatHistory.map((msg, index) => (
+                        <div
+                          key={index}
+                          className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl shadow-sm p-3 ${
+                            msg.role === "user" 
+                              ? "bg-blue-500 text-white rounded-tr-sm" 
+                              : msg.role === "system" 
+                                ? "bg-yellow-50 text-yellow-800 rounded-tl-sm border border-yellow-100" 
+                                : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
+                          } text-sm sm:text-base markdown-content`}
                           >
-                            {msg.content}
-                          </ReactMarkdown>
-                        )}
-                      </div>
+                            {msg.role === "user" ? (
+                              msg.content
+                            ) : (
+                              <ReactMarkdown 
+                                remarkPlugins={[remarkGfm]}
+                                className={msg.role === "system" ? "markdown-system" : "markdown-assistant"}
+                              >
+                                {msg.content}
+                              </ReactMarkdown>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 rounded-xl p-8 shadow-sm">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                      <p className="text-center text-xl font-medium">Start a conversation!</p>
+                      <p className="text-center text-base mt-3">
+                        Ask questions about this chapter
+                      </p>
                     </div>
-                  ))}
-                  <div ref={chatEndRef} />
-                </>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 rounded-xl p-8 shadow-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                  </svg>
-                  <p className="text-center text-xl font-medium">Start a conversation!</p>
-                  <p className="text-center text-base mt-3">
-                    {activeChapter ? "Ask questions about this chapter" : "Select a chapter or ask a general question"}
-                  </p>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-          
-          {/* Message Input */}
-          <div className="border-t border-gray-100 p-3 sm:p-4 relative z-10 bg-white">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder={activeChapter ? "Ask about this chapter..." : "Type a message..."}
-                  className="w-full pl-4 pr-10 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base font-sans"
-                  style={{ fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" }}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                  disabled={isRecording || !activeChapter}
-                />
-                <button 
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500 p-2 rounded-full focus:outline-none"
-                  onClick={handleSendMessage}
-                  disabled={isRecording || !message.trim() || !activeChapter}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                  </svg>
-                </button>
               </div>
               
-              {/* Audio recording button */}
-              {!isRecording ? (
-                audioBlob ? (
-                  <div className="flex space-x-2">
+              {/* Message Input - Only shown when activeChapter is selected */}
+              <div className="border-t border-gray-100 p-3 sm:p-4 relative z-10 bg-white">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Ask about this chapter..."
+                      className="w-full pl-4 pr-10 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base font-sans"
+                      style={{ fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" }}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                      disabled={isRecording}
+                    />
                     <button 
-                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                      onClick={sendAudioMessage}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-500 p-2 rounded-full focus:outline-none"
+                      onClick={handleSendMessage}
+                      disabled={isRecording || !message.trim()}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                       </svg>
-                      Send Audio
-                    </button>
-                    <button 
-                      className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                      onClick={cancelRecording}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                      Cancel
                     </button>
                   </div>
-                ) : (
-                  <button 
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={startRecording}
-                    disabled={!activeChapter}
-                  >
-                    <span className="flex items-center">
-                      <FaMicrophone className="mr-2" /> 
-                      Voice
-                    </span>
-                  </button>
-                )
-              ) : (
-                <button 
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                  onClick={stopRecording}
-                >
-                  <FaStop className="mr-2" /> 
-                  Stop Recording
-                </button>
-              )}
+                  
+                  {/* Audio recording button */}
+                  {!isRecording ? (
+                    audioBlob ? (
+                      <div className="flex space-x-2">
+                        <button 
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                          onClick={sendAudioMessage}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                          </svg>
+                          Send Audio
+                        </button>
+                        <button 
+                          className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                          onClick={cancelRecording}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto"
+                        onClick={startRecording}
+                      >
+                        <span className="flex items-center">
+                          <FaMicrophone className="mr-2" /> 
+                          Voice
+                        </span>
+                      </button>
+                    )
+                  ) : (
+                    <button 
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      onClick={stopRecording}
+                    >
+                      <FaStop className="mr-2" /> 
+                      Stop Recording
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-            {!activeChapter && (
-              <p className="mt-2 text-xs text-center text-red-500">
-                Please select a chapter to start a conversation
-              </p>
-            )}
-          </div>
+          ) : (
+            /* Display SubscribedBooksView when no chapter is selected */
+            <SubscribedBooksView 
+              subscribedBooks={subscribedBooks}
+              onSelectChapter={handleChapterSelect}
+              fetchChapters={fetchBookChaptersData}
+              loading={loading}
+            />
+          )}
         </div>
       </div>
       
