@@ -261,11 +261,10 @@ export default function ChatbotLayout({ children }) {
       setChatHistory([]);
       
       // Fetch chat history for this chapter
-      const response = await axios.get(API_ENDPOINTS.GET_CHAT_HISTORY
-        .replace(':bookId', bookId)
-        .replace(':chapterId', chapterId), {
+      const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_HISTORY.replace(':chapterId', chapterId), {
         headers: {
-          Authorization: `Bearer ${getToken()}`
+          'Authorization': `Bearer ${getToken()}`,
+          'user-id': getUserId()
         }
       });
       
@@ -287,11 +286,11 @@ export default function ChatbotLayout({ children }) {
       }, 100);
     } catch (error) {
       console.error("Error loading chat history:", error);
-      setNotification({
-        show: true,
-        message: "Failed to load chat history. Please try again.",
-        type: "error"
-      });
+      // Add welcome message instead of showing error
+      setChatHistory([{
+        role: 'system',
+        content: `Welcome to chapter "${chapterTitle}". What would you like to know about this chapter?`
+      }]);
     } finally {
       setLoading(false);
     }
@@ -844,13 +843,9 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
-  // Inline styles for background patterns - using only chat-background.jpg
+  // Inline styles for background patterns - with fallback to gradient
   const chatBackgroundStyle = {
-    backgroundColor: '#FFFFFF',
-    backgroundImage: `url(${backgroundImage})`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat',
+    background: 'linear-gradient(to bottom right, #f0f9ff, #e0f2fe, #dbeafe)',
     position: 'relative',
     zIndex: 0
   };
@@ -862,7 +857,7 @@ export default function ChatbotLayout({ children }) {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     zIndex: 1
   };
 
@@ -1253,7 +1248,26 @@ export default function ChatbotLayout({ children }) {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {activeChapter ? (
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden" style={chatBackgroundStyle}>
+              {/* Semi-transparent overlay */}
+              <div style={overlayStyle}></div>
+
+              {/* Current chapter indicator */}
+              <div className="relative z-10">
+                <div className="bg-white bg-opacity-90 text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
+                  <div>
+                    <span className="text-xs font-medium uppercase tracking-wider text-blue-500">Active Chapter</span>
+                    <h3 className="text-sm sm:text-base font-medium text-gray-800">{currentChapterTitle}</h3>
+                  </div>
+                  <button 
+                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    onClick={clearActiveChapter}
+                  >
+                    Exit Chapter
+                  </button>
+                </div>
+              </div>
+              
               {/* Chat Messages Area - Only shown when activeChapter is selected */}
               <div 
                 className="flex-1 overflow-y-auto p-4 sm:p-6 relative z-10"
