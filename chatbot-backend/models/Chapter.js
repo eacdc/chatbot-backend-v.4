@@ -5,7 +5,7 @@ const chapterSchema = new mongoose.Schema(
     chapterId: { type: String, unique: true }, // Auto-generated
     bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true }, // Reference to Book
     title: { type: String, required: true },
-    prompt: { type: String, required: true, maxlength: 30000 },
+    prompt: { type: String, required: true },
   },
   { timestamps: true }
 );

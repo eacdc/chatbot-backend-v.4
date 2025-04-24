@@ -25,6 +25,7 @@ export const API_ENDPOINTS = {
   
   // Chapter preparation endpoints
   PROCESS_TEXT: `${API_URL}/api/chapters/process-text`,
+  PROCESS_TEXT_BATCH: `${API_URL}/api/chapters/process-text-batch`,
   GENERATE_QNA: `${API_URL}/api/chapters/generate-qna`,
   GENERATE_FINAL_PROMPT: `${API_URL}/api/chapters/generate-final-prompt`,
   

@@ -286,6 +286,207 @@ router.post("/process-text", authenticateAdmin, async (req, res) => {
   }
 });
 
+// Process raw text through OpenAI with text splitting (batched processing)
+router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
+  try {
+    const { rawText } = req.body;
+
+    if (!rawText) {
+      return res.status(400).json({ error: "Raw text is required" });
+    }
+    
+    // Log processing attempt
+    console.log(`Processing text with batching. Text length: ${rawText.length} characters`);
+    
+    // Split text into smaller parts (max 10) at sentence boundaries
+    const textParts = splitTextIntoSentenceParts(rawText, 10);
+    console.log(`Split text into ${textParts.length} parts`);
+    
+    // Fetch the system prompt from the database
+    let systemPrompt;
+    try {
+      const promptDoc = await Prompt.findOne({ prompt_type: "batchProcessing", isActive: true });
+      if (promptDoc) {
+        systemPrompt = promptDoc.prompt;
+        console.log("Successfully loaded Batch Processing prompt from database");
+      } else {
+        // Fallback to default prompt
+        systemPrompt = "You are a helpful assistant helping to understand and process educational content. Provide a comprehensive and detailed response to the text I will share with you. Focus on explaining the key concepts, identifying important information, and organizing the content in a structured way.";
+        console.warn("Warning: Batch Processing system prompt not found in database, using default");
+      }
+    } catch (error) {
+      console.error("Error fetching Batch Processing system prompt:", error);
+      // Fallback to default prompt
+      systemPrompt = "You are a helpful assistant helping to understand and process educational content. Provide a comprehensive and detailed response to the text I will share with you.";
+    }
+
+    // Process each part with OpenAI and collect responses
+    const collatedResponses = {};
+    
+    for (let i = 0; i < textParts.length; i++) {
+      try {
+        console.log(`Processing part ${i+1}/${textParts.length}`);
+        
+        // Construct messages for OpenAI
+        const messagesForOpenAI = [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: textParts[i] }
+        ];
+
+        // Add a timeout for the OpenAI request
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('OpenAI request timed out')), 180000); // 3 minutes timeout
+        });
+        
+        // Function to make OpenAI request with retry logic
+        const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
+          try {
+            console.log(`OpenAI request for part ${i+1} attempt ${retryCount + 1}/${maxRetries + 1}`);
+            
+            // Send request to OpenAI
+            const response = await openai.chat.completions.create({
+              model: "gpt-4o",
+              temperature: 0,
+              messages: messagesForOpenAI,
+            });
+            
+            if (!response || !response.choices || response.choices.length === 0) {
+              throw new Error("Invalid response from OpenAI");
+            }
+            
+            return response;
+          } catch (error) {
+            // If we've reached max retries, throw the error
+            if (retryCount >= maxRetries) {
+              throw error;
+            }
+            
+            console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+            
+            // Wait before retrying (exponential backoff: 2s, 4s)
+            await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+            
+            // Try again with incremented retry count
+            return makeOpenAIRequest(retryCount + 1, maxRetries);
+          }
+        };
+        
+        // Race the promises with retry logic
+        const openAIPromise = makeOpenAIRequest();
+        const response = await Promise.race([openAIPromise, timeoutPromise]);
+
+        if (!response || !response.choices || response.choices.length === 0) {
+          console.error(`Invalid or empty response from OpenAI for part ${i+1}`);
+          collatedResponses[`part_${i+1}`] = "Error processing this section";
+        } else {
+          const processedText = response.choices[0].message.content;
+          console.log(`Part ${i+1} processed successfully. Result length: ${processedText.length}`);
+          collatedResponses[`part_${i+1}`] = processedText;
+        }
+      } catch (error) {
+        console.error(`Error processing part ${i+1}:`, error);
+        collatedResponses[`part_${i+1}`] = "Error processing this section";
+      }
+    }
+    
+    // Save the combined responses as a system prompt
+    try {
+      // Combine all responses
+      const combinedPrompt = Object.values(collatedResponses).join("\n\n");
+      
+      // Create a new prompt in the database
+      const newPrompt = new Prompt({
+        prompt_type: "generatedSystem",
+        prompt: combinedPrompt,
+        isActive: true
+      });
+      
+      await newPrompt.save();
+      console.log("Combined responses saved as system prompt in the database");
+      
+      res.json({ 
+        success: true, 
+        message: "Text processed and saved as system prompt",
+        promptId: newPrompt._id
+      });
+    } catch (error) {
+      console.error("Error saving combined responses as system prompt:", error);
+      res.status(500).json({ 
+        error: "Failed to save combined responses", 
+        message: error.message || "Unknown error",
+        partialResponses: collatedResponses
+      });
+    }
+  } catch (error) {
+    console.error("Error in batch processing:", error);
+    
+    // Add specific error messages based on the error type
+    if (error.message === 'OpenAI request timed out') {
+      return res.status(504).json({ 
+        error: "Processing timed out. The text may be too complex. Please try with smaller text segments." 
+      });
+    }
+    
+    // Check for OpenAI API errors
+    if (error.response?.status) {
+      console.error("OpenAI API error:", error.response.status, error.response.data);
+      return res.status(502).json({ 
+        error: "Error from AI service. Please try again later." 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: "Failed to process text", 
+      message: error.message || "Unknown error"
+    });
+  }
+});
+
+// Helper function to split text into smaller parts at sentence boundaries
+function splitTextIntoSentenceParts(text, maxParts = 10) {
+  // Regular expression to match sentence endings (period, question mark, exclamation mark)
+  // followed by a space or end of string
+  const sentenceEndRegex = /[.!?](?:\s|$)/g;
+  
+  // Find all sentence ending positions
+  const sentenceEndings = [];
+  let match;
+  while ((match = sentenceEndRegex.exec(text)) !== null) {
+    sentenceEndings.push(match.index + 1); // +1 to include the punctuation mark
+  }
+  
+  // If no sentence endings found or only one sentence, return the whole text as one part
+  if (sentenceEndings.length <= 1) {
+    return [text];
+  }
+  
+  // Calculate approximately how many sentences should be in each part
+  const totalSentences = sentenceEndings.length;
+  const sentencesPerPart = Math.ceil(totalSentences / Math.min(maxParts, totalSentences));
+  
+  const parts = [];
+  let startPos = 0;
+  
+  // Create parts with approximately equal number of sentences
+  for (let i = sentencesPerPart - 1; i < totalSentences; i += sentencesPerPart) {
+    const endPos = i >= sentenceEndings.length ? text.length : sentenceEndings[i];
+    parts.push(text.substring(startPos, endPos).trim());
+    startPos = endPos;
+    
+    // Stop if we've reached the maximum number of parts
+    if (parts.length >= maxParts - 1 && startPos < text.length) {
+      break;
+    }
+  }
+  
+  // Add any remaining text as the last part
+  if (startPos < text.length) {
+    parts.push(text.substring(startPos).trim());
+  }
+  
+  return parts;
+}
+
 // Generate QnA through OpenAI
 router.post("/generate-qna", authenticateAdmin, async (req, res) => {
   try {
