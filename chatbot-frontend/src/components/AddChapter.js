@@ -21,7 +21,7 @@ const AddChapter = () => {
     finalPrompt: ""
   });
 
-  const [batchProcessing, setBatchProcessing] = useState(false);
+  const [batchProcessing, setBatchProcessing] = useState(true);
   const [batchProcessingLoading, setBatchProcessingLoading] = useState(false);
 
   // Fetch books for dropdown
@@ -539,32 +539,31 @@ const AddChapter = () => {
               </div>
               
               <div className="space-y-6">
-                {/* Toggle for processing mode */}
+                {/* Toggle for processing mode - currently disabled and fixed to batch processing */}
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-lg font-medium text-gray-900">Processing Mode</h2>
                     <div className="flex items-center">
-                      <span className={`mr-2 ${!batchProcessing ? 'font-medium text-blue-600' : 'text-gray-500'}`}>
+                      <span className={`mr-2 ${!batchProcessing ? 'font-medium text-blue-600' : 'text-gray-400'}`}>
                         Standard
                       </span>
-                      <label className="relative inline-flex items-center cursor-pointer">
+                      <label className="relative inline-flex items-center cursor-not-allowed">
                         <input 
                           type="checkbox" 
                           className="sr-only peer"
                           checked={batchProcessing}
-                          onChange={() => setBatchProcessing(!batchProcessing)}
+                          disabled={true}
+                          onChange={() => {}}
                         />
-                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 opacity-70"></div>
                       </label>
-                      <span className={`ml-2 ${batchProcessing ? 'font-medium text-blue-600' : 'text-gray-500'}`}>
+                      <span className={`ml-2 ${batchProcessing ? 'font-medium text-blue-600' : 'text-gray-400'}`}>
                         Batch
                       </span>
                     </div>
                   </div>
                   <p className="mt-2 text-sm text-gray-600">
-                    {batchProcessing ? 
-                      "Batch mode splits text into parts, processes each through OpenAI, and saves the result directly as a system prompt." : 
-                      "Standard mode processes the entire text at once and provides good text for further editing."}
+                    Batch mode is currently enabled by default. This mode splits text into parts, processes each through OpenAI, and saves the result directly as a system prompt.
                   </p>
                 </div>
                 
@@ -572,55 +571,29 @@ const AddChapter = () => {
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-medium text-gray-900">Raw Text</h2>
                     <div className="flex-shrink-0">
-                      {batchProcessing ? (
-                        <button 
-                          type="button" 
-                          onClick={handleBatchProcessing}
-                          disabled={batchProcessingLoading}
-                          className={`${batchProcessingLoading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
-                        >
-                          {batchProcessingLoading ? (
-                            <span className="flex items-center">
-                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Batch Processing...
-                            </span>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                              </svg>
-                              Process in Batches
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <button 
-                          type="button" 
-                          onClick={handleGoodText}
-                          disabled={loading}
-                          className={`${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
-                        >
-                          {loading ? (
-                            <span className="flex items-center">
-                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Processing...
-                            </span>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                              </svg>
-                              Get Good Text
-                            </>
-                          )}
-                        </button>
-                      )}
+                      <button 
+                        type="button" 
+                        onClick={handleBatchProcessing}
+                        disabled={batchProcessingLoading}
+                        className={`${batchProcessingLoading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
+                      >
+                        {batchProcessingLoading ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Batch Processing...
+                          </span>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                            </svg>
+                            Process in Batches
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                   <div>
@@ -635,20 +608,26 @@ const AddChapter = () => {
                   </div>
                 </div>
                 
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Good Text</h2>
+                {/* Only show Good Text in batch mode as information only */}
+                {batchProcessing && (
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 opacity-50">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Good Text (Not Used in Batch Mode)</h2>
                   <div>
                     <textarea
                       name="goodText"
-                      placeholder={batchProcessing ? "In batch mode, text is processed directly into the final prompt..." : "Processed text will appear here..."}
+                      placeholder="In batch mode, text is processed directly into the final prompt..."
                       value={chapterData.goodText}
                       onChange={handleChange}
-                      className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-64 transition-colors duration-200 ${batchProcessing ? 'bg-gray-100' : ''}`}
-                      readOnly={batchProcessing}
+                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-16 transition-colors duration-200 bg-gray-100"
+                      readOnly={true}
+                      disabled={true}
                     />
                   </div>
                 </div>
+                )}
                 
+                {/* Only show Special Instructions in non-batch mode */}
+                {!batchProcessing && (
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-medium text-gray-900">Special Instructions</h2>
@@ -690,7 +669,9 @@ const AddChapter = () => {
                     />
                   </div>
                 </div>
+                )}
                 
+                {/* Only show QnA Output in non-batch mode */}
                 {!batchProcessing && (
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between mb-4">
