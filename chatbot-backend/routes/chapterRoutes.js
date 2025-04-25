@@ -298,8 +298,8 @@ router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
     // Log processing attempt
     console.log(`Processing text with batching. Text length: ${rawText.length} characters`);
     
-    // Split text into smaller parts (max 10) at sentence boundaries
-    const textParts = splitTextIntoSentenceParts(rawText, 10);
+    // Split text into smaller parts (min 20 parts with min 1000 words each) at sentence boundaries
+    const textParts = splitTextIntoSentenceParts(rawText, 20);
     console.log(`Split text into ${textParts.length} parts`);
     
     // Fetch the system prompt from the database
@@ -435,7 +435,7 @@ router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
 });
 
 // Helper function to split text into smaller parts at sentence boundaries
-function splitTextIntoSentenceParts(text, maxParts = 10) {
+function splitTextIntoSentenceParts(text, maxParts = 20) {
   // Regular expression to match sentence endings (period, question mark, exclamation mark)
   // followed by a space or end of string
   const sentenceEndRegex = /[.!?](?:\s|$)/g;
@@ -452,29 +452,63 @@ function splitTextIntoSentenceParts(text, maxParts = 10) {
     return [text];
   }
   
+  // Estimate number of words in the text
+  const wordCount = text.split(/\s+/).length;
+  console.log(`Estimated total word count: ${wordCount}`);
+  
+  // Determine minimum number of parts (ensure at least 20 parts)
+  const minParts = Math.max(20, maxParts);
+  
+  // Calculate minimum part size in words (target 1000 words minimum per part)
+  const minWordsPerPart = 1000;
+  
   // Calculate approximately how many sentences should be in each part
+  // based on both the minimum parts requirement and the word count requirement
   const totalSentences = sentenceEndings.length;
-  const sentencesPerPart = Math.ceil(totalSentences / Math.min(maxParts, totalSentences));
+  
+  // First calculate based on minimum parts
+  let sentencesPerPart = Math.ceil(totalSentences / minParts);
+  
+  // Now check if this gives us approximately 1000 words per part
+  // If not, adjust to ensure parts have at least 1000 words if possible
+  const avgWordsPerSentence = wordCount / totalSentences;
+  const sentencesNeededFor1000Words = Math.ceil(minWordsPerPart / avgWordsPerSentence);
+  
+  // Choose the larger value to satisfy both constraints (min parts and min words)
+  sentencesPerPart = Math.max(sentencesPerPart, sentencesNeededFor1000Words);
+  
+  console.log(`Targeting approximately ${sentencesPerPart} sentences per part to achieve minimum parts and word count goals`);
   
   const parts = [];
   let startPos = 0;
   
-  // Create parts with approximately equal number of sentences
+  // Create parts with the calculated number of sentences per part
   for (let i = sentencesPerPart - 1; i < totalSentences; i += sentencesPerPart) {
     const endPos = i >= sentenceEndings.length ? text.length : sentenceEndings[i];
-    parts.push(text.substring(startPos, endPos).trim());
+    const part = text.substring(startPos, endPos).trim();
+    
+    // Count words in this part
+    const partWordCount = part.split(/\s+/).length;
+    console.log(`Part ${parts.length + 1} word count: ~${partWordCount}`);
+    
+    parts.push(part);
     startPos = endPos;
     
-    // Stop if we've reached the maximum number of parts
-    if (parts.length >= maxParts - 1 && startPos < text.length) {
+    // Stop if we've reached the maximum number of parts (safety check)
+    if (parts.length >= minParts - 1 && startPos < text.length) {
       break;
     }
   }
   
   // Add any remaining text as the last part
   if (startPos < text.length) {
-    parts.push(text.substring(startPos).trim());
+    const lastPart = text.substring(startPos).trim();
+    const lastPartWordCount = lastPart.split(/\s+/).length;
+    console.log(`Last part word count: ~${lastPartWordCount}`);
+    parts.push(lastPart);
   }
+  
+  console.log(`Split text into ${parts.length} parts`);
   
   return parts;
 }

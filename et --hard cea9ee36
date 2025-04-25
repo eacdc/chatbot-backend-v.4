@@ -1,0 +1,117 @@
+d2b620a4 Fix middleware duplication and standardize authentication implementation
+f7a48e2d Add missing middleware and error handler for notification system
+a91b10c4 Add test notifications for demonstration purposes
+72f1d03a Add complete notification system with frontend and backend implementation
+cea9ee36 Add dynamic book cover background for chat based on current chapter
+806a7eb4 Fix book names display and add hover-pause to carousel
+39a21268 Improve book titles in carousel with multi-line display
+f1e957e5 Enhance book carousel with larger images, titles, and right-to-left sliding
+ff6662bb Add sliding book cover carousel to top bar for publisher books
+425f1b0f Fix audio recording UI to reset immediately after sending
+0b380fd8 Make background image clearer with minimal blur
+0f8985e9 Add Send Audio and Cancel options after voice recording
+5135272b Improve background image blur with consistent full-screen overlay
+044faf3d Fix book cover display by adding bookCoverImgLink to subscriptions and enhanced logging
+cdf797d7 Fix book cover background display and improve message container visibility
+26a296a8 Add dynamic book cover background for chat based on current chapter
+198e2dfb Remove gap between sidebar and chat area for seamless layout
+646f63f7 Fix chat container to take up entire available screen width
+0380d905 Remove background image from chat area for cleaner UI
+6c7e4bba Fix chat background to cover entire screen with improved UI elements
+78c5afc8 Revert changes preventing back navigation to login pages
+bb0f456f Prevent back navigation to login pages after authentication
+f08d86ec Update chat background to cover entire chat area and improve AdminLogin mobile view
+37e99a12 Fix audio transcription by using separate OpenAI client instead of DeepSeek
+97b45305 Add blue gradient background image for chat interface
+fdf3d430 Add chat background image feature with configurable settings
+5f1df38d Fix imports of API_URL to use default export from config.js
+8404d5fe Fix login redirect issue by using window.location.href instead of React Router
+4b4e1942 Fix authentication and redirect issues for login flow
+213a1ecd Add authentication middleware to chat routes for improved security
+52399296 Remove alternative publisher field from user registration form
+450f3cbe Fix build error by adding getToken and refreshToken exports to authService
+5d194083 Make publisher field more visible and add alternative publisherName field
+816dd866 Update /me endpoint to include publisher field in user data
+f4138672 Add publisher field to user registration and filter books by user's grade and publisher
+c6dad4d3 Replace modal popup with inline message for books with no chapters
+6732b194 Fix error handling for books with no chapters in Admin Collections
+fad1706c fix: Improve error handling in AdminCollections.js for 404 responses
+d5599df0 Update AdminCollections.js
+9da0fa9d fix: Update AdminCollections.js to show 'No chapters added' message instead of redirecting to login
+e7f08ab0 feat: Add admin axios instance and Cloudinary test script. Add .env.example template
+a9c76224 Fix View Chapter functionality to prevent automatic redirects to login page
+f67dd747 Enhanced Cloudinary image upload with improved error handling and logging
+faa72dc3 Add testyourlearning.com to CORS allowed origins
+4c259031 Fix error handling for 404 responses when fetching chapters
+e579a288 Fix handling of 404 error when no chapters found for a book
+2f39ce85 Add popup notification for when no chapters are found for a book
+a2a7a9d0 Implement Cloudinary for image uploads with local storage fallback
+63f6a2ac Add service files for API integration and update utils
+c4f67f03 Add link to user login page from admin login
+935bb232 Add link to user login page from admin login page
+31e2d01d Fix book cover image loading with fallback image
+f41fded3 Fix 'View Collections' links to redirect to admin collections page
+3f42eebf Add analytics, performance, and settings services with standardized axios import
+ef442922 Add URL fixer to handle mixed content for existing book images
+0e79029b Fix mixed content issue by using HTTPS URLs in production
+b7e1c1e7 Add error handling for book cover images
+0ca9b4f5 Fix image upload endpoint to ensure complete URLs
+aa9d4a7a Update grade selection to make text field editable only for custom grades
+d49cf7b1 Update AddBook component with image upload and grade input improvements
+1bb409f0 Add book cover image upload functionality
+a2b44950 Add toggle functionality between subscribe and unsubscribe buttons
+de96ba6b Add security service for handling security-related API calls
+595779fc Consolidate prompt handling to use Prompt model and update MongoDB connection to use test database
+3775d5f8 Project structure improvements: Add README, env examples, setup script, and update gitignore
+c39b3c94 Switch from SystemPrompt to Prompt model
+3c168afa Add simple script to fix email index in MongoDB
+a57a2781 Fix email duplication issues: update User model and add script to drop unique index
+79addbbe Update User model to properly handle sparse email field without uniqueness constraint
+a90cbe46 Add script to drop email unique index and fix null email duplicates
+424c68b0 Remove email uniqueness constraint to allow multiple users with the same email
+5bef090e Fix issue with null email values causing duplicate key errors
+95a1494f Fix duplicate key error for empty email addresses during signup
+8bce46f7 Add API routes for managing system prompts
+fe9fc632 Add SystemPrompt model and scripts for database prompt management
+8a05a89b Fix math formatting in chat responses to avoid LaTeX-style output
+1e8ecd9f Add grade selection to user registration and filter books by user grade
+8bcd6129 Include chapter title in final prompt system message
+765b605f Auto-populate subject field in AddChapter when book is selected
+068ec7a1 Move grade field from AddChapter to AddBook component
+f4ccb09b Update chatRoutes.js temperature deepseek .15
+e3bc1a79 Update chatRoutes.js deepseek temperature
+57af02b9 Update chapterRoutes.js final prompt
+5b1da9e9 Update chapterRoutes.js
+9222831a Merge remote changes
+21894d8c Fix QnA generation: change 'goodText' parameter to 'text' to match frontend
+8d5f2551 Update chapterRoutes.js
+ae14b2dd Update system prompts and error handling for text processing
+fe534a39 Add react-markdown and remark-gfm packages for markdown support
+e21fda76 Add ReactMarkdown for proper markdown rendering in chat messages
+cb11c8aa Switch chat model from gpt-4o to deepseek-chat
+e62f8e55 Resolve merge conflict, keeping gpt-4o configuration
+2ea4c378 Frontend error message updates and code improvements
+ab95b2d7 Update chatRoutes.js
+ee41fbaf Update .gitignore to exclude node_modules directories
+245a87cd Update chat routes to use gpt-4o model
+77309b1a Remove raw text character limit and increase timeouts for processing large texts
+12932623 Update OpenAI models from gpt-3.5-turbo to gpt-4o for better results
+f82c39bf Improve response handling: increase axios timeout, add server compression
+9ea48368 Manually modified files
+a5ea339c Improve text processing: increase timeout, add retry logic, enhance error handling
+96c536f1 Update text processing: increase size limit to 50K and improve handling of special characters
+7aab7b72 Fix admin navigation and improve text processing
+fbe2b921 Fix admin authentication issues and implement proper admin middleware
+1ed6d65d Fix admin authentication issues and add unsubscribe functionality
+2fefc3f0 Initial commit
+d0352b9e Fix login after inactivity and profile data display issues
+7a0c365b Add beautiful user profile page
+2615cf99 Fix login 404 error with improved error handling
+cdaf7f99 Fix fullname input field in signup form
+2798ecc5 Update backend to use username-based login instead of email
+d11431e6 Add 30-minute session timeout functionality
+afc9fb0e UI improvements: empty collection state, username-based login, desktop sidebar layout
+11a381a9 Add secure audio transcription with backend OpenAI API endpoint
+7d6eada5 Update Signup component with beautiful design
+08f9caf1 Complete UI overhaul with beautiful design for mobile and desktop
+fbadcc97 Complete UI overhaul with beautiful design for mobile and deskt

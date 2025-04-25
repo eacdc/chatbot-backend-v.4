@@ -563,7 +563,7 @@ const AddChapter = () => {
                     </div>
                   </div>
                   <p className="mt-2 text-sm text-gray-600">
-                    Batch mode is currently enabled by default. This mode splits text into parts, processes each through OpenAI, and saves the result directly as a system prompt.
+                    Batch mode is currently enabled by default. This mode splits text into at least 20 parts (with minimum 1000 words per part), processes each through OpenAI, and combines the results as a system prompt.
                   </p>
                 </div>
                 
