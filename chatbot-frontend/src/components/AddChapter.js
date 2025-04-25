@@ -319,12 +319,12 @@ const AddChapter = () => {
       
       console.log("Batch processing response received:", response.status);
       
-      if (response.data && response.data.success) {
+      if (response.data && response.data.success && response.data.combinedPrompt) {
         setChapterData({
           ...chapterData,
-          finalPrompt: response.data.combinedPrompt || `This prompt was generated through batch processing with ID: ${response.data.promptId}`
+          finalPrompt: response.data.combinedPrompt
         });
-        setSuccessMessage("Text successfully processed through batch processing and saved as system prompt!");
+        setSuccessMessage("Text successfully processed! Ready to save as chapter.");
       } else {
         setError("Batch processing did not complete successfully");
       }

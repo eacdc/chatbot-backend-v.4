@@ -394,26 +394,17 @@ router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
       // Combine all responses
       const combinedPrompt = Object.values(collatedResponses).join("\n\n");
       
-      // Create a new prompt in the database
-      const newPrompt = new Prompt({
-        prompt_type: "generatedSystem",
-        prompt: combinedPrompt,
-        isActive: true
-      });
-      
-      await newPrompt.save();
-      console.log("Combined responses saved as system prompt in the database");
-      
+      // No longer save to the prompts collection
+      // Instead, just return the combined text
       res.json({ 
         success: true, 
-        message: "Text processed and saved as system prompt",
-        promptId: newPrompt._id,
+        message: "Text processed successfully",
         combinedPrompt: combinedPrompt
       });
     } catch (error) {
-      console.error("Error saving combined responses as system prompt:", error);
+      console.error("Error processing responses:", error);
       res.status(500).json({ 
-        error: "Failed to save combined responses", 
+        error: "Failed to process responses", 
         message: error.message || "Unknown error",
         partialResponses: collatedResponses
       });
