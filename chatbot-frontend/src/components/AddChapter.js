@@ -322,7 +322,7 @@ const AddChapter = () => {
       if (response.data && response.data.success) {
         setChapterData({
           ...chapterData,
-          finalPrompt: `This prompt was generated through batch processing with ID: ${response.data.promptId}`
+          finalPrompt: response.data.combinedPrompt || `This prompt was generated through batch processing with ID: ${response.data.promptId}`
         });
         setSuccessMessage("Text successfully processed through batch processing and saved as system prompt!");
       } else {

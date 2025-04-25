@@ -407,7 +407,8 @@ router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
       res.json({ 
         success: true, 
         message: "Text processed and saved as system prompt",
-        promptId: newPrompt._id
+        promptId: newPrompt._id,
+        combinedPrompt: combinedPrompt
       });
     } catch (error) {
       console.error("Error saving combined responses as system prompt:", error);
