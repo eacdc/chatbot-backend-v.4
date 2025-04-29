@@ -265,8 +265,8 @@ Rules:
                     
                     // Only proceed with question mode if chat is "Start" or "In Progress"
                     try {
-                        const config = await Config.findOne();
-                        isQuestionMode = config ? config.questionMode : false;
+                        const config = await Config.findOne({ key: 'questionMode' });
+                        isQuestionMode = config ? config.value : false;
                         console.log(`Question mode is ${isQuestionMode ? 'enabled' : 'disabled'}`);
                     } catch (configError) {
                         console.error("Error checking question mode config:", configError);
@@ -289,7 +289,7 @@ Rules:
                                     if (previousMessages[i].role === 'assistant') {
                                         // Find which question this was
                                         for (let q = 0; q < chapter.questionPrompt.length; q++) {
-                                            if (previousMessages[i].content.includes(chapter.questionPrompt[q])) {
+                                            if (previousMessages[i].content.includes(chapter.questionPrompt[q].question)) {
                                                 lastQuestion = q;
                                                 break;
                                             }
@@ -342,18 +342,77 @@ Rules:
             }
         }
 
-        // Add formatting instructions to system prompt
-        systemPrompt += `
-        
-        IMPORTANT FORMATTING INSTRUCTIONS:
-        1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
-        2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
-        3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
-        4. Format mathematical operations and expressions simply:
-           - Instead of writing "( 10 , \\text{m/s} - 5 , \\text{m/s} = 5 , \\text{m/s} )", write "10 m/s - 5 m/s = 5 m/s"
-           - Instead of writing "( \\frac{5 , \\text{m/s}}{2 , \\text{s}} = 2.5 , \\text{m/s}^2 )", write "5 m/s ÷ 2 s = 2.5 m/s²" or "5 m/s / 2 s = 2.5 m/s²"
-        5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
-        6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
+        // Construct system prompt based on context
+        if (isQuestionMode && questionPrompt) {
+            // Using the improved question mode prompt template
+            const grade = bookGrade || "appropriate grade";
+            const subject = bookSubject || "general";
+            const totalMarks = questionPrompt.question_marks || 5;
+            const question = questionPrompt.question;
+            
+            // Build new prompt using the improved template
+            systemPrompt = `🔧 Configuration Section
+Subject: ${subject}
+Grade: ${grade}
+Chapter: ${chapterTitle}
+Total Marks: ${totalMarks}
+Question: ${question}
+chatStatus: "${chatStatus}"
+
+🧠 Prompt Template (System Instruction to Assistant)
+You are a quiz evaluator for a Grade ${grade} student in the subject of ${subject}, from the chapter "${chapterTitle}".
+
+Your responsibilities:
+
+🔁 If chatStatus = "Start":
+Greet the user naturally and warmly.
+Mention that you'll be asking questions from the chapter ${chapterTitle}.
+Do not present the question yet.
+Speak in the same language the user uses.
+
+📚 If chatStatus ≠ "Start":
+Present the question exactly as provided in Question, followed by the total marks in parentheses — e.g.,
+Question: ${question} (${totalMarks} marks)
+
+If the question is incomplete or unclear, complete it appropriately based on the chapter and grade level.
+Wait for the user's answer without giving any hints or cues.
+
+When the user responds:
+Score their answer fairly in the format: (score / ${totalMarks})
+Provide a short explanation for the score.
+Ask: "Would you like to move to the next question?"
+
+Always respond in the same language the user uses.
+
+IMPORTANT FORMATTING INSTRUCTIONS:
+1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
+2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
+3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
+4. Format mathematical operations and expressions simply.
+5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
+6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
+
+            // Log the complete system prompt with the question
+            console.log("=============== IMPROVED QUESTION MODE PROMPT ===============");
+            console.log(systemPrompt);
+            console.log("=============================================================");
+            
+            // Store the current question for scoring purposes
+            currentQuestion = questionPrompt;
+        } else {
+            // Default general prompt for non-question mode
+            systemPrompt += `
+            
+            IMPORTANT FORMATTING INSTRUCTIONS:
+            1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
+            2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
+            3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
+            4. Format mathematical operations and expressions simply:
+               - Instead of writing "( 10 , \\text{m/s} - 5 , \\text{m/s} = 5 , \\text{m/s} )", write "10 m/s - 5 m/s = 5 m/s"
+               - Instead of writing "( \\frac{5 , \\text{m/s}}{2 , \\text{s}} = 2.5 , \\text{m/s}^2 )", write "5 m/s ÷ 2 s = 2.5 m/s²" or "5 m/s / 2 s = 2.5 m/s²"
+            5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
+            6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
+        }
         
         if (!Array.isArray(chat.messages)) {
             console.log("Messages is not an array, initializing empty array");
