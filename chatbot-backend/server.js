@@ -135,8 +135,24 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => {
+  .then(async () => {
     console.log("✅ MongoDB Connected Successfully");
+    
+    // Initialize default configurations
+    try {
+      // Initialize Config defaults
+      const Config = require("./models/Config");
+      await Config.initDefaults();
+      console.log("✅ Config defaults initialized");
+      
+      // Initialize Prompt defaults
+      const Prompt = require("./models/Prompt");
+      await Prompt.initDefaults();
+      console.log("✅ Prompt defaults initialized");
+    } catch (initError) {
+      console.error("❌ Error initializing defaults:", initError);
+    }
+    
     // Start server only after successful database connection
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {

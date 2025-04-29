@@ -94,4 +94,53 @@ router.delete("/:id", authenticateAdmin, async (req, res) => {
   }
 });
 
+// Get all system wide configuration
+router.get("/configs", authenticateAdmin, async (req, res) => {
+  try {
+    const Config = require("../models/Config");
+    const configs = await Config.find({}, { _id: 0, __v: 0 });
+    res.json(configs);
+  } catch (error) {
+    console.error("Error fetching configs:", error);
+    res.status(500).json({ error: "Failed to fetch configs" });
+  }
+});
+
+// Update a configuration setting
+router.put("/configs/:key", authenticateAdmin, async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+    
+    if (value === undefined) {
+      return res.status(400).json({ error: "Value is required" });
+    }
+
+    const Config = require("../models/Config");
+    
+    // If key is questionMode, value must be boolean
+    if (key === 'questionMode' && typeof value !== 'boolean') {
+      return res.status(400).json({ error: "Value for questionMode must be boolean" });
+    }
+    
+    const config = await Config.findOneAndUpdate(
+      { key }, 
+      { value }, 
+      { new: true, runValidators: true }
+    );
+    
+    if (!config) {
+      return res.status(404).json({ error: `Config with key ${key} not found` });
+    }
+    
+    res.json({ 
+      message: `${key} configuration updated successfully`,
+      config
+    });
+  } catch (error) {
+    console.error(`Error updating config:`, error);
+    res.status(500).json({ error: "Failed to update config" });
+  }
+});
+
 module.exports = router; 

@@ -69,6 +69,10 @@ The application is configured for deployment on Render. The `render.yaml` file c
 - File upload support
 - Responsive design
 - MongoDB database integration
+- Question Mode for interactive learning
+  - Configurable through the admin panel
+  - Supports structured question formats
+  - Includes migration script for converting existing content
 
 ## Contributing
 

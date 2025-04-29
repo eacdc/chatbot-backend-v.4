@@ -3,9 +3,7 @@ const mongoose = require("mongoose");
 const questionSchema = new mongoose.Schema({
   Q: { type: Number, required: true },
   question: { type: String, required: true },
-  question_answered: { type: Boolean, default: false },
-  question_marks: { type: Number, default: 1 },
-  marks_gained: { type: Number, default: 0 }
+  question_answered: { type: Boolean, default: false }
 });
 
 const chapterSchema = new mongoose.Schema(
@@ -13,7 +11,7 @@ const chapterSchema = new mongoose.Schema(
     chapterId: { type: String, unique: true }, // Auto-generated
     bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true }, // Reference to Book
     title: { type: String, required: true },
-    prompt: { type: String, required: true },
+    prompt: { type: String, required: true }, // Original prompt
     questionPrompt: { type: [questionSchema], default: [] } // Array of questions
   },
   { timestamps: true }
@@ -27,4 +25,4 @@ chapterSchema.pre("save", async function (next) {
   next();
 });
 
-module.exports = mongoose.model("Chapter", chapterSchema);
+module.exports = mongoose.model("Chapter", chapterSchema); 

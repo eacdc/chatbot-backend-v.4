@@ -1,15 +1,21 @@
 const mongoose = require("mongoose");
 
+const messageSchema = new mongoose.Schema({
+    role: { type: String, enum: ["user", "assistant", "system"] },
+    content: { type: String },
+    timestamp: { type: Date, default: Date.now }
+});
+
 const chatSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     chapterId: { type: mongoose.Schema.Types.ObjectId, ref: "Chapter", default: null },
-    messages: [
-        {
-            role: { type: String, required: true, enum: ["system", "user", "assistant"] },
-            content: { type: String, required: true },
-            timestamp: { type: Date, default: Date.now }
+    messages: [messageSchema],
+    metadata: {
+        type: Object,
+        default: {
+            status: "Start"
         }
-    ]
+    }
 }, { timestamps: true });
 
 // Compound index for efficient lookups
