@@ -27,10 +27,17 @@ configSchema.statics.initDefaults = async function() {
   ];
 
   for (const config of defaults) {
-    const exists = await this.findOne({ key: config.key });
-    if (!exists) {
-      console.log(`Creating default config for ${config.key}`);
-      await this.create(config);
+    try {
+      // Use updateOne with upsert instead of create to prevent duplicate errors
+      // This will update if exists, or insert if not exists
+      await this.updateOne(
+        { key: config.key }, 
+        { $setOnInsert: config },
+        { upsert: true }
+      );
+      console.log(`Initialized default config for ${config.key}`);
+    } catch (err) {
+      console.error(`Error initializing config ${config.key}:`, err.message);
     }
   }
 };
