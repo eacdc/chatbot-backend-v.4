@@ -158,88 +158,82 @@ router.post("/send", authenticateUser, async (req, res) => {
                         console.error("Error fetching book information:", bookErr);
                     }
 
-                    // Now, before continuing with the chat, use OpenAI's function calling to determine user intent
-                    // Define functions that can be called
-                    const functions = [
-                        {
-                            name: "update_chat_status",
-                            description: "Update the status of the current chat based on user intent",
-                            parameters: {
-                                type: "object",
-                                properties: {
-                                    status: {
-                                        type: "string",
-                                        enum: ["Start", "In Progress", "Stop"],
-                                        description: "The new status of the chat"
-                                    },
-                                    reason: {
-                                        type: "string",
-                                        description: "The reason for changing the status"
-                                    }
-                                },
-                                required: ["status"]
-                            }
-                        }
-                    ];
-
-                    // Create a message to analyze user intent
+                    // Now, before continuing with the chat, use an agent classifier instead of function calling
+                    console.log("Analyzing user intent to determine chat status...");
+                    
+                    // Replace OpenAI function calling with agent classifier approach
                     const intentAnalysisMessages = [
                         {
                             role: "system",
-                            content: `You are a chat intent analyzer. Determine if the user intends to:
-1. Start answering questions (set status to "Start")
-2. Continue answering questions (set status to "In Progress")
-3. Stop/pause answering questions (set status to "Stop")
+                            content: `You are a message intent classifier. Classify the user's intent into one of these categories:
+1. START_QUIZ - User wants to start or begin answering questions
+2. CONTINUE_QUIZ - User is continuing to answer questions or implicitly wants to continue
+3. STOP_QUIZ - User wants to stop, pause, or end the quiz/assessment
+4. OTHER - User's message doesn't clearly indicate any of the above
 
 Current chat status: ${chatStatus}
 
-Rules:
-- If the user explicitly asks to stop, pause, or end the quiz/assessment, set status to "Stop"
-- If the user explicitly asks to start, begin, or continue the quiz/assessment, set status to "Start"
-- If the user is simply answering a question without meta-conversation, set status to "In Progress"
-- If the current status is "Stop" and the user sends a new message without explicitly asking to restart, keep the status as "Stop"
-- Only change status if there's a clear intent from the user`
+Your response must be ONLY the category name, no other text.
+Examples:
+- "Let's begin" -> START_QUIZ
+- "I'd like to stop now" -> STOP_QUIZ
+- "The answer is 42" -> CONTINUE_QUIZ
+- "What's the weather like?" -> OTHER`
                         },
                         { role: "user", content: message }
                     ];
 
-                    console.log("Analyzing user intent to determine chat status...");
+                    // Log the agent classifier prompt
+                    console.log("=============== AGENT CLASSIFIER PROMPT ===============");
+                    console.log(intentAnalysisMessages[0].content);
+                    console.log("=======================================================");
                     
-                    // First, analyze the user's intent
+                    // Call OpenAI without function calling to get the classification
                     const intentAnalysis = await openai.chat.completions.create({
                         model: "deepseek-chat",
                         messages: intentAnalysisMessages,
-                        functions: functions,
-                        function_call: "auto",
                         temperature: 0.1,
                     });
 
-                    // Check if a function was called
+                    // Extract the classification
+                    const classification = intentAnalysis.choices[0].message.content.trim();
+                    
+                    // Log the classified agent name
+                    console.log(`Agent Classification: ${classification}`);
+                    
+                    // Process the classification
                     let statusChanged = false;
-                    if (intentAnalysis.choices[0].message.function_call) {
-                        const functionCall = intentAnalysis.choices[0].message.function_call;
-                        
-                        if (functionCall.name === "update_chat_status") {
-                            try {
-                                const functionArgs = JSON.parse(functionCall.arguments);
-                                const newStatus = functionArgs.status;
-                                const reason = functionArgs.reason || "User intent detected";
-                                
-                                // Only update if status actually changes
-                                if (newStatus !== chatStatus) {
-                                    console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: ${reason}`);
-                                    chatStatus = newStatus;
-                                    chat.metadata.status = chatStatus;
-                                    statusChanged = true;
-                                } else {
-                                    console.log(`Chat status remains ${chatStatus}`);
-                                }
-                            } catch (jsonError) {
-                                console.error("Error parsing function arguments:", jsonError);
-                            }
+                    let newStatus = chatStatus;
+                    
+                    if (classification === "START_QUIZ") {
+                        if (chatStatus !== "Start") {
+                            newStatus = "Start";
+                            statusChanged = true;
+                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User wants to start quiz`);
+                        }
+                    } else if (classification === "CONTINUE_QUIZ") {
+                        if (chatStatus === "Stop") {
+                            newStatus = "In Progress";
+                            statusChanged = true;
+                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User wants to continue quiz`);
+                        } else if (chatStatus === "Start") {
+                            newStatus = "In Progress";
+                            statusChanged = true;
+                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User is answering questions`);
+                        }
+                    } else if (classification === "STOP_QUIZ") {
+                        if (chatStatus !== "Stop") {
+                            newStatus = "Stop";
+                            statusChanged = true;
+                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User wants to stop quiz`);
                         }
                     } else {
-                        console.log(`No function call detected, maintaining status: ${chatStatus}`);
+                        console.log(`No change in chat status, maintaining: ${chatStatus}`);
+                    }
+                    
+                    if (statusChanged) {
+                        chatStatus = newStatus;
+                        chat.metadata.status = chatStatus;
                     }
 
                     // Question mode behavior
@@ -393,7 +387,7 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
 
             // Log the complete system prompt with the question
-            console.log("=============== IMPROVED QUESTION MODE PROMPT ===============");
+            console.log("=============== QUESTION MODE SYSTEM PROMPT ===============");
             console.log(systemPrompt);
             console.log("=============================================================");
             
@@ -412,6 +406,11 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                - Instead of writing "( \\frac{5 , \\text{m/s}}{2 , \\text{s}} = 2.5 , \\text{m/s}^2 )", write "5 m/s ÷ 2 s = 2.5 m/s²" or "5 m/s / 2 s = 2.5 m/s²"
             5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
             6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
+            
+            // Log the general system prompt
+            console.log("=============== GENERAL SYSTEM PROMPT ===============");
+            console.log(systemPrompt);
+            console.log("====================================================");
         }
         
         if (!Array.isArray(chat.messages)) {
