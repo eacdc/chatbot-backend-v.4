@@ -161,32 +161,33 @@ router.post("/send", authenticateUser, async (req, res) => {
                     // Now, before continuing with the chat, use an agent classifier instead of function calling
                     console.log("Analyzing user intent to determine chat status...");
                     
-                    // Replace OpenAI function calling with agent classifier approach
+                    // Get the last 3 messages from the chat history for context
+                    const lastThreeMessages = previousMessages.slice(-6).filter(msg => msg.role === 'user' || msg.role === 'assistant').slice(-6);
+                    console.log(`Including ${lastThreeMessages.length} previous messages for context in classification`);
+                    
+                    // Create messages array for the classifier with chat history
                     const intentAnalysisMessages = [
                         {
                             role: "system",
-                            content: `You are a message intent classifier. Classify the user's intent into one of these categories:
-1. START_QUIZ - User wants to start or begin answering questions
-2. CONTINUE_QUIZ - User is continuing to answer questions or implicitly wants to continue
-3. STOP_QUIZ - User wants to stop, pause, or end the quiz/assessment
-4. OTHER - User's message doesn't clearly indicate any of the above
+                            content: `You are an AI that classifies user messages based on their intent.
 
-Current chat status: ${chatStatus}
+If the user starts a new conversation, asks to end the assessment or question answering, or requests clarification, explanation, or understanding about any answer, respond with: "explain_ai".
 
-Your response must be ONLY the category name, no other text.
-Examples:
-- "Let's begin" -> START_QUIZ
-- "I'd like to stop now" -> STOP_QUIZ
-- "The answer is 42" -> CONTINUE_QUIZ
-- "What's the weather like?" -> OTHER`
-                        },
-                        { role: "user", content: message }
+If the user is asking to start the assessment or question answering or only answering a question as part of an ongoing assessment, respond with: "assessment_ai".
+Return only the agent name: "explain_ai" or "assessment_ai". Do not include any additional text or explanation.`
+                        }
                     ];
+                    
+                    // Add chat history
+                    lastThreeMessages.forEach(msg => {
+                        intentAnalysisMessages.push({ role: msg.role, content: msg.content });
+                    });
+                    
+                    // Add the current user message
+                    intentAnalysisMessages.push({ role: "user", content: message });
 
-                    // Log the agent classifier prompt
-                    console.log("=============== AGENT CLASSIFIER PROMPT ===============");
-                    console.log(intentAnalysisMessages[0].content);
-                    console.log("=======================================================");
+                    // Log that we're calling the classifier
+                    console.log(`Calling classifier with ${intentAnalysisMessages.length - 1} messages (1 system + ${intentAnalysisMessages.length - 2} chat history + 1 current)`);
                     
                     // Call OpenAI without function calling to get the classification
                     const intentAnalysis = await openai.chat.completions.create({
@@ -199,33 +200,27 @@ Examples:
                     const classification = intentAnalysis.choices[0].message.content.trim();
                     
                     // Log the classified agent name
-                    console.log(`Agent Classification: ${classification}`);
+                    console.log(`Agent Classification Result: ${classification}`);
                     
                     // Process the classification
                     let statusChanged = false;
                     let newStatus = chatStatus;
                     
-                    if (classification === "START_QUIZ") {
-                        if (chatStatus !== "Start") {
-                            newStatus = "Start";
+                    if (classification === "explain_ai") {
+                        if (chatStatus !== "Stop") {
+                            newStatus = "Stop";
                             statusChanged = true;
-                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User wants to start quiz`);
+                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User needs explanation or wants to stop assessment`);
                         }
-                    } else if (classification === "CONTINUE_QUIZ") {
+                    } else if (classification === "assessment_ai") {
                         if (chatStatus === "Stop") {
                             newStatus = "In Progress";
                             statusChanged = true;
-                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User wants to continue quiz`);
+                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User is answering questions`);
                         } else if (chatStatus === "Start") {
                             newStatus = "In Progress";
                             statusChanged = true;
                             console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User is answering questions`);
-                        }
-                    } else if (classification === "STOP_QUIZ") {
-                        if (chatStatus !== "Stop") {
-                            newStatus = "Stop";
-                            statusChanged = true;
-                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User wants to stop quiz`);
                         }
                     } else {
                         console.log(`No change in chat status, maintaining: ${chatStatus}`);
@@ -266,47 +261,34 @@ Examples:
                         console.error("Error checking question mode config:", configError);
                     }
                     
+                    // Handle question selection based on mode and classification
                     if (isQuestionMode && chapter && chapter.questionPrompt && chapter.questionPrompt.length > 0) {
                         console.log("Using question mode behavior");
                         
-                        // If this is the start of the chat or we just changed to "Start" status, use the first question
                         if (chatStatus === "Start" || (statusChanged && chatStatus === "Start")) {
                             // Reset to the first question when explicitly starting
                             questionPrompt = chapter.questionPrompt[0];
                             console.log("Starting with first question");
-                        } else {
-                            // Find the next question or cycle back to the beginning
-                            if (previousMessages && previousMessages.length > 0) {
-                                // Check if the last assistant message was a question from our list
-                                let lastQuestion = -1;
-                                for (let i = previousMessages.length - 1; i >= 0; i--) {
-                                    if (previousMessages[i].role === 'assistant') {
-                                        // Find which question this was
-                                        for (let q = 0; q < chapter.questionPrompt.length; q++) {
-                                            if (previousMessages[i].content.includes(chapter.questionPrompt[q].question)) {
-                                                lastQuestion = q;
-                                                break;
-                                            }
-                                        }
-                                        if (lastQuestion >= 0) break;
-                                    }
-                                }
-                                
-                                if (lastQuestion >= 0) {
-                                    // Move to the next question or cycle back
-                                    const nextQuestion = (lastQuestion + 1) % chapter.questionPrompt.length;
-                                    questionPrompt = chapter.questionPrompt[nextQuestion];
-                                    console.log(`Moving from question ${lastQuestion} to ${nextQuestion}`);
-                                } else {
-                                    // Couldn't identify the last question, start with the first one
-                                    questionPrompt = chapter.questionPrompt[0];
-                                    console.log("Could not identify last question, starting with first question");
-                                }
+                        } else if (classification === "assessment_ai" && chatStatus === "In Progress") {
+                            // Only get next question if classification is assessment_ai
+                            console.log("Assessment AI selected, getting next randomized unanswered question");
+                            
+                            // Find all unanswered questions
+                            const unansweredQuestions = chapter.questionPrompt.filter(q => !q.question_answered);
+                            
+                            if (unansweredQuestions.length > 0) {
+                                // Select a random unanswered question
+                                const randomIndex = Math.floor(Math.random() * unansweredQuestions.length);
+                                questionPrompt = unansweredQuestions[randomIndex];
+                                console.log(`Selected random unanswered question (${unansweredQuestions.length} remaining): "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                             } else {
-                                // No previous messages, start with the first question
-                                questionPrompt = chapter.questionPrompt[0];
-                                console.log("No previous messages, starting with first question");
+                                // If all questions answered, cycle through questions again
+                                const randomIndex = Math.floor(Math.random() * chapter.questionPrompt.length);
+                                questionPrompt = chapter.questionPrompt[randomIndex];
+                                console.log(`All questions answered, selected random question from all ${chapter.questionPrompt.length} questions: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                             }
+                        } else {
+                            console.log("Not assessment_ai or not in progress, not selecting next question");
                         }
                         
                         // Update chat status to "In Progress" if user is answering questions
@@ -344,39 +326,103 @@ Examples:
             const totalMarks = questionPrompt.question_marks || 5;
             const question = questionPrompt.question;
             
-            // Build new prompt using the improved template
-            systemPrompt = `🔧 Configuration Section
-Subject: ${subject}
-Grade: ${grade}
-Chapter: ${chapterTitle}
-Total Marks: ${totalMarks}
-Question: ${question}
-chatStatus: "${chatStatus}"
+            // Select prompt based on classification type
+            if (classification === "assessment_ai") {
+                // Use the strict teacher prompt for assessment_ai
+                systemPrompt = `You are a strict but friendly teacher evaluating a Grade ${grade} student's understanding of ${subject}, Chapter: ${chapterTitle} through a one-on-one knowledge check.
 
-🧠 Prompt Template (System Instruction to Assistant)
-You are a quiz evaluator for a Grade ${grade} student in the subject of ${subject}, from the chapter "${chapterTitle}".
+✅ Behavior & Flow:
+1. Ask the question naturally:
+Present the Question as if you're speaking to the student in a conversational, teacher-like tone.
 
-Your responsibilities:
+Add a short leading sentence to transition into the question, e.g.:
 
-🔁 If chatStatus = "Start":
-Greet the user naturally and warmly.
-Mention that you'll be asking questions from the chapter ${chapterTitle}.
-Do not present the question yet.
-Speak in the same language the user uses.
+"Let's move on to the next one."
 
-📚 If chatStatus ≠ "Start":
-Present the question exactly as provided in Question, followed by the total marks in parentheses — e.g.,
-Question: ${question} (${totalMarks} marks)
+"Alright, here comes your next question."
 
-If the question is incomplete or unclear, complete it appropriately based on the chapter and grade level.
-Wait for the user's answer without giving any hints or cues.
+"Think carefully and answer this:"
 
-When the user responds:
-Score their answer fairly in the format: (score / ${totalMarks})
-Provide a short explanation for the score.
-Ask: "Would you like to move to the next question?"
+Then follow with:
 
-Always respond in the same language the user uses.
+${question} (${totalMarks} marks)
+🚫 Do not paraphrase or reword the question itself.
+✅ Make the lead-in sound like a real teacher speaking.
+🙊 Don't offer hints unless asked.
+
+2. When the student answers:
+Evaluate based on:
+
+Accuracy
+
+Relevance
+
+Completeness
+
+Respond in this format:
+
+Score: x/${totalMarks}
+Explanation: [Clear, short explanation based on the student's answer]
+Scoring rules:
+
+Fully correct = full marks, short reinforcement
+
+Partially correct = partial marks, explain what was missing
+
+Incorrect = 0 marks, kindly give correct answer
+
+Keep tone firm but supportive. Use simple real-life examples or emojis where helpful, e.g. 🌿, 👶, 💡.
+
+3. Automatically continue:
+After scoring, immediately ask the next question (using updated Question variable).
+
+Use a natural lead-in like:
+
+"Next one."
+
+"Here's another for you."
+
+"Try this one now:"
+
+Then present the question just like before.
+
+🚫 Do not ask if the user wants to continue.
+✅ Continue automatically unless the student says "stop."
+
+4. Tone and Language:
+Speak like a real teacher: clear, confident, structured.
+
+Be encouraging but firm — you're guiding the student toward better understanding.
+
+Always respond in the same language the user is using.
+
+Explanations should be short, direct, and clear — no fluff.`;
+
+                console.log("Using ASSESSMENT_AI with strict teacher evaluation prompt");
+            } else {
+                // Original prompt format for explain_ai and other classifications
+                systemPrompt = `You are a strict yet friendly teacher helping students with their doubts based on for chapter name ${chapterTitle}, subject ${subject}, grade ${grade}. When a user starts the conversation, greet them politely but firmly and ask if they'd like to do a quick knowledge check on that chapter. Once they agree or decline, answer their questions clearly and thoroughly, keeping responses focused on the relevant curriculum. Your main motive should be to direct the conversation towards a knowledge check/Question answering.
+
+Be warm but authoritative — like a teacher who expects discipline but genuinely wants the student to succeed.
+
+If the user asks off-topic questions, gently but firmly steer them back.
+
+Tailor your answers to the user's grade level.
+
+Never skip an explanation unless the student seems confident.
+
+Initial Greeting Example:
+"Hello! Ready to dive into ${chapterTitle}? Would you like to start with a quick knowledge check?"
+
+After that, begin answering the user's questions, don't ask if user have any doubt or not, user will ask him/herself, you just try to direct the conversation towards a knowledge check.
+
+Question for reference: ${question} (${totalMarks} marks)`;
+
+                console.log("Using EXPLAIN_AI with teacher guidance prompt");
+            }
+            
+            // Add formatting instructions to whichever prompt was chosen
+            systemPrompt += `
 
 IMPORTANT FORMATTING INSTRUCTIONS:
 1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
@@ -387,7 +433,7 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
 
             // Log the complete system prompt with the question
-            console.log("=============== QUESTION MODE SYSTEM PROMPT ===============");
+            console.log(`=============== ${classification.toUpperCase()} SYSTEM PROMPT ===============`);
             console.log(systemPrompt);
             console.log("=============================================================");
             
