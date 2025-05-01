@@ -95,7 +95,10 @@ router.post("/send", authenticateUser, async (req, res) => {
         let currentQuestion = null;
         let currentScore = null;
         let previousMessages = [];
-        let chatStatus = "Start"; // Default status
+        let bookGrade = null;
+        let bookSubject = null;
+        let bookId = null;
+        let chapterTitle = "General Chapter";
         
         if (chapterId) {
             console.log(`Looking for existing chat with userId: ${userId}, chapterId: ${chapterId}`);
@@ -107,17 +110,6 @@ router.post("/send", authenticateUser, async (req, res) => {
                 // Get last 6 messages or all if less than 6
                 previousMessages = chat.messages.slice(-6);
                 console.log(`Retrieved ${previousMessages.length} previous messages for context`);
-                
-                // Check if chat has status metadata
-                if (chat.metadata && chat.metadata.status) {
-                    chatStatus = chat.metadata.status;
-                    console.log(`Using existing chat status: ${chatStatus}`);
-                } else {
-                    // If we have previous messages, this is not the start of the chat
-                    if (previousMessages.length >= 2) { // At least one exchange
-                        chatStatus = "In Progress";
-                    }
-                }
             }
             
             if (!chat) {
@@ -126,11 +118,8 @@ router.post("/send", authenticateUser, async (req, res) => {
                     userId, 
                     chapterId, 
                     messages: [],
-                    metadata: { status: chatStatus }
+                    metadata: {}
                 });
-            } else if (!chat.metadata) {
-                // Ensure metadata exists
-                chat.metadata = { status: chatStatus };
             }
             
             // Fetch chapter details
@@ -139,10 +128,7 @@ router.post("/send", authenticateUser, async (req, res) => {
                 
                 if (chapter) {
                     // Get associated book information for grade level and subject
-                    let bookGrade = null;
-                    let bookSubject = null;
-                    let bookId = null;
-                    let chapterTitle = chapter.title || "General Chapter";
+                    chapterTitle = chapter.title || "General Chapter";
                     
                     try {
                         const book = await Book.findById(chapter.bookId);
@@ -158,9 +144,6 @@ router.post("/send", authenticateUser, async (req, res) => {
                         console.error("Error fetching book information:", bookErr);
                     }
 
-                    // Now, before continuing with the chat, use an agent classifier instead of function calling
-                    console.log("Analyzing user intent to determine chat status...");
-                    
                     // Get the last 3 messages from the chat history for context
                     const lastThreeMessages = previousMessages.slice(-6).filter(msg => msg.role === 'user' || msg.role === 'assistant').slice(-6);
                     console.log(`Including ${lastThreeMessages.length} previous messages for context in classification`);
@@ -201,76 +184,15 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                     
                     // Log the classified agent name
                     console.log(`Agent Classification Result: ${classification}`);
-                    
-                    // Process the classification
-                    let statusChanged = false;
-                    let newStatus = chatStatus;
-                    
-                    if (classification === "explain_ai") {
-                        if (chatStatus !== "Stop") {
-                            newStatus = "Stop";
-                            statusChanged = true;
-                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User needs explanation or wants to stop assessment`);
-                        }
-                    } else if (classification === "assessment_ai") {
-                        if (chatStatus === "Stop") {
-                            newStatus = "In Progress";
-                            statusChanged = true;
-                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User is answering questions`);
-                        } else if (chatStatus === "Start") {
-                            newStatus = "In Progress";
-                            statusChanged = true;
-                            console.log(`Changing chat status from ${chatStatus} to ${newStatus}. Reason: User is answering questions`);
-                        }
-                    } else {
-                        console.log(`No change in chat status, maintaining: ${chatStatus}`);
-                    }
-                    
-                    if (statusChanged) {
-                        chatStatus = newStatus;
-                        chat.metadata.status = chatStatus;
-                    }
 
                     // Question mode behavior
-                    let isQuestionMode = false;
                     let questionPrompt = null;
                     
-                    // Check if we should proceed based on chat status
-                    if (chatStatus === "Stop") {
-                        console.log("Chat is currently stopped. Will respond accordingly.");
-                        // Create a response indicating the chat is paused
-                        const aiMessage = {
-                            role: 'assistant',
-                            content: "The quiz is currently paused. Let me know when you'd like to continue."
-                        };
-                        
-                        // Save the exchange
-                        chat.messages.push({ role: 'user', content: message });
-                        chat.messages.push(aiMessage);
-                        await chat.save();
-                        
-                        return res.json({ message: aiMessage.content });
-                    }
-                    
-                    // Only proceed with question mode if chat is "Start" or "In Progress"
-                    try {
-                        const config = await Config.findOne({ key: 'questionMode' });
-                        isQuestionMode = config ? config.value : false;
-                        console.log(`Question mode is ${isQuestionMode ? 'enabled' : 'disabled'}`);
-                    } catch (configError) {
-                        console.error("Error checking question mode config:", configError);
-                    }
-                    
-                    // Handle question selection based on mode and classification
-                    if (isQuestionMode && chapter && chapter.questionPrompt && chapter.questionPrompt.length > 0) {
+                    if (questionModeEnabled && chapter && chapter.questionPrompt && chapter.questionPrompt.length > 0) {
                         console.log("Using question mode behavior");
                         
-                        if (chatStatus === "Start" || (statusChanged && chatStatus === "Start")) {
-                            // Reset to the first question when explicitly starting
-                            questionPrompt = chapter.questionPrompt[0];
-                            console.log("Starting with first question");
-                        } else if (classification === "assessment_ai" && chatStatus === "In Progress") {
-                            // Only get next question if classification is assessment_ai
+                        // Only select a question if classification is assessment_ai
+                        if (classification === "assessment_ai") {
                             console.log("Assessment AI selected, getting next randomized unanswered question");
                             
                             // Find all unanswered questions
@@ -288,48 +210,24 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                                 console.log(`All questions answered, selected random question from all ${chapter.questionPrompt.length} questions: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                             }
                         } else {
-                            console.log("Not assessment_ai or not in progress, not selecting next question");
-                        }
-                        
-                        // Update chat status to "In Progress" if user is answering questions
-                        if (chatStatus === "Start") {
-                            chatStatus = "In Progress";
-                            chat.metadata.status = chatStatus;
+                            // For explain_ai, use the first question as reference
+                            questionPrompt = chapter.questionPrompt[0];
+                            console.log("Using explain_ai, using first question as reference");
                         }
                     }
-                }
-            } catch (err) {
-                console.error("Error fetching chapter:", err);
-                // Continue with default prompt if chapter fetch fails
-            }
-        } else {
-            // General chat
-            chat = await Chat.findOne({ userId, chapterId: null });
-            
-            // Get previous messages for context
-            if (chat && chat.messages && chat.messages.length > 0) {
-                // Get last 6 messages or all if less than 6
-                previousMessages = chat.messages.slice(-6);
-                console.log(`Retrieved ${previousMessages.length} previous messages for context`);
-            }
-            
-            if (!chat) {
-                chat = new Chat({ userId, chapterId: null, messages: [] });
-            }
-        }
 
-        // Construct system prompt based on context
-        if (isQuestionMode && questionPrompt) {
-            // Using the improved question mode prompt template
-            const grade = bookGrade || "appropriate grade";
-            const subject = bookSubject || "general";
-            const totalMarks = questionPrompt.question_marks || 5;
-            const question = questionPrompt.question;
-            
-            // Select prompt based on classification type
-            if (classification && classification === "assessment_ai") {
-                // Use the strict teacher prompt for assessment_ai
-                systemPrompt = `You are a strict but friendly teacher evaluating a Grade ${grade} student's understanding of ${subject}, Chapter: ${chapterTitle} through a one-on-one knowledge check.
+                    // Construct system prompt based on context and classification
+                    if (questionModeEnabled && questionPrompt) {
+                        // Using the improved question mode prompt template
+                        const grade = bookGrade || "appropriate grade";
+                        const subject = bookSubject || "general";
+                        const totalMarks = questionPrompt.question_marks || 5;
+                        const question = questionPrompt.question;
+                        
+                        // Select prompt based on classification type
+                        if (classification && classification === "assessment_ai") {
+                            // Use the strict teacher prompt for assessment_ai
+                            systemPrompt = `You are a strict but friendly teacher evaluating a Grade ${grade} student's understanding of ${subject}, Chapter: ${chapterTitle} through a one-on-one knowledge check.
 
 ✅ Behavior & Flow:
 1. Ask the question naturally:
@@ -398,10 +296,10 @@ Always respond in the same language the user is using.
 
 Explanations should be short, direct, and clear — no fluff.`;
 
-                console.log("Using ASSESSMENT_AI with strict teacher evaluation prompt");
-            } else {
-                // Original prompt format for explain_ai and other classifications
-                systemPrompt = `You are a strict yet friendly teacher helping students with their doubts based on for chapter name ${chapterTitle}, subject ${subject}, grade ${grade}. When a user starts the conversation, greet them politely but firmly and ask if they'd like to do a quick knowledge check on that chapter. Once they agree or decline, answer their questions clearly and thoroughly, keeping responses focused on the relevant curriculum. Your main motive should be to direct the conversation towards a knowledge check/Question answering.
+                            console.log("Using ASSESSMENT_AI with strict teacher evaluation prompt");
+                        } else {
+                            // Original prompt format for explain_ai and other classifications
+                            systemPrompt = `You are a strict yet friendly teacher helping students with their doubts based on for chapter name ${chapterTitle}, subject ${subject}, grade ${grade}. When a user starts the conversation, greet them politely but firmly and ask if they'd like to do a quick knowledge check on that chapter. Once they agree or decline, answer their questions clearly and thoroughly, keeping responses focused on the relevant curriculum. Your main motive should be to direct the conversation towards a knowledge check/Question answering.
 
 Be warm but authoritative — like a teacher who expects discipline but genuinely wants the student to succeed.
 
@@ -418,11 +316,11 @@ After that, begin answering the user's questions, don't ask if user have any dou
 
 Question for reference: ${question} (${totalMarks} marks)`;
 
-                console.log("Using EXPLAIN_AI with teacher guidance prompt");
-            }
-            
-            // Add formatting instructions to whichever prompt was chosen
-            systemPrompt += `
+                            console.log("Using EXPLAIN_AI with teacher guidance prompt");
+                        }
+                        
+                        // Add formatting instructions to whichever prompt was chosen
+                        systemPrompt += `
 
 IMPORTANT FORMATTING INSTRUCTIONS:
 1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
@@ -432,22 +330,41 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
 6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
 
-            // Log the complete system prompt with the question - ensure classification is defined
-            const promptType = classification ? classification.toUpperCase() : "DEFAULT";
-            console.log(`=============== ${promptType} SYSTEM PROMPT ===============`);
-            console.log(systemPrompt);
-            console.log("=============================================================");
-            
-            // Store the current question for scoring purposes
-            currentQuestion = questionPrompt;
+                        // Log the complete system prompt with the question - ensure classification is defined
+                        const promptType = classification ? classification.toUpperCase() : "DEFAULT";
+                        console.log(`=============== ${promptType} SYSTEM PROMPT ===============`);
+                        console.log(systemPrompt);
+                        console.log("=============================================================");
+                        
+                        // Store the current question for scoring purposes
+                        currentQuestion = questionPrompt;
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching chapter:", err);
+                // Continue with default prompt if chapter fetch fails
+            }
         } else {
+            // General chat
+            chat = await Chat.findOne({ userId, chapterId: null });
+            
+            // Get previous messages for context
+            if (chat && chat.messages && chat.messages.length > 0) {
+                // Get last 6 messages or all if less than 6
+                previousMessages = chat.messages.slice(-6);
+                console.log(`Retrieved ${previousMessages.length} previous messages for context`);
+            }
+            
+            if (!chat) {
+                chat = new Chat({ userId, chapterId: null, messages: [] });
+            }
+            
             // Default general prompt for non-question mode - use the explain_ai prompt
             const grade = bookGrade || "appropriate grade";
             const subject = bookSubject || "general";
             const totalMarks = 5; // Default marks
             const question = "No specific question available"; // Default question
-            const chapterTitle = "General Knowledge"; // Default chapter title
-
+            
             // Use the explain_ai prompt format for general mode as well
             systemPrompt = `You are a strict yet friendly teacher helping students with their doubts based on for chapter name ${chapterTitle}, subject ${subject}, grade ${grade}. When a user starts the conversation, greet them politely but firmly and ask if they'd like to do a quick knowledge check on that chapter. Once they agree or decline, answer their questions clearly and thoroughly, keeping responses focused on the relevant curriculum. Your main motive should be to direct the conversation towards a knowledge check/Question answering.
 
@@ -554,14 +471,13 @@ IMPORTANT FORMATTING INSTRUCTIONS:
         // Add messages and save...
         chat.messages.push({ role: "user", content: message });
         chat.messages.push({ role: "assistant", content: botMessage });
-        chat.metadata = { ...chat.metadata, status: chatStatus };
         
-        console.log(`Saving chat with ${chat.messages.length} messages and status: ${chatStatus}`);
+        console.log(`Saving chat with ${chat.messages.length} messages`);
         await chat.save();
         console.log("Chat saved successfully");
 
         // If this was a question being answered and question mode is enabled, mark it as answered
-        if (questionModeEnabled && currentQuestion && chapterId && chatStatus === "In Progress") {
+        if (questionModeEnabled && currentQuestion && chapterId) {
             try {
                 const chapter = await Chapter.findById(chapterId);
                 if (chapter && chapter.questionPrompt) {
@@ -572,8 +488,8 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                         let marksAwarded = 0;
                         const maxMarks = currentQuestion.question_marks || 1;
                         
-                        // Look for MARKS: pattern in the response
-                        const marksMatch = botMessage.match(/MARKS:\s*(\d+)\/(\d+)/i);
+                        // Look for Score: pattern in the response
+                        const marksMatch = botMessage.match(/Score:\s*(\d+)\/(\d+)/i);
                         if (marksMatch && marksMatch.length >= 3) {
                             marksAwarded = parseInt(marksMatch[1], 10);
                             console.log(`AI awarded ${marksAwarded} out of ${maxMarks} marks`);
@@ -607,10 +523,9 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             }
         }
 
-        // Send the response to the user with current status
+        // Send the response to the user
         res.json({ 
-            response: botMessage,
-            chatStatus: chatStatus
+            response: botMessage
         });
 
     } catch (error) {
