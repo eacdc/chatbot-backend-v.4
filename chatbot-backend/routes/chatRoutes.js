@@ -327,7 +327,7 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
             const question = questionPrompt.question;
             
             // Select prompt based on classification type
-            if (classification === "assessment_ai") {
+            if (classification && classification === "assessment_ai") {
                 // Use the strict teacher prompt for assessment_ai
                 systemPrompt = `You are a strict but friendly teacher evaluating a Grade ${grade} student's understanding of ${subject}, Chapter: ${chapterTitle} through a one-on-one knowledge check.
 
@@ -432,31 +432,55 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
 6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
 
-            // Log the complete system prompt with the question
-            console.log(`=============== ${classification.toUpperCase()} SYSTEM PROMPT ===============`);
+            // Log the complete system prompt with the question - ensure classification is defined
+            const promptType = classification ? classification.toUpperCase() : "DEFAULT";
+            console.log(`=============== ${promptType} SYSTEM PROMPT ===============`);
             console.log(systemPrompt);
             console.log("=============================================================");
             
             // Store the current question for scoring purposes
             currentQuestion = questionPrompt;
         } else {
-            // Default general prompt for non-question mode
+            // Default general prompt for non-question mode - use the explain_ai prompt
+            const grade = bookGrade || "appropriate grade";
+            const subject = bookSubject || "general";
+            const totalMarks = 5; // Default marks
+            const question = "No specific question available"; // Default question
+            const chapterTitle = "General Knowledge"; // Default chapter title
+
+            // Use the explain_ai prompt format for general mode as well
+            systemPrompt = `You are a strict yet friendly teacher helping students with their doubts based on for chapter name ${chapterTitle}, subject ${subject}, grade ${grade}. When a user starts the conversation, greet them politely but firmly and ask if they'd like to do a quick knowledge check on that chapter. Once they agree or decline, answer their questions clearly and thoroughly, keeping responses focused on the relevant curriculum. Your main motive should be to direct the conversation towards a knowledge check/Question answering.
+
+Be warm but authoritative — like a teacher who expects discipline but genuinely wants the student to succeed.
+
+If the user asks off-topic questions, gently but firmly steer them back.
+
+Tailor your answers to the user's grade level.
+
+Never skip an explanation unless the student seems confident.
+
+Initial Greeting Example:
+"Hello! Ready to dive into ${chapterTitle}? Would you like to start with a quick knowledge check?"
+
+After that, begin answering the user's questions, don't ask if user have any doubt or not, user will ask him/herself, you just try to direct the conversation towards a knowledge check.`;
+
+            // Add formatting instructions
             systemPrompt += `
-            
-            IMPORTANT FORMATTING INSTRUCTIONS:
-            1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
-            2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
-            3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
-            4. Format mathematical operations and expressions simply:
-               - Instead of writing "( 10 , \\text{m/s} - 5 , \\text{m/s} = 5 , \\text{m/s} )", write "10 m/s - 5 m/s = 5 m/s"
-               - Instead of writing "( \\frac{5 , \\text{m/s}}{2 , \\text{s}} = 2.5 , \\text{m/s}^2 )", write "5 m/s ÷ 2 s = 2.5 m/s²" or "5 m/s / 2 s = 2.5 m/s²"
-            5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
-            6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
+
+IMPORTANT FORMATTING INSTRUCTIONS:
+1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
+2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
+3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
+4. Format mathematical operations and expressions simply:
+   - Instead of writing "( 10 , \\text{m/s} - 5 , \\text{m/s} = 5 , \\text{m/s} )", write "10 m/s - 5 m/s = 5 m/s"
+   - Instead of writing "( \\frac{5 , \\text{m/s}}{2 , \\text{s}} = 2.5 , \\text{m/s}^2 )", write "5 m/s ÷ 2 s = 2.5 m/s²" or "5 m/s / 2 s = 2.5 m/s²"
+5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
+6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
             
             // Log the general system prompt
-            console.log("=============== GENERAL SYSTEM PROMPT ===============");
+            console.log("=============== GENERAL MODE (EXPLAIN_AI) SYSTEM PROMPT ===============");
             console.log(systemPrompt);
-            console.log("====================================================");
+            console.log("====================================================================");
         }
         
         if (!Array.isArray(chat.messages)) {
