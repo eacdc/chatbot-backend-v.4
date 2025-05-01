@@ -172,20 +172,20 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
             intentAnalysisMessages.push({ role: "user", content: message });
 
             // Log that we're calling the classifier
-            console.log(`Calling classifier with ${intentAnalysisMessages.length - 1} messages (1 system + ${intentAnalysisMessages.length - 2} chat history + 1 current)`);
+            console.log(`Calling AI selector to determine appropriate agent for handling the message`);
             
-            // Call OpenAI without function calling to get the classification
+            // Call OpenAI to get the agent classification - using GPT-4.1 with temperature 0 for highest accuracy
             const intentAnalysis = await openai.chat.completions.create({
-                model: "deepseek-chat",
+                model: "gpt-4.1-preview",  // Using GPT-4.1 for agent selection
                 messages: intentAnalysisMessages,
-                temperature: 0.1,
+                temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
             });
 
             // Extract the classification
             const classification = intentAnalysis.choices[0].message.content.trim();
             
-            // Log the classified agent name
-            console.log(`Agent Classification Result: ${classification}`);
+            // Log the selected agent
+            console.log(`AI Selector Result: Will use "${classification}" agent to handle this message`);
 
             // Question mode behavior
             let questionPrompt = null;
@@ -445,6 +445,7 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             }
 
             const botMessage = response.choices[0].message.content;
+            console.log(`${classification} agent generated a response (${botMessage.length} chars)`);
 
             // Add messages and save...
             chat.messages.push({ role: "user", content: message });
