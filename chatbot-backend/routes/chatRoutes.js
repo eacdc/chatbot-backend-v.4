@@ -26,7 +26,9 @@ const Score = require("../models/Score");
 async function isQuestionModeEnabled() {
   try {
     const config = await Config.findOne({ key: 'questionMode' });
-    return config ? config.value : false; // Default to false if not found
+    const enabled = config ? config.value : false; // Default to false if not found
+    console.log(`Question mode config lookup - Found: ${!!config}, Enabled: ${enabled}`);
+    return enabled;
   } catch (error) {
     console.error("Error fetching questionMode config:", error);
     return false; // Default to false on error
@@ -160,6 +162,29 @@ router.post("/send", authenticateUser, async (req, res) => {
                 console.error("- Error fetching book information:", bookErr);
             }
 
+            // Add diagnostic logging for question detection
+            console.log(`CHAPTER DIAGNOSTICS:`);
+            console.log(`- Chapter ID: ${chapter._id}`);
+            console.log(`- Chapter Title: ${chapter.title}`);
+            console.log(`- Has prompt: ${!!chapter.prompt}`);
+            if (chapter.prompt) {
+                console.log(`- Prompt length: ${chapter.prompt.length} chars`);
+                console.log(`- Prompt starts with: "${chapter.prompt.substring(0, 30)}..."`);
+                console.log(`- Prompt contains "Q": ${chapter.prompt.includes('"Q"')}`);
+                console.log(`- Prompt contains "question": ${chapter.prompt.includes('"question"')}`);
+                console.log(`- Prompt starts with [: ${chapter.prompt.trim().startsWith('[')}`);
+                console.log(`- Prompt ends with ]: ${chapter.prompt.trim().endsWith(']')}`);
+            }
+            console.log(`- Has questionPrompt array: ${!!chapter.questionPrompt}`);
+            if (chapter.questionPrompt) {
+                console.log(`- questionPrompt is Array: ${Array.isArray(chapter.questionPrompt)}`);
+                console.log(`- questionPrompt length: ${Array.isArray(chapter.questionPrompt) ? chapter.questionPrompt.length : 'Not an array'}`);
+                if (Array.isArray(chapter.questionPrompt) && chapter.questionPrompt.length > 0) {
+                    console.log(`- First question Q: ${chapter.questionPrompt[0].Q}`);
+                    console.log(`- First question text: "${chapter.questionPrompt[0].question.substring(0, 30)}..."`);
+                }
+            }
+
             // Get the last 3 messages from the chat history for context
             console.log(`STEP 4: Preparing for agent classification`);
             const lastThreeMessages = previousMessages.slice(-6).filter(msg => msg.role === 'user' || msg.role === 'assistant').slice(-6);
@@ -212,6 +237,10 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
             
             if (questionModeEnabled && chapter && chapter.questionPrompt && chapter.questionPrompt.length > 0) {
                 console.log(`STEP 6: Processing questions (${chapter.questionPrompt.length} available)`);
+                console.log(`- Question Mode Diagnostics:`);
+                console.log(`- questionModeEnabled: ${questionModeEnabled}`);
+                console.log(`- classification: ${classification}`);
+                console.log(`- Assessment mode check: ${classification === "assessment_ai"}`);
                 
                 // Only select a question if classification is assessment_ai
                 if (classification === "assessment_ai") {
@@ -220,27 +249,39 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                     // Find all unanswered questions
                     const unansweredQuestions = chapter.questionPrompt.filter(q => !q.question_answered);
                     console.log(`- Unanswered questions: ${unansweredQuestions.length}`);
+                    console.log(`- Total questions: ${chapter.questionPrompt.length}`);
                     
                     if (unansweredQuestions.length > 0) {
                         // Select a random unanswered question
                         const randomIndex = Math.floor(Math.random() * unansweredQuestions.length);
                         questionPrompt = unansweredQuestions[randomIndex];
                         console.log(`- Selected unanswered question #${randomIndex+1}/${unansweredQuestions.length}`);
+                        console.log(`- Question ID: Q${questionPrompt.Q}`);
                         console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
+                        console.log(`- Question marks: ${questionPrompt.question_marks}`);
                     } else {
                         // If all questions answered, cycle through questions again
                         const randomIndex = Math.floor(Math.random() * chapter.questionPrompt.length);
                         questionPrompt = chapter.questionPrompt[randomIndex];
                         console.log(`- All questions answered, selected random question #${randomIndex+1}/${chapter.questionPrompt.length}`);
+                        console.log(`- Question ID: Q${questionPrompt.Q}`);
                         console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
+                        console.log(`- Question marks: ${questionPrompt.question_marks}`);
                     }
                 } else {
                     // For explain_ai, use the first question as reference
                     questionPrompt = chapter.questionPrompt[0];
                     console.log(`- Explanation mode: Using first question as reference`);
+                    console.log(`- Question ID: Q${questionPrompt.Q}`);
                     console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
+                    console.log(`- Question marks: ${questionPrompt.question_marks}`);
                 }
             } else {
+                console.log(`- Question mode diagnostics:`);
+                console.log(`- questionModeEnabled: ${questionModeEnabled}`);
+                console.log(`- chapter exists: ${!!chapter}`);
+                console.log(`- chapter has questionPrompt: ${!!(chapter && chapter.questionPrompt)}`);
+                console.log(`- questionPrompt length: ${chapter && chapter.questionPrompt ? chapter.questionPrompt.length : 0}`);
                 console.log(`- No questions available or question mode disabled`);
             }
 
@@ -500,10 +541,20 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             // If this was a question being answered and question mode is enabled, mark it as answered
             if (questionModeEnabled && currentQuestion && classification === "assessment_ai") {
                 console.log(`STEP 12: Updating question status (assessment_ai mode)`);
+                console.log(`- Question Update Diagnostics:`);
+                console.log(`- questionModeEnabled: ${questionModeEnabled}`);
+                console.log(`- currentQuestion exists: ${!!currentQuestion}`);
+                console.log(`- classification is assessment_ai: ${classification === "assessment_ai"}`);
+                if (currentQuestion) {
+                    console.log(`- Current question Q: ${currentQuestion.Q}`);
+                    console.log(`- Current question marks: ${currentQuestion.question_marks}`);
+                }
+                
                 try {
                     if (chapter && chapter.questionPrompt) {
                         // Find the question and mark it as answered
                         const questionIndex = chapter.questionPrompt.findIndex(q => q.Q === currentQuestion.Q);
+                        console.log(`- Question index in array: ${questionIndex}`);
                         if (questionIndex !== -1) {
                             console.log(`- Found question at index ${questionIndex}`);
                             // Extract marks awarded from AI response
@@ -546,6 +597,10 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                     // Continue without failing the request
                 }
             } else {
+                console.log(`- Question update skipped - diagnostics:`);
+                console.log(`- questionModeEnabled: ${questionModeEnabled}`);
+                console.log(`- currentQuestion exists: ${!!currentQuestion}`);
+                console.log(`- classification is assessment_ai: ${classification === "assessment_ai"}`);
                 console.log(`- Skipping question update (not assessment_ai or no question available)`);
             }
 
