@@ -82,19 +82,20 @@ router.post("/send", authenticateUser, async (req, res) => {
     try {
         const { userId, message, chapterId } = req.body;
         
-        console.log(`Send message request - userId: ${userId}, chapterId: ${chapterId}, message: ${message.substring(0, 30)}...`);
+        console.log(`\n\n========== NEW MESSAGE REQUEST ==========`);
+        console.log(`User: ${userId}, Chapter: ${chapterId}, Message: "${message.substring(0, 30)}..."`);
 
         if (!userId || !message || !chapterId) {
+            console.log(`ERROR: Missing required parameters`);
             return res.status(400).json({ error: "User ID, chapter ID, and message are required" });
         }
 
         // Get the questionMode config
         const questionModeEnabled = await isQuestionModeEnabled();
-        console.log(`Question mode ${questionModeEnabled ? 'enabled' : 'disabled'}`);
+        console.log(`STEP 1: Question mode ${questionModeEnabled ? 'ENABLED' : 'DISABLED'}`);
 
         // Handle chapter-specific chats
         let chat;
-        let systemPrompt = "You are a helpful AI assistant that discusses books and literature.";
         let currentQuestion = null;
         let currentScore = null;
         let previousMessages = [];
@@ -103,19 +104,25 @@ router.post("/send", authenticateUser, async (req, res) => {
         let bookId = null;
         let chapterTitle = "General Chapter";
         
-        console.log(`Looking for existing chat with userId: ${userId}, chapterId: ${chapterId}`);
+        console.log(`STEP 2: Looking for existing chat - userId: ${userId}, chapterId: ${chapterId}`);
         chat = await Chat.findOne({ userId, chapterId });
-        console.log(`Existing chat found: ${chat ? 'Yes' : 'No'}`);
+        console.log(`- Chat found: ${chat ? 'Yes' : 'No'}`);
         
         // Get previous messages for context
         if (chat && chat.messages && chat.messages.length > 0) {
             // Get last 6 messages or all if less than 6
             previousMessages = chat.messages.slice(-6);
-            console.log(`Retrieved ${previousMessages.length} previous messages for context`);
+            console.log(`- Previous messages: ${previousMessages.length}`);
+            
+            // Log last message if available
+            if (previousMessages.length > 0) {
+                const lastMsg = previousMessages[previousMessages.length - 1];
+                console.log(`- Last message: ${lastMsg.role} - "${lastMsg.content.substring(0, 30)}..."`);
+            }
         }
         
         if (!chat) {
-            console.log(`Creating new chat for userId: ${userId}, chapterId: ${chapterId}`);
+            console.log(`- Creating new chat`);
             chat = new Chat({ 
                 userId, 
                 chapterId, 
@@ -126,32 +133,37 @@ router.post("/send", authenticateUser, async (req, res) => {
         
         // Fetch chapter details
         try {
+            console.log(`STEP 3: Fetching chapter details for ${chapterId}`);
             const chapter = await Chapter.findById(chapterId);
             
             if (!chapter) {
+                console.log(`ERROR: Chapter not found`);
                 return res.status(404).json({ error: "Chapter not found" });
             }
             
             // Get associated book information for grade level and subject
             chapterTitle = chapter.title || "General Chapter";
+            console.log(`- Chapter title: ${chapterTitle}`);
             
             try {
+                console.log(`- Fetching book information`);
                 const book = await Book.findById(chapter.bookId);
                 if (book) {
                     bookId = book._id;
                     bookSubject = book.subject || "General";
-                    if (book.grade) {
-                        bookGrade = book.grade;
-                        console.log(`Found book grade: ${bookGrade}`);
-                    }
+                    bookGrade = book.grade;
+                    console.log(`- Book info: Subject=${bookSubject}, Grade=${bookGrade}`);
+                } else {
+                    console.log(`- No book found`);
                 }
             } catch (bookErr) {
-                console.error("Error fetching book information:", bookErr);
+                console.error("- Error fetching book information:", bookErr);
             }
 
             // Get the last 3 messages from the chat history for context
+            console.log(`STEP 4: Preparing for agent classification`);
             const lastThreeMessages = previousMessages.slice(-6).filter(msg => msg.role === 'user' || msg.role === 'assistant').slice(-6);
-            console.log(`Including ${lastThreeMessages.length} previous messages for context in classification`);
+            console.log(`- Messages for context: ${lastThreeMessages.length}`);
             
             // Create messages array for the classifier with chat history
             const intentAnalysisMessages = [
@@ -174,10 +186,8 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
             // Add the current user message
             intentAnalysisMessages.push({ role: "user", content: message });
 
-            // Log that we're calling the classifier
-            console.log(`Calling AI selector to determine appropriate agent for handling the message`);
-            
             // Call OpenAI to get the agent classification - using GPT-3.5 with temperature 0 for consistent outputs
+            console.log(`STEP 5: Calling agent classifier`);
             let classification = "explain_ai"; // Default classification
             try {
                 const intentAnalysis = await openaiSelector.chat.completions.create({
@@ -190,45 +200,54 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                 classification = intentAnalysis.choices[0].message.content.trim();
                 
                 // Log the selected agent
-                console.log(`AI Selector Result: Will use "${classification}" agent to handle this message`);
+                console.log(`- RESULT: Selected agent "${classification}" to handle message`);
             } catch (selectorError) {
-                console.error("Error with agent selection:", selectorError);
+                console.error("- ERROR in agent selection:", selectorError);
                 // Using the default classification set above
-                console.log(`Error in agent selection, defaulting to "${classification}"`);
+                console.log(`- FALLBACK: Using default agent "${classification}"`);
             }
 
             // Question mode behavior
             let questionPrompt = null;
             
             if (questionModeEnabled && chapter && chapter.questionPrompt && chapter.questionPrompt.length > 0) {
-                console.log("Using question mode behavior");
+                console.log(`STEP 6: Processing questions (${chapter.questionPrompt.length} available)`);
                 
                 // Only select a question if classification is assessment_ai
                 if (classification === "assessment_ai") {
-                    console.log("Assessment AI selected, getting next randomized unanswered question");
+                    console.log(`- Assessment mode: Selecting random unanswered question`);
                     
                     // Find all unanswered questions
                     const unansweredQuestions = chapter.questionPrompt.filter(q => !q.question_answered);
+                    console.log(`- Unanswered questions: ${unansweredQuestions.length}`);
                     
                     if (unansweredQuestions.length > 0) {
                         // Select a random unanswered question
                         const randomIndex = Math.floor(Math.random() * unansweredQuestions.length);
                         questionPrompt = unansweredQuestions[randomIndex];
-                        console.log(`Selected random unanswered question (${unansweredQuestions.length} remaining): "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
+                        console.log(`- Selected unanswered question #${randomIndex+1}/${unansweredQuestions.length}`);
+                        console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                     } else {
                         // If all questions answered, cycle through questions again
                         const randomIndex = Math.floor(Math.random() * chapter.questionPrompt.length);
                         questionPrompt = chapter.questionPrompt[randomIndex];
-                        console.log(`All questions answered, selected random question from all ${chapter.questionPrompt.length} questions: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
+                        console.log(`- All questions answered, selected random question #${randomIndex+1}/${chapter.questionPrompt.length}`);
+                        console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                     }
                 } else {
                     // For explain_ai, use the first question as reference
                     questionPrompt = chapter.questionPrompt[0];
-                    console.log("Using explain_ai, using first question as reference");
+                    console.log(`- Explanation mode: Using first question as reference`);
+                    console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                 }
+            } else {
+                console.log(`- No questions available or question mode disabled`);
             }
 
             // Construct system prompt based on context and classification
+            console.log(`STEP 7: Constructing system prompt`);
+            let systemPrompt;
+            
             if (questionModeEnabled && questionPrompt) {
                 // Using the improved question mode prompt template
                 const grade = bookGrade || "appropriate grade";
@@ -238,6 +257,7 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                 
                 // Select prompt based on classification type
                 if (classification && classification === "assessment_ai") {
+                    console.log(`- Building ASSESSMENT_AI prompt with strict teacher evaluation format`);
                     // Use the strict teacher prompt for assessment_ai
                     systemPrompt = `You are a strict but friendly teacher evaluating a Grade ${grade} student's understanding of ${subject}, Chapter: ${chapterTitle} through a one-on-one knowledge check.
 
@@ -308,8 +328,9 @@ Always respond in the same language the user is using.
 
 Explanations should be short, direct, and clear — no fluff.`;
 
-                    console.log("Using ASSESSMENT_AI with strict teacher evaluation prompt");
+                    console.log(`- ASSESSMENT_AI prompt built (${systemPrompt.length} chars)`);
                 } else {
+                    console.log(`- Building EXPLAIN_AI prompt with teacher guidance format`);
                     // Original prompt format for explain_ai and other classifications
                     systemPrompt = `You are a strict yet friendly teacher who helps students by answering their doubts from a specific subject, grade, and chapter.
 
@@ -330,10 +351,11 @@ If the user strays off-topic, kindly bring them back to the subject and chapter.
 Initial Message Example:
 "Hi there! We're Chapter: ${chapterTitle}. Would you like to start with a quick knowledge check?"`;
 
-                    console.log("Using EXPLAIN_AI with teacher guidance prompt");
+                    console.log(`- EXPLAIN_AI prompt built (${systemPrompt.length} chars)`);
                 }
                 
                 // Add formatting instructions to whichever prompt was chosen
+                console.log(`- Adding formatting instructions`);
                 systemPrompt += `
 
 IMPORTANT FORMATTING INSTRUCTIONS:
@@ -346,13 +368,12 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 
                 // Log the complete system prompt with the question - ensure classification is defined
                 const promptType = classification ? classification.toUpperCase() : "DEFAULT";
-                console.log(`=============== ${promptType} SYSTEM PROMPT ===============`);
-                console.log(systemPrompt);
-                console.log("=============================================================");
+                console.log(`- Final prompt type: ${promptType}`);
                 
                 // Store the current question for scoring purposes
                 currentQuestion = questionPrompt;
             } else {
+                console.log(`- Building default prompt (no questions available)`);
                 // Default prompt when no question is available
                 const grade = bookGrade || "appropriate grade";
                 const subject = bookSubject || "general";
@@ -378,6 +399,7 @@ Initial Message Example:
 "Hi there! We're Chapter: ${chapterTitle}. Would you like to start with a quick knowledge check?"`;
 
                 // Add formatting instructions
+                console.log(`- Adding formatting instructions`);
                 systemPrompt += `
 
 IMPORTANT FORMATTING INSTRUCTIONS:
@@ -388,14 +410,12 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
 6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
                 
-                // Log the default prompt
-                console.log("=============== DEFAULT CHAPTER PROMPT ===============");
-                console.log(systemPrompt);
-                console.log("====================================================");
+                console.log(`- DEFAULT prompt built (${systemPrompt.length} chars)`);
             }
             
+            console.log(`STEP 8: Preparing OpenAI request`);
             if (!Array.isArray(chat.messages)) {
-                console.log("Messages is not an array, initializing empty array");
+                console.log(`- Messages was not an array, initializing empty array`);
                 chat.messages = [];
             }
 
@@ -406,13 +426,15 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             
             // Add previous messages for context if available
             if (previousMessages.length > 0) {
+                console.log(`- Adding ${previousMessages.length} previous messages for context`);
                 messagesForOpenAI = messagesForOpenAI.concat(previousMessages);
             }
 
             // Add the new user message
             messagesForOpenAI.push({ role: "user", content: message });
+            console.log(`- Final request has ${messagesForOpenAI.length} messages (1 system + ${messagesForOpenAI.length - 2} context + 1 current)`);
             
-            console.log("Sending to OpenAI...");
+            console.log(`STEP 9: Sending to OpenAI (DeepSeek API)...`);
 
             // Add a timeout for the OpenAI request
             const timeoutPromise = new Promise((_, reject) => {
@@ -422,7 +444,7 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             // Function to make OpenAI request with retry logic
             const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
               try {
-                console.log(`Chat message attempt ${retryCount + 1}/${maxRetries + 1}`);
+                console.log(`- Attempt ${retryCount + 1}/${maxRetries + 1} to get response`);
                 
                 // Send request to OpenAI
                 const response = await openai.chat.completions.create({
@@ -442,7 +464,7 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                   throw error;
                 }
                 
-                console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+                console.log(`- Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
                 
                 // Wait before retrying (exponential backoff: 2s, 4s)
                 await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
@@ -457,27 +479,33 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             const response = await Promise.race([openAIPromise, timeoutPromise]);
 
             if (!response || !response.choices || response.choices.length === 0) {
+                console.log(`ERROR: Invalid response from OpenAI`);
                 throw new Error("Invalid response from OpenAI");
             }
 
+            console.log(`STEP 10: Processing AI response`);
             const botMessage = response.choices[0].message.content;
-            console.log(`${classification} agent generated a response (${botMessage.length} chars)`);
+            console.log(`- ${classification} agent generated response (${botMessage.length} chars)`);
+            console.log(`- Response preview: "${botMessage.substring(0, 50)}..."`);
 
             // Add messages and save...
+            console.log(`STEP 11: Saving chat`);
             chat.messages.push({ role: "user", content: message });
             chat.messages.push({ role: "assistant", content: botMessage });
             
-            console.log(`Saving chat with ${chat.messages.length} messages`);
+            console.log(`- Saving chat with ${chat.messages.length} messages`);
             await chat.save();
-            console.log("Chat saved successfully");
+            console.log(`- Chat saved successfully`);
 
             // If this was a question being answered and question mode is enabled, mark it as answered
             if (questionModeEnabled && currentQuestion && classification === "assessment_ai") {
+                console.log(`STEP 12: Updating question status (assessment_ai mode)`);
                 try {
                     if (chapter && chapter.questionPrompt) {
                         // Find the question and mark it as answered
                         const questionIndex = chapter.questionPrompt.findIndex(q => q.Q === currentQuestion.Q);
                         if (questionIndex !== -1) {
+                            console.log(`- Found question at index ${questionIndex}`);
                             // Extract marks awarded from AI response
                             let marksAwarded = 0;
                             const maxMarks = currentQuestion.question_marks || 1;
@@ -486,49 +514,57 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                             const marksMatch = botMessage.match(/Score:\s*(\d+)\/(\d+)/i);
                             if (marksMatch && marksMatch.length >= 3) {
                                 marksAwarded = parseInt(marksMatch[1], 10);
-                                console.log(`AI awarded ${marksAwarded} out of ${maxMarks} marks`);
+                                console.log(`- AI awarded ${marksAwarded} out of ${maxMarks} marks (explicitly)`);
                             } else {
                                 // If no Score pattern found, assume full marks for now
                                 // In production, you might want to handle this differently
                                 marksAwarded = maxMarks;
-                                console.log(`No marks pattern found, assuming ${marksAwarded} marks`);
+                                console.log(`- No score pattern found, assuming ${marksAwarded} marks`);
                             }
                             
                             // Update chapter with marks gained
                             chapter.questionPrompt[questionIndex].question_answered = true;
                             chapter.questionPrompt[questionIndex].marks_gained = marksAwarded;
                             await chapter.save();
-                            console.log(`Marked question ${currentQuestion.Q} as answered with ${marksAwarded} marks`);
+                            console.log(`- Marked question as answered with ${marksAwarded} marks`);
                             
                             // Update score record if we have one
                             if (currentScore) {
                                 try {
                                     await Score.updateQuestionScore(currentScore._id, currentQuestion.Q, marksAwarded);
-                                    console.log(`Updated score record ${currentScore._id} with ${marksAwarded} marks for question ${currentQuestion.Q}`);
+                                    console.log(`- Updated score record with ${marksAwarded} marks`);
                                 } catch (scoreErr) {
-                                    console.error("Error updating score:", scoreErr);
+                                    console.error("- Error updating score:", scoreErr);
                                 }
                             }
+                        } else {
+                            console.log(`- Question not found in chapter`);
                         }
                     }
                 } catch (err) {
-                    console.error("Error updating question status:", err);
+                    console.error("- Error updating question status:", err);
                     // Continue without failing the request
                 }
+            } else {
+                console.log(`- Skipping question update (not assessment_ai or no question available)`);
             }
 
+            console.log(`STEP 13: Sending response to user`);
+            console.log(`=== END REQUEST (Success) ===\n`);
             // Send the response to the user
             res.json({ 
                 response: botMessage
             });
             
         } catch (chapterError) {
-            console.error("Error processing chapter:", chapterError);
+            console.error(`ERROR: Processing chapter failed:`, chapterError);
+            console.log(`=== END REQUEST (Chapter Error) ===\n`);
             res.status(500).json({ error: "Error processing chapter", message: chapterError.message });
         }
 
     } catch (error) {
-        console.error("Error in chatbot API:", error);
+        console.error(`ERROR: General API error:`, error);
+        console.log(`=== END REQUEST (General Error) ===\n`);
         
         // Add specific error messages based on the error type
         if (error.message === 'OpenAI request timed out') {

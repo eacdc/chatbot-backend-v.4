@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Prompt = require("../models/Prompt");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
+const { processQuestionBatch } = require('../scripts/processQuestionBatch');
 
 // Get all prompts
 router.get("/", authenticateAdmin, async (req, res) => {
@@ -140,6 +141,51 @@ router.put("/configs/:key", authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error(`Error updating config:`, error);
     res.status(500).json({ error: "Failed to update config" });
+  }
+});
+
+// Process batch questions for a chapter
+router.post("/chapters/:chapterId/process-questions", authenticateAdmin, async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { batchText } = req.body;
+
+    if (!batchText) {
+      return res.status(400).json({ error: "Question batch text is required" });
+    }
+
+    console.log(`Processing question batch for chapter ${chapterId}`);
+    
+    // Find the chapter
+    const chapter = await Chapter.findById(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ error: "Chapter not found" });
+    }
+
+    // Process the batch text into structured question objects
+    const questions = processQuestionBatch(batchText);
+    
+    if (!questions || questions.length === 0) {
+      return res.status(400).json({ error: "No valid questions found in the batch" });
+    }
+
+    // Update or create the questionPrompt array for the chapter
+    chapter.questionPrompt = questions;
+    
+    // Save the updated chapter
+    await chapter.save();
+    
+    console.log(`Updated chapter ${chapterId} with ${questions.length} processed questions`);
+    
+    res.json({
+      success: true,
+      message: `Successfully processed ${questions.length} questions for the chapter`,
+      questions: questions
+    });
+    
+  } catch (error) {
+    console.error("Error processing batch questions:", error);
+    res.status(500).json({ error: "Error processing batch questions", message: error.message });
   }
 });
 

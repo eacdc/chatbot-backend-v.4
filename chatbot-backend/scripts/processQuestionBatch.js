@@ -1,0 +1,141 @@
+/**
+ * Question Batch Processor
+ * 
+ * This script processes batched question data from chapter form inputs
+ * and formats it for database storage and random question selection.
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Process raw batch text input into a structured question array
+ * @param {string} batchText - Raw text containing JSON objects (one per line)
+ * @returns {Array} - Array of question objects
+ */
+function processQuestionBatch(batchText) {
+  console.log("Processing batch question input...");
+  
+  // Split the input by newlines and filter out empty lines
+  const lines = batchText.split(/\r?\n/).filter(line => line.trim());
+  
+  const questions = [];
+  let errorCount = 0;
+  
+  // Process each line as a potential JSON object
+  lines.forEach((line, index) => {
+    try {
+      // Attempt to parse the JSON object
+      const questionObj = JSON.parse(line);
+      
+      // Validate essential fields
+      if (questionObj.Q === undefined || !questionObj.question) {
+        console.log(`Warning: Question at line ${index + 1} is missing required fields`);
+        errorCount++;
+        return;
+      }
+      
+      // Ensure all required properties exist with defaults if missing
+      const processedQuestion = {
+        Q: questionObj.Q,
+        question: questionObj.question,
+        question_answered: questionObj.question_answered || false,
+        question_marks: questionObj.question_marks || 1,
+        marks_gained: questionObj.marks_gained || 0
+      };
+      
+      questions.push(processedQuestion);
+      
+    } catch (error) {
+      console.error(`Error parsing question at line ${index + 1}:`, error.message);
+      errorCount++;
+    }
+  });
+  
+  console.log(`Processed ${questions.length} questions successfully with ${errorCount} errors`);
+  
+  return questions;
+}
+
+/**
+ * Select a random question from the question array
+ * @param {Array} questions - Array of question objects
+ * @param {boolean} unansweredOnly - Whether to select only from unanswered questions
+ * @returns {Object|null} - A random question or null if no matching questions
+ */
+function getRandomQuestion(questions, unansweredOnly = false) {
+  if (!questions || !questions.length) {
+    console.log("No questions available");
+    return null;
+  }
+  
+  // Filter for unanswered questions if requested
+  const availableQuestions = unansweredOnly 
+    ? questions.filter(q => !q.question_answered) 
+    : questions;
+  
+  if (!availableQuestions.length) {
+    console.log("No unanswered questions available");
+    return null;
+  }
+  
+  // Select a random question
+  const randomIndex = Math.floor(Math.random() * availableQuestions.length);
+  return availableQuestions[randomIndex];
+}
+
+/**
+ * Save questions to a file for testing
+ * @param {Array} questions - Array of question objects
+ * @param {string} outputPath - Path to save the output
+ */
+function saveQuestions(questions, outputPath) {
+  try {
+    const output = JSON.stringify(questions, null, 2);
+    fs.writeFileSync(outputPath, output);
+    console.log(`Questions saved to ${outputPath}`);
+  } catch (error) {
+    console.error("Error saving questions:", error);
+  }
+}
+
+// Example usage
+if (require.main === module) {
+  // Sample usage with command line arguments
+  const args = process.argv.slice(2);
+  
+  if (args.length >= 1) {
+    try {
+      // Read from file if provided
+      const inputPath = args[0];
+      const batchText = fs.readFileSync(inputPath, 'utf8');
+      
+      // Process the input
+      const questions = processQuestionBatch(batchText);
+      
+      // Output path (optional)
+      const outputPath = args[1] || path.join(__dirname, 'processed_questions.json');
+      saveQuestions(questions, outputPath);
+      
+      // Select and display a random question
+      const randomQuestion = getRandomQuestion(questions);
+      console.log("\nRandom question example:");
+      console.log(randomQuestion);
+      
+      // Count unanswered questions
+      const unansweredCount = questions.filter(q => !q.question_answered).length;
+      console.log(`\nTotal questions: ${questions.length}`);
+      console.log(`Unanswered questions: ${unansweredCount}`);
+      
+    } catch (error) {
+      console.error("Error processing file:", error);
+    }
+  } else {
+    console.log("Usage: node processQuestionBatch.js <inputFilePath> [outputFilePath]");
+  }
+}
+
+module.exports = {
+  processQuestionBatch,
+  getRandomQuestion
+}; 
