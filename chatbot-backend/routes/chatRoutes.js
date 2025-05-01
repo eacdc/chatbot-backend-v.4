@@ -41,6 +41,9 @@ if (!process.env.OPENAI_API_KEY) {
 // Create an OpenAI client using DeepSeek for chat completions
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_D, baseURL: 'https://api.deepseek.com' });
 
+// Create a separate OpenAI client for agent selection using the standard OpenAI API
+const openaiSelector = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 // Create a separate OpenAI client for audio transcription using the standard OpenAI API
 const openaiTranscription = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -174,18 +177,25 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
             // Log that we're calling the classifier
             console.log(`Calling AI selector to determine appropriate agent for handling the message`);
             
-            // Call OpenAI to get the agent classification - using GPT-4.1 with temperature 0 for highest accuracy
-            const intentAnalysis = await openai.chat.completions.create({
-                model: "gpt-4.1-preview",  // Using GPT-4.1 for agent selection
-                messages: intentAnalysisMessages,
-                temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
-            });
+            // Call OpenAI to get the agent classification - using GPT-3.5 with temperature 0 for consistent outputs
+            let classification = "explain_ai"; // Default classification
+            try {
+                const intentAnalysis = await openaiSelector.chat.completions.create({
+                    model: "gpt-3.5-turbo",  // Using GPT-3.5 for agent selection (widely available)
+                    messages: intentAnalysisMessages,
+                    temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
+                });
 
-            // Extract the classification
-            const classification = intentAnalysis.choices[0].message.content.trim();
-            
-            // Log the selected agent
-            console.log(`AI Selector Result: Will use "${classification}" agent to handle this message`);
+                // Extract the classification
+                classification = intentAnalysis.choices[0].message.content.trim();
+                
+                // Log the selected agent
+                console.log(`AI Selector Result: Will use "${classification}" agent to handle this message`);
+            } catch (selectorError) {
+                console.error("Error with agent selection:", selectorError);
+                // Using the default classification set above
+                console.log(`Error in agent selection, defaulting to "${classification}"`);
+            }
 
             // Question mode behavior
             let questionPrompt = null;
