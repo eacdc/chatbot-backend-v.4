@@ -394,8 +394,70 @@ router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
       // Combine all responses
       const combinedPrompt = Object.values(collatedResponses).join("\n\n");
       
-      // No longer save to the prompts collection
-      // Instead, just return the combined text
+      // Check if the combined text appears to contain JSON formatted questions
+      if (combinedPrompt.includes('"Q":') && combinedPrompt.includes('"question":')) {
+        try {
+          console.log("Detected question format in the batch output - attempting to structure as question array");
+          
+          // Extract JSON objects from the text
+          const questionJsonObjects = combinedPrompt.match(/\{[\s\S]*?"Q"[\s\S]*?"question"[\s\S]*?\}/g);
+          
+          if (questionJsonObjects && questionJsonObjects.length > 0) {
+            console.log(`Found ${questionJsonObjects.length} potential question objects in the text`);
+            
+            // Parse each JSON object
+            const structuredQuestions = [];
+            let successCount = 0;
+            let errorCount = 0;
+            
+            questionJsonObjects.forEach((jsonStr, index) => {
+              try {
+                // Clean up the JSON string - ensure it's properly formatted
+                const cleanedJson = jsonStr.trim().replace(/,\s*$/, '');
+                const questionObj = JSON.parse(cleanedJson);
+                
+                // Validate the required fields
+                if (questionObj.Q !== undefined && questionObj.question) {
+                  // Add default values for missing fields
+                  structuredQuestions.push({
+                    Q: questionObj.Q,
+                    question: questionObj.question,
+                    question_answered: questionObj.question_answered || false,
+                    question_marks: questionObj.question_marks || 1,
+                    marks_gained: questionObj.marks_gained || 0
+                  });
+                  successCount++;
+                } else {
+                  console.log(`Question object at index ${index} is missing required fields`);
+                  errorCount++;
+                }
+              } catch (parseError) {
+                console.error(`Error parsing question JSON at index ${index}:`, parseError.message);
+                errorCount++;
+              }
+            });
+            
+            if (structuredQuestions.length > 0) {
+              console.log(`Successfully structured ${successCount} questions with ${errorCount} errors`);
+              
+              // If we have successfully parsed questions, return them as a proper array
+              return res.json({ 
+                success: true, 
+                message: `Text processed and structured into ${structuredQuestions.length} questions`,
+                combinedPrompt: JSON.stringify(structuredQuestions),
+                isQuestionFormat: true,
+                questionArray: structuredQuestions,
+                totalQuestions: structuredQuestions.length
+              });
+            }
+          }
+        } catch (formatError) {
+          console.error("Error attempting to format as questions:", formatError);
+          // Continue with normal processing if question formatting fails
+        }
+      }
+      
+      // Standard response if not detected as question format
       res.json({ 
         success: true, 
         message: "Text processed successfully",

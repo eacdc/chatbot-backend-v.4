@@ -319,12 +319,32 @@ const AddChapter = () => {
       
       console.log("Batch processing response received:", response.status);
       
-      if (response.data && response.data.success && response.data.combinedPrompt) {
-        setChapterData({
-          ...chapterData,
-          finalPrompt: response.data.combinedPrompt
-        });
-        setSuccessMessage("Text successfully processed! Ready to save as chapter.");
+      if (response.data && response.data.success) {
+        // Check if response contains structured question data
+        if (response.data.isQuestionFormat && response.data.questionArray) {
+          console.log(`Received structured question data with ${response.data.totalQuestions} questions`);
+          
+          // Store the question array in finalPrompt as JSON string
+          // This ensures it's properly saved to the database in the right format
+          setChapterData({
+            ...chapterData,
+            finalPrompt: response.data.combinedPrompt,
+            hasQuestionFormat: true,
+            questionCount: response.data.totalQuestions
+          });
+          
+          setSuccessMessage(`Text successfully processed! ${response.data.totalQuestions} questions extracted and ready to save.`);
+        } else if (response.data.combinedPrompt) {
+          // Original behavior for regular text
+          setChapterData({
+            ...chapterData,
+            finalPrompt: response.data.combinedPrompt,
+            hasQuestionFormat: false
+          });
+          setSuccessMessage("Text successfully processed! Ready to save as chapter.");
+        } else {
+          setError("Batch processing did not complete successfully");
+        }
       } else {
         setError("Batch processing did not complete successfully");
       }
