@@ -335,7 +335,7 @@ router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
 
         // Add a timeout for the OpenAI request
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('OpenAI request timed out')), 180000); // 3 minutes timeout
+          setTimeout(() => reject(new Error('OpenAI request timed out')), 1800000); // 30 minutes timeout
         });
         
         // Function to make OpenAI request with retry logic
