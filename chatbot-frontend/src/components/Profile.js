@@ -66,28 +66,53 @@ const Profile = () => {
   }, [navigate]);
 
   const fetchUserScores = async (userId) => {
+    setLoadingScores(true);
     try {
-      setLoadingScores(true);
-      const token = localStorage.getItem("token");
+      console.log('Fetching user scores...');
+      const res = await axios.get(`/api/chat/scores/${userId}`);
+      console.log('Scores response:', res.data);
       
-      // Log the API endpoint we're using
-      console.log("Fetching scores from:", `/api/chat/scores/${userId}`);
-      
-      const response = await axios.get(`/api/chat/scores/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      console.log("User scores response:", response);
-      console.log("User scores data:", response.data);
-      setScores(response.data);
-      setLoadingScores(false);
+      if (res.data && Array.isArray(res.data)) {
+        const processedScores = res.data.map(score => {
+          // Format score for display
+          return {
+            ...score,
+            scoreDate: new Date(score.createdAt).toLocaleDateString(),
+            scoreTime: new Date(score.createdAt).toLocaleTimeString(),
+            scorePercentage: score.scorePercentage ? 
+              score.scorePercentage.toFixed(1) + '%' : 
+              '0%',
+            completionLabel: getCompletionLabel(score),
+            questionsProgress: `${score.questionsAnswered || 0}/${score.totalQuestions || 0}`,
+            marksProgress: `${score.totalMarksObtained || 0}/${score.totalQuestionMarks || 0}`
+          };
+        });
+        
+        console.log('Processed scores:', processedScores);
+        setScores(processedScores);
+      } else {
+        console.log('No scores or invalid data format received');
+        setScores([]);
+      }
     } catch (error) {
-      console.error("Error fetching user scores:", error);
-      console.error("Error details:", error.response || error.message);
-      toast.error("Failed to load score data");
+      console.error('Error fetching scores:', error);
+      toast.error('Failed to load scores');
+    } finally {
       setLoadingScores(false);
+    }
+  };
+
+  // Helper function to get completion label based on status
+  const getCompletionLabel = (score) => {
+    switch(score.completionStatus) {
+      case 'complete':
+        return 'Completed';
+      case 'partial':
+        return 'In Progress';
+      case 'abandoned':
+        return 'Abandoned';
+      default:
+        return 'Not Started';
     }
   };
 
@@ -257,96 +282,36 @@ const Profile = () => {
           {/* Tab content */}
           <div className="px-8 py-6">
             {activeTab === "scores" && (
-              <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Your Progress & Scores</h3>
-                
+              <div className="scores-container">
                 {loadingScores ? (
-                  <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-b-4 border-blue-600"></div>
-                  </div>
-                ) : scores && scores.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse">
-                      <thead>
-                        <tr className="bg-gray-50 border-b">
-                          <th className="py-3 px-4 text-left text-sm font-medium text-gray-500">Chapter</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium text-gray-500">Subject</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium text-gray-500">Date</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium text-gray-500">Score</th>
-                          <th className="py-3 px-4 text-left text-sm font-medium text-gray-500">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {scores.map((score) => (
-                          <tr key={score._id} className="hover:bg-gray-50">
-                            <td className="py-3 px-4 text-sm text-gray-800">
-                              {score.chapterId && typeof score.chapterId === 'object' 
-                                ? score.chapterId.title 
-                                : 'Unknown Chapter'}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-800">
-                              {score.bookId && typeof score.bookId === 'object' 
-                                ? `${score.bookId.subject || 'Unknown'} (Grade ${score.bookId.grade || 'N/A'})` 
-                                : 'Unknown Book'}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-600">
-                              {formatDate(score.createdAt)}
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center">
-                                <span className="font-medium text-sm">
-                                  {score.totalMarksObtained}/{score.totalQuestionMarks}
-                                </span>
-                                <span className="ml-2 px-2 py-1 text-xs rounded-full font-medium" 
-                                  style={{ 
-                                    backgroundColor: score.scorePercentage >= 80 
-                                      ? '#dcfce7' 
-                                      : score.scorePercentage >= 60 
-                                        ? '#fef9c3' 
-                                        : '#fee2e2',
-                                    color: score.scorePercentage >= 80 
-                                      ? '#166534' 
-                                      : score.scorePercentage >= 60 
-                                        ? '#854d0e' 
-                                        : '#991b1b'
-                                  }}>
-                                  {Math.round(score.scorePercentage)}%
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-sm">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                score.completionStatus === 'complete' 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : score.completionStatus === 'partial' 
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-red-100 text-red-800'
-                              }`}>
-                                {score.completionStatus === 'complete' 
-                                  ? 'Completed' 
-                                  : score.completionStatus === 'partial' 
-                                    ? 'In Progress'
-                                    : 'Abandoned'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="loading">Loading your scores...</div>
+                ) : scores.length > 0 ? (
+                  <div className="scores-list">
+                    <h3>Your Assessment Scores</h3>
+                    {scores.map((score, index) => (
+                      <div key={index} className="score-card">
+                        <div className="score-header">
+                          <h4>{score.chapterId?.title || 'Unknown Chapter'}</h4>
+                          <span className={`completion-badge ${score.completionStatus}`}>
+                            {score.completionLabel}
+                          </span>
+                        </div>
+                        <div className="score-details">
+                          <p>Book: {score.bookId?.title || 'Unknown'}</p>
+                          <p>Subject: {score.bookId?.subject || 'N/A'}</p>
+                          <p>Grade: {score.bookId?.grade || 'N/A'}</p>
+                          <p>Questions: {score.questionsProgress}</p>
+                          <p>Marks: {score.marksProgress}</p>
+                          <p>Score: {score.scorePercentage}</p>
+                          <p>Date: {score.scoreDate} at {score.scoreTime}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
-                  <div className="bg-gray-50 rounded-lg p-8 text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                    </svg>
-                    <h4 className="text-lg font-medium text-gray-800 mb-2">No Scores Yet</h4>
-                    <p className="text-gray-600 mb-4">You haven't completed any chapter assessments yet.</p>
-                    <button 
-                      onClick={handleBackToChat}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                    >
-                      Start Learning
-                    </button>
+                  <div className="no-scores">
+                    <p>You haven't taken any assessments yet.</p>
+                    <p>Complete chapter assessments to see your scores here.</p>
                   </div>
                 )}
               </div>

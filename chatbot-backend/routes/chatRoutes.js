@@ -838,53 +838,59 @@ router.get("/general-history", authenticateUser, async (req, res) => {
     }
 });
 
-// Reset questions for a specific user and chapter
+// Reset question status for a chapter
 router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) => {
     try {
         const { chapterId } = req.params;
         const userId = req.user.userId;
         
-        console.log(`Resetting questions for userId: ${userId}, chapterId: ${chapterId}`);
+        console.log(`Resetting question status for chapter ${chapterId} for user ${userId}`);
         
-        // Find the chapter to ensure it exists and has questions
+        // Find the chapter to reset
         const chapter = await Chapter.findById(chapterId);
-        
         if (!chapter) {
             return res.status(404).json({ error: "Chapter not found" });
         }
         
-        if (!chapter.questionPrompt || chapter.questionPrompt.length === 0) {
-            return res.status(404).json({ error: "Chapter has no questions to reset" });
+        // Get the questions for this chapter
+        const questions = chapter.questionPrompt || [];
+        if (questions.length === 0) {
+            return res.status(400).json({ error: "No questions found for this chapter" });
         }
         
-        // Find and delete the user's chat for this chapter to reset progress
-        await Chat.findOneAndDelete({ userId, chapterId });
-        console.log(`- Deleted existing chat history for user ${userId} in chapter ${chapterId}`);
-        
-        // Create a new empty chat for this user/chapter
-        const newChat = new Chat({
+        // Find existing chat history for this user and chapter
+        const existingChat = await Chat.findOne({
             userId,
-            chapterId,
-            messages: [],
-            metadata: {
-                answeredQuestions: [],
-                totalMarks: 0,
-                earnedMarks: 0
-            }
+            chapterId
         });
         
-        await newChat.save();
-        console.log(`- Created new chat with reset question progress`);
-        
-        res.json({
-            success: true,
-            message: "Question progress has been reset for this chapter",
-            totalQuestions: chapter.questionPrompt.length
-        });
-        
+        if (existingChat) {
+            // Reset question status in the questions array
+            const resetQuestions = questions.map(q => ({
+                ...q,
+                question_answered: false,
+                marks_gained: 0
+            }));
+            
+            // Update the chapter with reset questions
+            await Chapter.findByIdAndUpdate(chapterId, {
+                questionPrompt: resetQuestions
+            });
+            
+            // Also update the user's chat history to reflect reset
+            existingChat.messages = [];
+            await existingChat.save();
+            
+            console.log(`Reset ${resetQuestions.length} questions for chapter ${chapterId}`);
+            res.json({ success: true, message: `Progress reset for ${resetQuestions.length} questions` });
+        } else {
+            // No chat history found, nothing to reset
+            console.log(`No chat history found for user ${userId} and chapter ${chapterId}`);
+            res.json({ success: true, message: "No progress to reset" });
+        }
     } catch (error) {
-        console.error("Error resetting questions:", error);
-        res.status(500).json({ error: "Failed to reset questions" });
+        console.error("Error resetting question status:", error);
+        res.status(500).json({ error: "Failed to reset question status" });
     }
 });
 
@@ -1010,12 +1016,53 @@ router.get("/scores/:userId", authenticateUser, async (req, res) => {
             return res.status(403).json({ error: "Unauthorized: You can only access your own scores" });
         }
         
+        console.log(`Getting score history for user ${userId}`);
+        
         const scores = await Score.find({ userId })
             .sort({ createdAt: -1 })
             .populate('chapterId', 'title')
-            .populate('bookId', 'title grade');
+            .populate('bookId', 'title grade subject');
         
-        res.json(scores);
+        if (scores && scores.length > 0) {
+            console.log(`Found ${scores.length} score records for user ${userId}`);
+            
+            // Recalculate status for each score to ensure it's correct
+            const processedScores = scores.map(score => {
+                // Safety check for missing values
+                if (!score.questionsAnswered) {
+                    score.questionsAnswered = 0;
+                }
+                
+                if (!score.totalQuestionMarks) {
+                    score.totalQuestionMarks = 0;
+                }
+                
+                if (!score.totalMarksObtained) {
+                    score.totalMarksObtained = 0;
+                }
+                
+                // Recalculate completion status
+                if (score.questionsAnswered >= score.totalQuestions) {
+                    score.completionStatus = 'complete';
+                } else if (score.questionsAnswered > 0) {
+                    score.completionStatus = 'partial';
+                } else {
+                    score.completionStatus = 'abandoned';
+                }
+                
+                // Recalculate score percentage
+                score.scorePercentage = score.totalQuestionMarks > 0 ? 
+                    (score.totalMarksObtained / score.totalQuestionMarks) * 100 : 0;
+                
+                return score;
+            });
+            
+            console.log(`Processed scores with updated status`);
+            res.json(processedScores);
+        } else {
+            console.log(`No scores found for user ${userId}`);
+            res.json([]);
+        }
     } catch (error) {
         console.error("Error fetching user scores:", error);
         res.status(500).json({ error: "Failed to fetch scores" });
