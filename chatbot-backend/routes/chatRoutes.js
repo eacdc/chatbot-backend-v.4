@@ -22,17 +22,11 @@ const Score = require("../models/Score");
   }
 })();
 
-// Function to get questionMode config
+// Function to get questionMode config - always enabled now
 async function isQuestionModeEnabled() {
-  try {
-    const config = await Config.findOne({ key: 'questionMode' });
-    const enabled = config ? config.value : false; // Default to false if not found
-    console.log(`Question mode config lookup - Found: ${!!config}, Enabled: ${enabled}`);
-    return enabled;
-  } catch (error) {
-    console.error("Error fetching questionMode config:", error);
-    return false; // Default to false on error
-  }
+  // Always return true - question mode is always enabled
+  console.log("Question mode is always enabled by default");
+  return true;
 }
 
 if (!process.env.OPENAI_API_KEY) {
@@ -1061,62 +1055,6 @@ router.get("/random-question/:chapterId", authenticateUser, async (req, res) => 
     } catch (error) {
         console.error("Error fetching random question:", error);
         res.status(500).json({ error: "Failed to fetch random question" });
-    }
-});
-
-// Toggle Question Mode
-router.post("/toggle-question-mode", async (req, res) => {
-    try {
-        const { enabled } = req.body;
-        
-        if (enabled === undefined) {
-            return res.status(400).json({ error: "The 'enabled' parameter is required" });
-        }
-        
-        // Check if there's an existing questionMode config
-        let config = await Config.findOne({ key: 'questionMode' });
-        
-        if (config) {
-            // Update existing config
-            config.value = !!enabled; // Convert to boolean
-            await config.save();
-            console.log(`Question mode updated to: ${config.value}`);
-        } else {
-            // Create new config if it doesn't exist
-            config = new Config({
-                key: 'questionMode',
-                value: !!enabled,
-                description: 'Enable/disable question mode for chapters'
-            });
-            await config.save();
-            console.log(`Question mode created with value: ${config.value}`);
-        }
-        
-        res.json({ 
-            success: true, 
-            message: `Question mode is now ${config.value ? 'enabled' : 'disabled'}`,
-            questionMode: config.value
-        });
-        
-    } catch (error) {
-        console.error("Error toggling question mode:", error);
-        res.status(500).json({ error: "Failed to toggle question mode" });
-    }
-});
-
-// Get Question Mode Status
-router.get("/question-mode", async (req, res) => {
-    try {
-        // Check question mode status
-        const enabled = await isQuestionModeEnabled();
-        
-        res.json({ 
-            enabled: enabled
-        });
-        
-    } catch (error) {
-        console.error("Error getting question mode status:", error);
-        res.status(500).json({ error: "Failed to get question mode status" });
     }
 });
 
