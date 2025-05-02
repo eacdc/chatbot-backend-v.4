@@ -249,6 +249,29 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                 if (classification === "assessment_ai") {
                     console.log(`- Assessment mode: Selecting question for user ${userId}`);
                     
+                    // Create or get current score record for tracking
+                    try {
+                        currentScore = await Score.findLatestAttempt(userId, chapterId);
+                        
+                        // If no score record exists, create one
+                        if (!currentScore) {
+                            console.log(`- No score record found, creating new one for user ${userId}, chapter ${chapterId}`);
+                            currentScore = await Score.createAttempt({
+                                userId,
+                                chapterId,
+                                bookId: bookId || chapter.bookId,
+                                attemptType: 'first'
+                            });
+                            console.log(`- Created new score record: ${currentScore._id}`);
+                        } else {
+                            console.log(`- Found existing score record: ${currentScore._id}`);
+                        }
+                    } catch (scoreErr) {
+                        console.error("- Error creating/retrieving score record:", scoreErr);
+                        // Continue without score recording
+                        currentScore = null;
+                    }
+                    
                     // Get the list of questions this user has already answered
                     let userAnsweredQuestions = [];
                     try {
