@@ -618,8 +618,8 @@ Initial Message Example:
                             // Update score record if we have one
                             if (currentScore) {
                                 try {
-                                    await Score.updateQuestionScore(currentScore._id, currentQuestion.Q, marksAwarded);
-                                    console.log(`- Updated score record with ${marksAwarded} marks`);
+                                    await Score.updateQuestionScore(currentScore._id, currentQuestion.Q, marksAwarded, maxMarks);
+                                    console.log(`- Updated score record with ${marksAwarded}/${maxMarks} marks`);
                                 } catch (scoreErr) {
                                     console.error("- Error updating score:", scoreErr);
                                 }

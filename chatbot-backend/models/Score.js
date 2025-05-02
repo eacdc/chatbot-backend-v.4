@@ -25,7 +25,8 @@ const scoreSchema = new mongoose.Schema(
     },
     totalQuestionMarks: { 
       type: Number, 
-      required: true 
+      required: true,
+      default: 0 
     },
     scorePercentage: {
       type: Number,
@@ -41,7 +42,8 @@ const scoreSchema = new mongoose.Schema(
     },
     questionsAnswered: {
       type: Number,
-      required: true
+      required: true,
+      default: 0
     },
     totalQuestions: {
       type: Number,
@@ -80,7 +82,7 @@ scoreSchema.methods.calculateStats = function() {
 scoreSchema.statics.createAttempt = async function(data) {
   const { userId, chapterId, bookId, attemptType = 'first' } = data;
   
-  // Get chapter to find total question marks
+  // Get chapter to find total question count
   const Chapter = mongoose.model('Chapter');
   const chapter = await Chapter.findById(chapterId);
   
@@ -88,25 +90,24 @@ scoreSchema.statics.createAttempt = async function(data) {
     throw new Error('Chapter not found or has no questions');
   }
   
-  // Calculate total question marks
-  const totalQuestionMarks = chapter.questionPrompt.reduce((sum, q) => sum + (q.question_marks || 1), 0);
+  // Only get the total question count, not the marks
   const totalQuestions = chapter.questionPrompt.length;
   
-  // Create score record
+  // Create score record with initial values
   return this.create({
     userId,
     chapterId,
     bookId,
     attemptType,
     totalMarksObtained: 0,
-    totalQuestionMarks,
+    totalQuestionMarks: 0, // Start with 0, will be added as questions are answered
     questionsAnswered: 0,
     totalQuestions
   });
 };
 
 // Update score when a question is answered
-scoreSchema.statics.updateQuestionScore = async function(scoreId, questionNumber, marksGained) {
+scoreSchema.statics.updateQuestionScore = async function(scoreId, questionNumber, marksGained, maxMarks) {
   const score = await this.findById(scoreId);
   
   if (!score) {
@@ -115,6 +116,7 @@ scoreSchema.statics.updateQuestionScore = async function(scoreId, questionNumber
   
   // Update marks and questions answered
   score.totalMarksObtained += marksGained;
+  score.totalQuestionMarks += maxMarks; // Add this question's max marks to the total
   score.questionsAnswered += 1;
   
   // Recalculate stats
