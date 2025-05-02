@@ -101,7 +101,7 @@ router.post("/send", authenticateUser, async (req, res) => {
         let chapterTitle = "General Chapter";
         
         console.log(`STEP 2: Looking for existing chat - userId: ${userId}, chapterId: ${chapterId}`);
-        chat = await Chat.findOne({ userId, chapterId });
+            chat = await Chat.findOne({ userId, chapterId });
         console.log(`- Chat found: ${chat ? 'Yes' : 'No'}`);
         
         // Get previous messages for context
@@ -126,8 +126,8 @@ router.post("/send", authenticateUser, async (req, res) => {
                 metadata: {}
             });
         }
-        
-        // Fetch chapter details
+            
+            // Fetch chapter details
         try {
             console.log(`STEP 3: Fetching chapter details for ${chapterId}`);
             const chapter = await Chapter.findById(chapterId);
@@ -190,9 +190,18 @@ router.post("/send", authenticateUser, async (req, res) => {
                     role: "system",
                     content: `You are an AI that classifies user messages based on their intent.
 
-If the user starts a new conversation, asks to end the assessment or question answering, or requests clarification, explanation, or understanding about any answer, respond with: "explain_ai".
+If any of the following conditions are met, respond with "assessment_ai":
+1. The user indicates they're ready to start answering questions (words like "ready", "let's start", "begin", "understood", "got it", "ok", "yes")
+2. The user is directly answering a question 
+3. The user asks for a question or assessment
+4. The user indicates they want to be tested or evaluated
 
-If the user is asking to start the assessment or question answering or only answering a question as part of an ongoing assessment, respond with: "assessment_ai".
+Otherwise, respond with "explain_ai" if:
+1. The user is asking for explanations or clarifications
+2. The user is asking conceptual questions about the subject
+3. The user starts a new conversation
+4. The user needs help understanding a topic
+
 Return only the agent name: "explain_ai" or "assessment_ai". Do not include any additional text or explanation.`
                 }
             ];
@@ -435,28 +444,28 @@ Initial Message Example:
 
                 // Add formatting instructions
                 console.log(`- Adding formatting instructions`);
-                systemPrompt += `
-
-IMPORTANT FORMATTING INSTRUCTIONS:
-1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
-2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
-3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
+        systemPrompt += `
+        
+        IMPORTANT FORMATTING INSTRUCTIONS:
+        1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
+        2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
+        3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
 4. Format mathematical operations and expressions simply.
-5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
-6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
-                
+        5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
+        6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
+        
                 console.log(`- DEFAULT prompt built (${systemPrompt.length} chars)`);
             }
             
             console.log(`STEP 8: Preparing OpenAI request`);
-            if (!Array.isArray(chat.messages)) {
+        if (!Array.isArray(chat.messages)) {
                 console.log(`- Messages was not an array, initializing empty array`);
-                chat.messages = [];
-            }
+            chat.messages = [];
+        }
 
-            // Construct messages for OpenAI
-            let messagesForOpenAI = [
-                { role: "system", content: systemPrompt },
+        // Construct messages for OpenAI
+        let messagesForOpenAI = [
+            { role: "system", content: systemPrompt },
             ];
             
             // Add previous messages for context if available
@@ -465,71 +474,71 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                 messagesForOpenAI = messagesForOpenAI.concat(previousMessages);
             }
 
-            // Add the new user message
-            messagesForOpenAI.push({ role: "user", content: message });
+        // Add the new user message
+        messagesForOpenAI.push({ role: "user", content: message });
             console.log(`- Final request has ${messagesForOpenAI.length} messages (1 system + ${messagesForOpenAI.length - 2} context + 1 current)`);
-            
+        
             console.log(`STEP 9: Sending to OpenAI (DeepSeek API)...`);
 
-            // Add a timeout for the OpenAI request
-            const timeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('OpenAI request timed out')), 600000); // 10 minutes timeout
+        // Add a timeout for the OpenAI request
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('OpenAI request timed out')), 600000); // 10 minutes timeout
+        });
+        
+        // Function to make OpenAI request with retry logic
+        const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
+          try {
+                console.log(`- Attempt ${retryCount + 1}/${maxRetries + 1} to get response`);
+            
+            // Send request to OpenAI
+            const response = await openai.chat.completions.create({
+              model: "deepseek-chat",
+              messages: messagesForOpenAI,
+              temperature: 0.15,
             });
             
-            // Function to make OpenAI request with retry logic
-            const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
-              try {
-                console.log(`- Attempt ${retryCount + 1}/${maxRetries + 1} to get response`);
-                
-                // Send request to OpenAI
-                const response = await openai.chat.completions.create({
-                  model: "deepseek-chat",
-                  messages: messagesForOpenAI,
-                  temperature: 0.15,
-                });
-                
-                if (!response || !response.choices || response.choices.length === 0) {
-                  throw new Error("Invalid response from OpenAI");
-                }
-                
-                return response;
-              } catch (error) {
-                // If we've reached max retries, throw the error
-                if (retryCount >= maxRetries) {
-                  throw error;
-                }
-                
-                console.log(`- Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
-                
-                // Wait before retrying (exponential backoff: 2s, 4s)
-                await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
-                
-                // Try again with incremented retry count
-                return makeOpenAIRequest(retryCount + 1, maxRetries);
-              }
-            };
-            
-            // Race the promises
-            const openAIPromise = makeOpenAIRequest();
-            const response = await Promise.race([openAIPromise, timeoutPromise]);
-
             if (!response || !response.choices || response.choices.length === 0) {
-                console.log(`ERROR: Invalid response from OpenAI`);
-                throw new Error("Invalid response from OpenAI");
+              throw new Error("Invalid response from OpenAI");
             }
+            
+            return response;
+          } catch (error) {
+            // If we've reached max retries, throw the error
+            if (retryCount >= maxRetries) {
+              throw error;
+            }
+            
+                console.log(`- Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+            
+            // Wait before retrying (exponential backoff: 2s, 4s)
+            await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+            
+            // Try again with incremented retry count
+            return makeOpenAIRequest(retryCount + 1, maxRetries);
+          }
+        };
+        
+        // Race the promises
+        const openAIPromise = makeOpenAIRequest();
+        const response = await Promise.race([openAIPromise, timeoutPromise]);
+
+        if (!response || !response.choices || response.choices.length === 0) {
+                console.log(`ERROR: Invalid response from OpenAI`);
+            throw new Error("Invalid response from OpenAI");
+        }
 
             console.log(`STEP 10: Processing AI response`);
-            const botMessage = response.choices[0].message.content;
+        const botMessage = response.choices[0].message.content;
             console.log(`- ${classification} agent generated response (${botMessage.length} chars)`);
             console.log(`- Response preview: "${botMessage.substring(0, 50)}..."`);
 
-            // Add messages and save...
+        // Add messages and save...
             console.log(`STEP 11: Saving chat`);
-            chat.messages.push({ role: "user", content: message });
-            chat.messages.push({ role: "assistant", content: botMessage });
-            
+        chat.messages.push({ role: "user", content: message });
+        chat.messages.push({ role: "assistant", content: botMessage });
+        
             console.log(`- Saving chat with ${chat.messages.length} messages`);
-            await chat.save();
+        await chat.save();
             console.log(`- Chat saved successfully`);
 
             // If this was a question being answered and question mode is enabled, mark it as answered
