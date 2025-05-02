@@ -1064,4 +1064,60 @@ router.get("/random-question/:chapterId", authenticateUser, async (req, res) => 
     }
 });
 
+// Toggle Question Mode
+router.post("/toggle-question-mode", async (req, res) => {
+    try {
+        const { enabled } = req.body;
+        
+        if (enabled === undefined) {
+            return res.status(400).json({ error: "The 'enabled' parameter is required" });
+        }
+        
+        // Check if there's an existing questionMode config
+        let config = await Config.findOne({ key: 'questionMode' });
+        
+        if (config) {
+            // Update existing config
+            config.value = !!enabled; // Convert to boolean
+            await config.save();
+            console.log(`Question mode updated to: ${config.value}`);
+        } else {
+            // Create new config if it doesn't exist
+            config = new Config({
+                key: 'questionMode',
+                value: !!enabled,
+                description: 'Enable/disable question mode for chapters'
+            });
+            await config.save();
+            console.log(`Question mode created with value: ${config.value}`);
+        }
+        
+        res.json({ 
+            success: true, 
+            message: `Question mode is now ${config.value ? 'enabled' : 'disabled'}`,
+            questionMode: config.value
+        });
+        
+    } catch (error) {
+        console.error("Error toggling question mode:", error);
+        res.status(500).json({ error: "Failed to toggle question mode" });
+    }
+});
+
+// Get Question Mode Status
+router.get("/question-mode", async (req, res) => {
+    try {
+        // Check question mode status
+        const enabled = await isQuestionModeEnabled();
+        
+        res.json({ 
+            enabled: enabled
+        });
+        
+    } catch (error) {
+        console.error("Error getting question mode status:", error);
+        res.status(500).json({ error: "Failed to get question mode status" });
+    }
+});
+
 module.exports = router;
