@@ -247,11 +247,23 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                 
                 // Only select a question if classification is assessment_ai
                 if (classification === "assessment_ai") {
-                    console.log(`- Assessment mode: Selecting random unanswered question`);
+                    console.log(`- Assessment mode: Selecting question for user ${userId}`);
                     
-                    // Find all unanswered questions
-                    const unansweredQuestions = chapter.questionPrompt.filter(q => !q.question_answered);
-                    console.log(`- Unanswered questions: ${unansweredQuestions.length}`);
+                    // Get the list of questions this user has already answered
+                    let userAnsweredQuestions = [];
+                    try {
+                        const userChat = await Chat.findOne({ userId, chapterId });
+                        if (userChat && userChat.metadata && Array.isArray(userChat.metadata.answeredQuestions)) {
+                            userAnsweredQuestions = userChat.metadata.answeredQuestions;
+                            console.log(`- User has answered ${userAnsweredQuestions.length} questions previously`);
+                        }
+                    } catch (chatErr) {
+                        console.error("Error fetching user chat for question history:", chatErr);
+                    }
+                    
+                    // Find questions the user hasn't answered yet
+                    const unansweredQuestions = chapter.questionPrompt.filter(q => !userAnsweredQuestions.includes(q.Q.toString()));
+                    console.log(`- Unanswered questions for this user: ${unansweredQuestions.length}`);
                     console.log(`- Total questions: ${chapter.questionPrompt.length}`);
                     
                     if (unansweredQuestions.length > 0) {
@@ -270,6 +282,7 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                         console.log(`- Question ID: Q${questionPrompt.Q}`);
                         console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                         console.log(`- Question marks: ${questionPrompt.question_marks}`);
+                        console.log(`- Note: User has already answered all questions`);
                     }
                 } else {
                     // For explain_ai, use the first question as reference
@@ -575,11 +588,9 @@ Initial Message Example:
                                 console.log(`- No score pattern found, defaulting to ${marksAwarded} marks`);
                             }
                             
-                            // Update chapter with marks gained
-                            chapter.questionPrompt[questionIndex].question_answered = true;
-                            chapter.questionPrompt[questionIndex].marks_gained = marksAwarded;
-                            await chapter.save();
-                            console.log(`- Marked question as answered with ${marksAwarded} marks`);
+                            // Mark question as answered for this specific user
+                            await markQuestionAsAnswered(userId, chapterId, currentQuestion.Q.toString(), marksAwarded, maxMarks);
+                            console.log(`- Marked question #${currentQuestion.Q} as answered by user ${userId} with ${marksAwarded} marks`);
                             
                             // Update score record if we have one
                             if (currentScore) {
@@ -804,71 +815,124 @@ router.get("/general-history", authenticateUser, async (req, res) => {
     }
 });
 
-// Reset all question status for a chapter (to allow re-answering questions)
+// Reset questions for a specific user and chapter
 router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) => {
     try {
-        // Check if question mode is enabled
-        const questionModeEnabled = await isQuestionModeEnabled();
-        if (!questionModeEnabled) {
-            return res.status(400).json({ 
-                error: "Question mode is disabled. Enable it in system configuration to use this feature."
-            });
-        }
-
         const { chapterId } = req.params;
-        const { randomize } = req.body; // Optional flag to randomize question order
+        const userId = req.user.userId;
         
-        console.log(`Resetting all questions for chapterId: ${chapterId}`);
+        console.log(`Resetting questions for userId: ${userId}, chapterId: ${chapterId}`);
         
+        // Find the chapter to ensure it exists and has questions
         const chapter = await Chapter.findById(chapterId);
         
-        if (!chapter || !chapter.questionPrompt || chapter.questionPrompt.length === 0) {
-            return res.status(404).json({ error: "Chapter not found or has no questions" });
+        if (!chapter) {
+            return res.status(404).json({ error: "Chapter not found" });
         }
         
-        // Reset all questions to unanswered
-        chapter.questionPrompt.forEach(q => {
-            q.question_answered = false;
-            // Reset marks_gained if it exists
-            if (q.marks_gained !== undefined) {
-                q.marks_gained = 0;
+        if (!chapter.questionPrompt || chapter.questionPrompt.length === 0) {
+            return res.status(404).json({ error: "Chapter has no questions to reset" });
+        }
+        
+        // Find and delete the user's chat for this chapter to reset progress
+        await Chat.findOneAndDelete({ userId, chapterId });
+        console.log(`- Deleted existing chat history for user ${userId} in chapter ${chapterId}`);
+        
+        // Create a new empty chat for this user/chapter
+        const newChat = new Chat({
+            userId,
+            chapterId,
+            messages: [],
+            metadata: {
+                answeredQuestions: [],
+                totalMarks: 0,
+                earnedMarks: 0
             }
         });
         
-        await chapter.save();
+        await newChat.save();
+        console.log(`- Created new chat with reset question progress`);
         
-        // Clear existing chat history for this chapter for this user
-        const userId = req.user.userId;
-        await Chat.findOneAndDelete({ userId, chapterId });
-        
-        // Get all questions in the chapter
-        let questions = chapter.questionPrompt;
-        
-        // If randomize flag is true, shuffle the order of questions and return them
-        if (randomize) {
-            questions = [...questions]; // Create a copy to avoid modifying the original
-            
-            // Fisher-Yates shuffle algorithm
-            for (let i = questions.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [questions[i], questions[j]] = [questions[j], questions[i]];
-            }
-            
-            console.log("Questions have been randomized");
-        }
-        
-        res.json({ 
-            success: true, 
-            message: `Reset ${chapter.questionPrompt.length} questions successfully`,
-            questions: questions,
-            randomized: !!randomize
+        res.json({
+            success: true,
+            message: "Question progress has been reset for this chapter",
+            totalQuestions: chapter.questionPrompt.length
         });
         
     } catch (error) {
-        console.error("Error resetting chapter questions:", error);
-        res.status(500).json({ error: "Failed to reset chapter questions" });
+        console.error("Error resetting questions:", error);
+        res.status(500).json({ error: "Failed to reset questions" });
     }
 });
+
+// Store answered question in the chat document
+// Add this function to track which questions a user has answered
+async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks) {
+    try {
+        // Find or create the chat document
+        let chat = await Chat.findOne({ userId, chapterId });
+        
+        if (!chat) {
+            chat = new Chat({
+                userId,
+                chapterId,
+                messages: [],
+                metadata: {
+                    answeredQuestions: [],
+                    totalMarks: 0,
+                    earnedMarks: 0
+                }
+            });
+        }
+        
+        // Initialize metadata if it doesn't exist
+        if (!chat.metadata) {
+            chat.metadata = {
+                answeredQuestions: [],
+                totalMarks: 0,
+                earnedMarks: 0
+            };
+        }
+        
+        if (!Array.isArray(chat.metadata.answeredQuestions)) {
+            chat.metadata.answeredQuestions = [];
+        }
+        
+        // Add question to the answered list if not already there
+        if (!chat.metadata.answeredQuestions.includes(questionId)) {
+            chat.metadata.answeredQuestions.push(questionId);
+            
+            // Update marks
+            chat.metadata.totalMarks = (chat.metadata.totalMarks || 0) + maxMarks;
+            chat.metadata.earnedMarks = (chat.metadata.earnedMarks || 0) + marksAwarded;
+            
+            console.log(`- Added question ${questionId} to answered questions list for user ${userId}`);
+            console.log(`- Updated marks: ${chat.metadata.earnedMarks}/${chat.metadata.totalMarks}`);
+        }
+        
+        await chat.save();
+        return chat;
+    } catch (error) {
+        console.error("Error marking question as answered:", error);
+        return null;
+    }
+}
+
+// Check if a question has been answered by this user
+async function hasUserAnsweredQuestion(userId, chapterId, questionId) {
+    try {
+        const chat = await Chat.findOne({ userId, chapterId });
+        
+        if (!chat || !chat.metadata || !Array.isArray(chat.metadata.answeredQuestions)) {
+            return false;
+        }
+        
+        return chat.metadata.answeredQuestions.includes(questionId);
+    } catch (error) {
+        console.error("Error checking if question was answered:", error);
+        return false;
+    }
+}
 
 // Get all questions for a chapter with their answer status
 router.get("/questions/:chapterId", authenticateUser, async (req, res) => {

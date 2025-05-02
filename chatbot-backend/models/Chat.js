@@ -11,10 +11,11 @@ const chatSchema = new mongoose.Schema({
     chapterId: { type: mongoose.Schema.Types.ObjectId, ref: "Chapter", default: null },
     messages: [messageSchema],
     metadata: {
-        type: Object,
-        default: {
-            status: "Start"
-        }
+        answeredQuestions: [String],
+        totalMarks: { type: Number, default: 0 },
+        earnedMarks: { type: Number, default: 0 },
+        lastQuestionAsked: String,
+        lastActive: { type: Date, default: Date.now }
     }
 }, { timestamps: true });
 
