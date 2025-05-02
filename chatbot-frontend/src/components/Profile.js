@@ -12,7 +12,13 @@ const Profile = () => {
   const [error, setError] = useState("");
   const [scores, setScores] = useState([]);
   const [loadingScores, setLoadingScores] = useState(false);
-  const [activeTab, setActiveTab] = useState("profile");
+  const [activeTab, setActiveTab] = useState("scores"); // Default to scores tab for testing
+
+  // Add debugging
+  useEffect(() => {
+    console.log("Profile component mounted");
+    console.log("Current active tab:", activeTab);
+  }, [activeTab]);
 
   // Update activity timestamp on component mount
   useEffect(() => {
@@ -64,17 +70,22 @@ const Profile = () => {
       setLoadingScores(true);
       const token = localStorage.getItem("token");
       
+      // Log the API endpoint we're using
+      console.log("Fetching scores from:", `/api/chat/scores/${userId}`);
+      
       const response = await axios.get(`/api/chat/scores/${userId}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
 
-      console.log("User scores:", response.data);
+      console.log("User scores response:", response);
+      console.log("User scores data:", response.data);
       setScores(response.data);
       setLoadingScores(false);
     } catch (error) {
       console.error("Error fetching user scores:", error);
+      console.error("Error details:", error.response || error.message);
       toast.error("Failed to load score data");
       setLoadingScores(false);
     }
