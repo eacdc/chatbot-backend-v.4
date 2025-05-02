@@ -570,10 +570,9 @@ Initial Message Example:
                                 marksAwarded = parseInt(marksMatch[1], 10);
                                 console.log(`- AI awarded ${marksAwarded} out of ${maxMarks} marks (explicitly)`);
                             } else {
-                                // If no Score pattern found, assume full marks for now
-                                // In production, you might want to handle this differently
-                                marksAwarded = maxMarks;
-                                console.log(`- No score pattern found, assuming ${marksAwarded} marks`);
+                                // If no Score pattern found, default to 0 marks
+                                marksAwarded = 0;
+                                console.log(`- No score pattern found, defaulting to ${marksAwarded} marks`);
                             }
                             
                             // Update chapter with marks gained
