@@ -12,7 +12,7 @@ const Profile = () => {
   const [error, setError] = useState("");
   const [scores, setScores] = useState([]);
   const [loadingScores, setLoadingScores] = useState(false);
-  const [activeTab, setActiveTab] = useState("scores"); // Default to scores tab for testing
+  const [activeTab, setActiveTab] = useState("profile"); // Default to profile tab
 
   // Add debugging
   useEffect(() => {
@@ -157,7 +157,7 @@ const Profile = () => {
         </div>
 
         <div className="bg-white shadow-lg rounded-2xl overflow-hidden">
-          {/* Profile Header with Avatar */}
+          {/* Profile Header with Avatar - Always visible at the top */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 pt-8 pb-20 px-8 text-white relative">
             <div className="flex items-center">
               <div className="h-24 w-24 rounded-full bg-white p-1 shadow-xl">
@@ -181,8 +181,55 @@ const Profile = () => {
             </button>
           </div>
           
-          {/* Tabs */}
-          <div className="px-8 -mt-8 mb-4">
+          {/* Personal Information Card - Always visible below the header */}
+          <div className="relative px-8 -mt-12 mb-6 z-10">
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Personal Information</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Username</label>
+                  <p className="text-gray-900 text-lg">{userData?.username || "Not set"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Full Name</label>
+                  <p className="text-gray-900 text-lg">{userData?.fullname || "Not set"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Email Address</label>
+                  <p className="text-gray-900 text-lg">{userData?.email || "Not set"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Phone Number</label>
+                  <p className="text-gray-900 text-lg">{userData?.phone || "Not set"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Account Type</label>
+                  <p className="text-gray-900 text-lg">{getRoleDisplay(userData?.role) || "Not set"}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Member Since</label>
+                  <p className="text-gray-900 text-lg">
+                    {userData?.createdAt 
+                      ? new Date(userData.createdAt).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        }) 
+                      : "Unknown"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Tabs - For switching between profile info and scores */}
+          <div className="px-8">
             <div className="bg-white rounded-lg shadow flex overflow-x-auto">
               <button
                 onClick={() => setActiveTab("profile")}
@@ -192,7 +239,7 @@ const Profile = () => {
                     : "text-gray-600 hover:text-blue-500"
                 }`}
               >
-                Personal Info
+                Additional Info
               </button>
               <button
                 onClick={() => setActiveTab("scores")}
@@ -207,54 +254,8 @@ const Profile = () => {
             </div>
           </div>
           
-          {/* Profile Details */}
-          <div className="px-8 py-10 -mt-6">
-            {activeTab === "profile" && (
-              <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Personal Information</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Username</label>
-                    <p className="text-gray-900 text-lg">{userData?.username || "Not set"}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Full Name</label>
-                    <p className="text-gray-900 text-lg">{userData?.fullname || "Not set"}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Email Address</label>
-                    <p className="text-gray-900 text-lg">{userData?.email || "Not set"}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Phone Number</label>
-                    <p className="text-gray-900 text-lg">{userData?.phone || "Not set"}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Account Type</label>
-                    <p className="text-gray-900 text-lg">{getRoleDisplay(userData?.role) || "Not set"}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Member Since</label>
-                    <p className="text-gray-900 text-lg">
-                      {userData?.createdAt 
-                        ? new Date(userData.createdAt).toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          }) 
-                        : "Unknown"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
+          {/* Tab content */}
+          <div className="px-8 py-6">
             {activeTab === "scores" && (
               <div className="bg-white rounded-xl shadow-md p-6 mb-8">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Your Progress & Scores</h3>
@@ -351,7 +352,7 @@ const Profile = () => {
               </div>
             )}
             
-            <div className="flex justify-center">
+            <div className="flex justify-center mt-6">
               <button 
                 onClick={handleBackToChat}
                 className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
