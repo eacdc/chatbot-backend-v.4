@@ -68,49 +68,95 @@ const Profile = () => {
   const fetchUserScores = async (userId) => {
     setLoadingScores(true);
     try {
-      console.log('Fetching user scores...');
-      const res = await axios.get(`/api/chat/scores/${userId}`);
-      console.log('Scores response:', res.data);
+      console.log('Fetching user answer history...');
+      const res = await axios.get(`/api/chat/answers/${userId}`);
+      console.log('Answers response:', res.data);
       
       if (res.data && Array.isArray(res.data)) {
-        const processedScores = res.data.map(score => {
-          // Format score for display
+        // Group answers by chapter
+        const answersByChapter = {};
+        
+        res.data.forEach(answer => {
+          const chapterId = answer.chapterId?._id || answer.chapterId;
+          if (!answersByChapter[chapterId]) {
+            answersByChapter[chapterId] = {
+              chapterId: chapterId,
+              chapterTitle: answer.chapterId?.title || 'Unknown Chapter',
+              bookTitle: answer.bookId?.title || 'Unknown Book',
+              subject: answer.bookId?.subject || 'N/A',
+              grade: answer.bookId?.grade || 'N/A',
+              answers: [],
+              totalMarks: 0,
+              earnedMarks: 0,
+              latestAttempt: answer.createdAt,
+            };
+          }
+          
+          // Add answer to the chapter group
+          answersByChapter[chapterId].answers.push(answer);
+          answersByChapter[chapterId].totalMarks += answer.questionMarks || 0;
+          answersByChapter[chapterId].earnedMarks += answer.score || 0;
+          
+          // Update latest attempt if this answer is more recent
+          if (new Date(answer.createdAt) > new Date(answersByChapter[chapterId].latestAttempt)) {
+            answersByChapter[chapterId].latestAttempt = answer.createdAt;
+          }
+        });
+        
+        // Convert grouped data to array and add calculated fields
+        const processedScores = Object.values(answersByChapter).map(chapter => {
+          // Calculate percentage
+          const percentage = chapter.totalMarks > 0 ? 
+            (chapter.earnedMarks / chapter.totalMarks) * 100 : 0;
+          
+          // Determine completion status
+          let completionStatus = 'partial';
+          // We don't have total questions info here, so use answers count as indicator
+          if (chapter.answers.length >= 5) {  // Assuming a minimum of 5 questions indicates completion
+            completionStatus = 'complete';
+          } else if (chapter.answers.length === 0) {
+            completionStatus = 'abandoned';
+          }
+          
           return {
-            ...score,
-            scoreDate: new Date(score.createdAt).toLocaleDateString(),
-            scoreTime: new Date(score.createdAt).toLocaleTimeString(),
-            scorePercentage: score.scorePercentage ? 
-              score.scorePercentage.toFixed(1) + '%' : 
-              '0%',
-            completionLabel: getCompletionLabel(score),
-            questionsProgress: `${score.questionsAnswered || 0}/${score.totalQuestions || 0}`,
-            marksProgress: `${score.totalMarksObtained || 0}/${score.totalQuestionMarks || 0}`
+            ...chapter,
+            scoreDate: new Date(chapter.latestAttempt).toLocaleDateString(),
+            scoreTime: new Date(chapter.latestAttempt).toLocaleTimeString(),
+            scorePercentage: percentage.toFixed(1) + '%',
+            questionsAnswered: chapter.answers.length,
+            completionStatus,
+            completionLabel: getCompletionLabel(completionStatus),
+            questionsProgress: `${chapter.answers.length}`,
+            marksProgress: `${chapter.earnedMarks}/${chapter.totalMarks}`
           };
         });
         
-        console.log('Processed scores:', processedScores);
+        // Sort by most recent
+        processedScores.sort((a, b) => new Date(b.latestAttempt) - new Date(a.latestAttempt));
+        
+        console.log('Processed chapter scores:', processedScores);
         setScores(processedScores);
       } else {
-        console.log('No scores or invalid data format received');
+        console.log('No answers or invalid data format received');
         setScores([]);
       }
     } catch (error) {
-      console.error('Error fetching scores:', error);
-      toast.error('Failed to load scores');
+      console.error('Error fetching answers:', error);
+      toast.error('Failed to load score history');
     } finally {
       setLoadingScores(false);
     }
   };
 
   // Helper function to get completion label based on status
-  const getCompletionLabel = (score) => {
-    switch(score.completionStatus) {
+  const getCompletionLabel = (status) => {
+    switch(status) {
       case 'complete':
         return 'Completed';
       case 'partial':
         return 'In Progress';
       case 'abandoned':
-        return 'Abandoned';
+        return 'Not Started';
       default:
         return 'Not Started';
     }

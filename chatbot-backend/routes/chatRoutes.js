@@ -10,7 +10,7 @@ const authenticateUser = require("../middleware/authMiddleware");
 const Prompt = require("../models/Prompt");
 const Config = require("../models/Config");
 const Book = require("../models/Book");
-const Score = require("../models/Score");
+const QnALists = require("../models/QnALists");
 
 // Initialize default configs if needed
 (async () => {
@@ -249,43 +249,24 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                 if (classification === "assessment_ai") {
                     console.log(`- Assessment mode: Selecting question for user ${userId}`);
                     
-                    // Create or get current score record for tracking
-                    try {
-                        currentScore = await Score.findLatestAttempt(userId, chapterId);
-                        
-                        // If no score record exists, create one
-                        if (!currentScore) {
-                            console.log(`- No score record found, creating new one for user ${userId}, chapter ${chapterId}`);
-                            currentScore = await Score.createAttempt({
-                                userId,
-                                chapterId,
-                                bookId: bookId || chapter.bookId,
-                                attemptType: 'first'
-                            });
-                            console.log(`- Created new score record: ${currentScore._id}`);
-                        } else {
-                            console.log(`- Found existing score record: ${currentScore._id}`);
-                        }
-                    } catch (scoreErr) {
-                        console.error("- Error creating/retrieving score record:", scoreErr);
-                        // Continue without score recording
-                        currentScore = null;
-                    }
-                    
                     // Get the list of questions this user has already answered
-                    let userAnsweredQuestions = [];
+                    let answeredQuestionIds = [];
                     try {
-                        const userChat = await Chat.findOne({ userId, chapterId });
-                        if (userChat && userChat.metadata && Array.isArray(userChat.metadata.answeredQuestions)) {
-                            userAnsweredQuestions = userChat.metadata.answeredQuestions;
-                            console.log(`- User has answered ${userAnsweredQuestions.length} questions previously`);
+                        console.log(`- Checking for answered questions in QnALists for user ${userId} and chapter ${chapterId}`);
+                        const answeredRecords = await QnALists.getAnsweredQuestionsForChapter(userId, chapterId);
+                        if (answeredRecords && answeredRecords.length > 0) {
+                            answeredQuestionIds = answeredRecords.map(record => record.questionId);
+                            console.log(`- User has answered ${answeredQuestionIds.length} questions previously`);
+                        } else {
+                            console.log(`- No answered questions found for this user and chapter`);
                         }
-                    } catch (chatErr) {
-                        console.error("Error fetching user chat for question history:", chatErr);
+                    } catch (qnaErr) {
+                        console.error("- Error fetching answered questions:", qnaErr);
                     }
                     
                     // Find questions the user hasn't answered yet
-                    const unansweredQuestions = chapter.questionPrompt.filter(q => !userAnsweredQuestions.includes(q.Q.toString()));
+                    const unansweredQuestions = chapter.questionPrompt.filter(q => 
+                        !answeredQuestionIds.includes(q.questionId));
                     console.log(`- Unanswered questions for this user: ${unansweredQuestions.length}`);
                     console.log(`- Total questions: ${chapter.questionPrompt.length}`);
                     
@@ -294,7 +275,7 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                         const randomIndex = Math.floor(Math.random() * unansweredQuestions.length);
                         questionPrompt = unansweredQuestions[randomIndex];
                         console.log(`- Selected unanswered question #${randomIndex+1}/${unansweredQuestions.length}`);
-                        console.log(`- Question ID: Q${questionPrompt.Q}`);
+                        console.log(`- Question ID: ${questionPrompt.questionId}`);
                         console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                         console.log(`- Question marks: ${questionPrompt.question_marks}`);
                     } else {
@@ -302,7 +283,7 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                         const randomIndex = Math.floor(Math.random() * chapter.questionPrompt.length);
                         questionPrompt = chapter.questionPrompt[randomIndex];
                         console.log(`- All questions answered, selected random question #${randomIndex+1}/${chapter.questionPrompt.length}`);
-                        console.log(`- Question ID: Q${questionPrompt.Q}`);
+                        console.log(`- Question ID: ${questionPrompt.questionId}`);
                         console.log(`- Question preview: "${questionPrompt.question ? questionPrompt.question.substring(0, 30) + '...' : 'No question text'}"`);
                         console.log(`- Question marks: ${questionPrompt.question_marks}`);
                         console.log(`- Note: User has already answered all questions`);
@@ -586,48 +567,38 @@ Initial Message Example:
                 console.log(`- classification is assessment_ai: ${classification === "assessment_ai"}`);
                 if (currentQuestion) {
                     console.log(`- Current question Q: ${currentQuestion.Q}`);
+                    console.log(`- Current question ID: ${currentQuestion.questionId}`);
                     console.log(`- Current question marks: ${currentQuestion.question_marks}`);
                 }
                 
                 try {
-                    if (chapter && chapter.questionPrompt) {
-                        // Find the question and mark it as answered
-                        const questionIndex = chapter.questionPrompt.findIndex(q => q.Q === currentQuestion.Q);
-                        console.log(`- Question index in array: ${questionIndex}`);
-                        if (questionIndex !== -1) {
-                            console.log(`- Found question at index ${questionIndex}`);
-                            // Extract marks awarded from AI response
-                            let marksAwarded = 0;
-                            const maxMarks = currentQuestion.question_marks || 1;
-                            
-                            // Look for Score: pattern in the response
-                            const marksMatch = botMessage.match(/Score:\s*(\d+)\/(\d+)/i);
-                            if (marksMatch && marksMatch.length >= 3) {
-                                marksAwarded = parseInt(marksMatch[1], 10);
-                                console.log(`- AI awarded ${marksAwarded} out of ${maxMarks} marks (explicitly)`);
-                            } else {
-                                // If no Score pattern found, default to 0 marks
-                                marksAwarded = 0;
-                                console.log(`- No score pattern found, defaulting to ${marksAwarded} marks`);
-                            }
-                            
-                            // Mark question as answered for this specific user
-                            await markQuestionAsAnswered(userId, chapterId, currentQuestion.Q.toString(), marksAwarded, maxMarks);
-                            console.log(`- Marked question #${currentQuestion.Q} as answered by user ${userId} with ${marksAwarded} marks`);
-                            
-                            // Update score record if we have one
-                            if (currentScore) {
-                                try {
-                                    await Score.updateQuestionScore(currentScore._id, currentQuestion.Q, marksAwarded, maxMarks);
-                                    console.log(`- Updated score record with ${marksAwarded}/${maxMarks} marks`);
-                                } catch (scoreErr) {
-                                    console.error("- Error updating score:", scoreErr);
-                                }
-                            }
-                        } else {
-                            console.log(`- Question not found in chapter`);
-                        }
+                    // Extract marks awarded from AI response
+                    let marksAwarded = 0;
+                    const maxMarks = currentQuestion.question_marks || 1;
+                    
+                    // Look for Score: pattern in the response
+                    const marksMatch = botMessage.match(/Score:\s*(\d+)\/(\d+)/i);
+                    if (marksMatch && marksMatch.length >= 3) {
+                        marksAwarded = parseInt(marksMatch[1], 10);
+                        console.log(`- AI awarded ${marksAwarded} out of ${maxMarks} marks (explicitly)`);
+                    } else {
+                        // If no Score pattern found, default to 0 marks
+                        marksAwarded = 0;
+                        console.log(`- No score pattern found, defaulting to ${marksAwarded} marks`);
                     }
+                    
+                    // Save the answer in QnALists
+                    await QnALists.recordAnswer({
+                        studentId: userId,
+                        bookId: bookId || chapter.bookId,
+                        chapterId: chapterId,
+                        questionId: currentQuestion.questionId,
+                        questionMarks: maxMarks,
+                        score: marksAwarded,
+                        answerText: message // The user's answer to the question
+                    });
+                    
+                    console.log(`- Recorded answer for question #${currentQuestion.Q} with ${marksAwarded}/${maxMarks} marks`);
                 } catch (err) {
                     console.error("- Error updating question status:", err);
                     // Continue without failing the request
@@ -938,6 +909,17 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             
             console.log(`- Added question ${questionId} to answered questions list for user ${userId}`);
             console.log(`- Updated marks: ${chat.metadata.earnedMarks}/${chat.metadata.totalMarks}`);
+            
+            // Also record in QnALists
+            await QnALists.recordAnswer({
+                studentId: userId,
+                bookId: null, // Will be filled in later
+                chapterId: chapterId,
+                questionId: questionId,
+                questionMarks: maxMarks,
+                score: marksAwarded,
+                answerText: ""
+            });
         }
         
         await chat.save();
@@ -951,13 +933,7 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
 // Check if a question has been answered by this user
 async function hasUserAnsweredQuestion(userId, chapterId, questionId) {
     try {
-        const chat = await Chat.findOne({ userId, chapterId });
-        
-        if (!chat || !chat.metadata || !Array.isArray(chat.metadata.answeredQuestions)) {
-            return false;
-        }
-        
-        return chat.metadata.answeredQuestions.includes(questionId);
+        return await QnALists.isQuestionAnswered(userId, chapterId, questionId);
     } catch (error) {
         console.error("Error checking if question was answered:", error);
         return false;
@@ -1007,197 +983,70 @@ router.get("/questions/:chapterId", authenticateUser, async (req, res) => {
     }
 });
 
-// Get score history for a user
-router.get("/scores/:userId", authenticateUser, async (req, res) => {
-    try {
-        const { userId } = req.params;
-        
-        // Ensure the user can only access their own scores
-        if (req.user.userId !== userId) {
-            return res.status(403).json({ error: "Unauthorized: You can only access your own scores" });
-        }
-        
-        console.log(`Getting score history for user ${userId}`);
-        
-        const scores = await Score.find({ userId })
-            .sort({ createdAt: -1 })
-            .populate('chapterId', 'title')
-            .populate('bookId', 'title grade subject');
-        
-        if (scores && scores.length > 0) {
-            console.log(`Found ${scores.length} score records for user ${userId}`);
-            
-            // Recalculate status for each score to ensure it's correct
-            const processedScores = scores.map(score => {
-                // Safety check for missing values
-                if (!score.questionsAnswered) {
-                    score.questionsAnswered = 0;
-                }
-                
-                if (!score.totalQuestionMarks) {
-                    score.totalQuestionMarks = 0;
-                }
-                
-                if (!score.totalMarksObtained) {
-                    score.totalMarksObtained = 0;
-                }
-                
-                // Recalculate completion status
-                if (score.questionsAnswered >= score.totalQuestions) {
-                    score.completionStatus = 'complete';
-                } else if (score.questionsAnswered > 0) {
-                    score.completionStatus = 'partial';
-                } else {
-                    score.completionStatus = 'abandoned';
-                }
-                
-                // Recalculate score percentage
-                score.scorePercentage = score.totalQuestionMarks > 0 ? 
-                    (score.totalMarksObtained / score.totalQuestionMarks) * 100 : 0;
-                
-                return score;
-            });
-            
-            console.log(`Processed scores with updated status`);
-            res.json(processedScores);
-        } else {
-            console.log(`No scores found for user ${userId}`);
-            res.json([]);
-        }
-    } catch (error) {
-        console.error("Error fetching user scores:", error);
-        res.status(500).json({ error: "Failed to fetch scores" });
-    }
-});
-
-// Get chapter scores for a user
-router.get("/scores/:userId/:chapterId", authenticateUser, async (req, res) => {
+// Get statistics for a chapter (replacing the Score endpoint)
+router.get("/chapter-stats/:userId/:chapterId", authenticateUser, async (req, res) => {
     try {
         const { userId, chapterId } = req.params;
         
-        // Ensure the user can only access their own scores
+        // Ensure the user can only access their own stats
         if (req.user.userId !== userId) {
-            return res.status(403).json({ error: "Unauthorized: You can only access your own scores" });
+            return res.status(403).json({ error: "Unauthorized: You can only access your own statistics" });
         }
         
-        const scores = await Score.find({ userId, chapterId })
-            .sort({ createdAt: -1 })
-            .populate('chapterId', 'title')
-            .populate('bookId', 'title grade');
+        console.log(`Getting QnA statistics for user ${userId} in chapter ${chapterId}`);
         
-        res.json(scores);
-    } catch (error) {
-        console.error("Error fetching chapter scores:", error);
-        res.status(500).json({ error: "Failed to fetch chapter scores" });
-    }
-});
-
-// Get current score for a chapter attempt
-router.get("/current-score/:userId/:chapterId", authenticateUser, async (req, res) => {
-    try {
-        const { userId, chapterId } = req.params;
-        
-        // Ensure the user can only access their own scores
-        if (req.user.userId !== userId) {
-            return res.status(403).json({ error: "Unauthorized: You can only access your own scores" });
-        }
-        
-        const score = await Score.findLatestAttempt(userId, chapterId);
-        
-        if (!score) {
-            return res.status(404).json({ error: "No score record found for this chapter" });
-        }
-        
-        res.json(score);
-    } catch (error) {
-        console.error("Error fetching current score:", error);
-        res.status(500).json({ error: "Failed to fetch current score" });
-    }
-});
-
-// Get a random unanswered question from a chapter
-router.get("/random-question/:chapterId", authenticateUser, async (req, res) => {
-    try {
-        // Check if question mode is enabled
-        const questionModeEnabled = await isQuestionModeEnabled();
-        if (!questionModeEnabled) {
-            return res.status(400).json({ 
-                error: "Question mode is disabled. Enable it in system configuration to use this feature."
-            });
-        }
-        
-        const { chapterId } = req.params;
-        const userId = req.user.userId;
-        
-        console.log(`Getting random question for chapterId: ${chapterId}, userId: ${userId}`);
-        
+        // Fetch the chapter to get all questions
         const chapter = await Chapter.findById(chapterId);
-        
         if (!chapter) {
             return res.status(404).json({ error: "Chapter not found" });
         }
         
-        if (!chapter.questionPrompt || chapter.questionPrompt.length === 0) {
-            return res.json({ 
-                chapterId,
-                title: chapter.title,
-                hasQuestions: false,
-                message: "No questions available in this chapter"
-            });
-        }
+        // Get statistics from QnALists
+        const stats = await QnALists.getChapterStats(userId, chapterId);
         
-        // Find all unanswered questions
-        const unansweredQuestions = chapter.questionPrompt.filter(q => !q.question_answered);
-        
-        if (unansweredQuestions.length === 0) {
-            return res.json({
-                chapterId,
-                title: chapter.title,
-                hasQuestions: true,
-                allAnswered: true,
-                message: "All questions in this chapter have been answered",
-                totalQuestions: chapter.questionPrompt.length
-            });
-        }
-        
-        // Select a random unanswered question
-        const randomIndex = Math.floor(Math.random() * unansweredQuestions.length);
-        const randomQuestion = unansweredQuestions[randomIndex];
-        
-        // Get associated book information
-        let bookInfo = {
-            grade: null,
-            subject: null
-        };
-        
+        // Get book details
         try {
             const book = await Book.findById(chapter.bookId);
-            if (book) {
-                bookInfo.grade = book.grade || null;
-                bookInfo.subject = book.subject || null;
-            }
+            stats.bookTitle = book ? book.title : "Unknown Book";
+            stats.bookGrade = book ? book.grade : null;
+            stats.bookSubject = book ? book.subject : null;
         } catch (bookErr) {
-            console.error("Error fetching book information:", bookErr);
+            console.error("Error fetching book details:", bookErr);
         }
         
-        // Return the question with metadata
-        res.json({
-            chapterId,
-            title: chapter.title,
-            hasQuestions: true,
-            allAnswered: false,
-            question: {
-                ...randomQuestion.toObject(),
-                // Omit sensitive information if needed
-            },
-            questionsRemaining: unansweredQuestions.length,
-            totalQuestions: chapter.questionPrompt.length,
-            bookInfo
-        });
+        // Add chapter details
+        stats.chapterTitle = chapter.title;
+        stats.totalQuestionsInChapter = chapter.questionPrompt ? chapter.questionPrompt.length : 0;
         
+        res.json(stats);
     } catch (error) {
-        console.error("Error fetching random question:", error);
-        res.status(500).json({ error: "Failed to fetch random question" });
+        console.error("Error fetching chapter statistics:", error);
+        res.status(500).json({ error: "Failed to fetch statistics" });
+    }
+});
+
+// Get all answers for a user across all chapters
+router.get("/answers/:userId", authenticateUser, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        // Ensure the user can only access their own answers
+        if (req.user.userId !== userId) {
+            return res.status(403).json({ error: "Unauthorized: You can only access your own answers" });
+        }
+        
+        console.log(`Getting all answers for user ${userId}`);
+        
+        // Find all QnALists entries for this user
+        const answers = await QnALists.find({ studentId: userId, status: 1 })
+            .populate('bookId', 'title grade subject')
+            .populate('chapterId', 'title')
+            .sort({ attemptedAt: -1 });
+        
+        res.json(answers);
+    } catch (error) {
+        console.error("Error fetching user answers:", error);
+        res.status(500).json({ error: "Failed to fetch answers" });
     }
 });
 
