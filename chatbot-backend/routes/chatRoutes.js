@@ -527,10 +527,10 @@ Initial Message Example:
                 console.log(`- Attempt ${retryCount + 1}/${maxRetries + 1} to get response`);
             
             // Send request to OpenAI
-            const response = await openai.chat.completions.create({
-              model: "deepseek-chat",
+            const response = await openaiSelector.chat.completions.create({
+              model: "gpt-4o",
               messages: messagesForOpenAI,
-              temperature: 0.15,
+              temperature: 0.5,
             });
             
             if (!response || !response.choices || response.choices.length === 0) {
