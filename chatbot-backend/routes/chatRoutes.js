@@ -188,21 +188,35 @@ router.post("/send", authenticateUser, async (req, res) => {
             const intentAnalysisMessages = [
                 {
                     role: "system",
-                    content: `You are an AI that classifies user messages based on their intent.
+                    content: `You are an AI that classifies user messages to determine which agent should handle them.
 
-If any of the following conditions are met, respond with "assessment_ai":
-1. The user indicates they're ready to start answering questions (words like "ready", "let's start", "begin", "understood", "got it", "ok", "yes")
-2. The user is directly answering a question 
-3. The user asks for a question or assessment
-4. The user indicates they want to be tested or evaluated
+Classify the user message into one of these four categories:
 
-Otherwise, respond with "explain_ai" if:
-1. The user is asking for explanations or clarifications
-2. The user is asking conceptual questions about the subject
-3. The user starts a new conversation
-4. The user needs help understanding a topic
+1. "oldchat_ai" - Select when:
+   - The conversation is ongoing (not the first message)
+   - The user is answering questions from a chapter assessment
+   - The user is continuing a knowledge check
+   - The user provides an answer to a previously asked question
+   
+2. "newchat_ai" - Select when:
+   - This is the first message in a conversation
+   - The user wants to start a new knowledge check
+   - The user indicates they're ready to begin (words like "let's start", "begin", "ready")
+   - No previous questions have been asked in this session
 
-Return only the agent name: "explain_ai" or "assessment_ai". Do not include any additional text or explanation.`
+3. "closureChat_ai" - Select when:
+   - The user explicitly wants to end the knowledge check/test
+   - The user asks about their score or results
+   - The user indicates they want to finish or stop the assessment
+   - The user types things like "finish", "end", "stop", "I'm done", "that's all"
+
+4. "explanation_ai" - Select when:
+   - The user asks for explanations or clarifications about concepts
+   - The user needs help understanding a topic
+   - The user is asking about subject matter rather than answering questions
+   - The message is not an answer to a question but a request for information
+
+Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "explanation_ai". Do not include any additional text or explanation.`
                 }
             ];
             
@@ -214,12 +228,12 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
             // Add the current user message
             intentAnalysisMessages.push({ role: "user", content: message });
 
-            // Call OpenAI to get the agent classification - using GPT-3.5 with temperature 0 for consistent outputs
+            // Call OpenAI to get the agent classification
             console.log(`STEP 5: Calling agent classifier`);
-            let classification = "explain_ai"; // Default classification
+            let classification = "explanation_ai"; // Default classification
             try {
                 const intentAnalysis = await openaiSelector.chat.completions.create({
-                    model: "gpt-4o",  // Using GPT-3.5 for agent selection (widely available)
+                    model: "gpt-4o",
                     messages: intentAnalysisMessages,
                     temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
                 });
@@ -306,7 +320,7 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
             }
 
             // Construct system prompt based on context and classification
-            console.log(`STEP 7: Constructing system prompt`);
+            console.log(`STEP 7: Constructing system prompt for ${classification}`);
             let systemPrompt;
             
             if (questionModeEnabled && questionPrompt) {
@@ -315,104 +329,147 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
                 const subject = bookSubject || "general";
                 const totalMarks = questionPrompt.question_marks || 5;
                 const question = questionPrompt.question;
+                const questionId = questionPrompt.questionId;
+                
+                // Get previous question information for oldchat_ai
+                let previousQuestion = null;
+                let previousQuestionId = null;
+                let previousUserAnswer = null;
+                
+                if (classification === "oldchat_ai" && previousMessages.length >= 2) {
+                    // Get the last user message (their answer)
+                    previousUserAnswer = message;
+                    
+                    // Get the last assistant message (which contains the previous question)
+                    const lastBotMessage = previousMessages.filter(msg => msg.role === 'assistant').pop();
+                    if (lastBotMessage) {
+                        // Extract the question from the bot's message
+                        const questionMatch = lastBotMessage.content.match(/(?:Next question:|Here's your question:|Think carefully and answer this:|Try this one:|Here comes your next question:)([^?]*\?)/i);
+                        if (questionMatch && questionMatch[1]) {
+                            previousQuestion = questionMatch[1].trim();
+                            
+                            // Try to find the question ID in chat metadata
+                            if (chat.metadata && chat.metadata.lastQuestionAsked) {
+                                previousQuestionId = chat.metadata.lastQuestionAsked;
+                            }
+                        }
+                    }
+                }
+                
+                // Record the current question ID for future reference
+                if (chat.metadata) {
+                    chat.metadata.lastQuestionAsked = questionId;
+                } else {
+                    chat.metadata = { lastQuestionAsked: questionId };
+                }
                 
                 // Select prompt based on classification type
-                if (classification && classification === "assessment_ai") {
-                    console.log(`- Building ASSESSMENT_AI prompt with strict teacher evaluation format`);
-                    // Use the strict teacher prompt for assessment_ai
-                    systemPrompt = `You are a strict but friendly teacher evaluating a Grade ${grade} student's understanding of ${subject}, Chapter: ${chapterTitle} through a one-on-one knowledge check.
+                switch (classification) {
+                    case "oldchat_ai":
+                        console.log(`- Building OLDCHAT_AI prompt for continuing conversation`);
+                        systemPrompt = `You are a strict but friendly teacher evaluating a Grade ${grade} student's understanding of ${subject}, Chapter: ${chapterTitle}.
 
-✅ Behavior & Flow:
-1. Ask the question naturally:
-Present the Question as if you're speaking to the student in a conversational, teacher-like tone.
+You must:
+1. FIRST evaluate the student's previous answer:
+   Previous Question: ${previousQuestion || "Unknown"}
+   Student's Answer: ${previousUserAnswer || "No answer provided"}
 
-Add a short leading sentence to transition into the question, e.g.:
+   Provide a score in this format: Score: x/${totalMarks}
+   Follow with a brief explanation of what was correct/incorrect.
 
-"Let's move on to the next one."
+2. IMMEDIATELY ask the next question:
+   ${question} (${totalMarks} marks)
 
-"Alright, here comes your next question."
+Keep your tone teacher-like but friendly. Don't ask if they want to continue - immediately present the next question after scoring the previous one.
 
-"Think carefully and answer this:"
+If the student asks to stop or finish, acknowledge their request and summarize their progress so far.`;
+                        break;
+                        
+                    case "newchat_ai":
+                        console.log(`- Building NEWCHAT_AI prompt for starting new conversation`);
+                        systemPrompt = `You are a strict but friendly teacher conducting a knowledge check for a Grade ${grade} student in ${subject}, Chapter: ${chapterTitle}.
 
-Then follow with:
+You must:
+1. Begin with a brief greeting introducing yourself as their teacher for this chapter.
+2. Immediately ask the first question without additional explanation:
+   ${question} (${totalMarks} marks)
 
-${question} (${totalMarks} marks)
-🚫 Do not paraphrase or reword the question itself.
-✅ Make the lead-in sound like a real teacher speaking.
-🙊 Don't offer hints unless asked.
+Keep your greeting brief and focus on presenting the question clearly. Do not explain concepts before asking the question.
 
-2. When the student answers:
-Evaluate based on:
+Your tone should be teacher-like - clear, direct, and slightly formal but friendly.`;
+                        break;
+                        
+                    case "closureChat_ai":
+                        console.log(`- Building CLOSURECHAT_AI prompt for ending conversation`);
+                        // Get detailed stats for closure
+                        let statsForClosure = null;
+                        try {
+                            statsForClosure = await QnALists.getChapterStatsForClosure(userId, chapterId);
+                            console.log(`- Retrieved chapter statistics for closure: ${JSON.stringify(statsForClosure)}`);
+                        } catch (statsErr) {
+                            console.error(`- Error fetching chapter statistics: ${statsErr.message}`);
+                        }
+                        
+                        systemPrompt = `You are a strict but friendly teacher concluding a knowledge check for a Grade ${grade} student in ${subject}, Chapter: ${chapterTitle}.
 
-Accuracy
+The student has indicated they want to end the assessment. You must:
+1. Acknowledge their decision to end the assessment positively
+2. Provide a summary of their performance based on these statistics:
+   - Total questions answered: ${statsForClosure ? statsForClosure.answeredQuestions : 'Unknown'} 
+   - Total marks earned: ${statsForClosure ? statsForClosure.earnedMarks : 'Unknown'} out of ${statsForClosure ? statsForClosure.totalMarks : 'Unknown'} possible
+   - Percentage score: ${statsForClosure ? Math.round(statsForClosure.percentage) : 'Unknown'}%
+   - Correct answers: ${statsForClosure ? statsForClosure.correctAnswers : 'Unknown'} 
+   - Partially correct: ${statsForClosure ? statsForClosure.partialAnswers : 'Unknown'}
+   - Incorrect answers: ${statsForClosure ? statsForClosure.incorrectAnswers : 'Unknown'}
+   ${statsForClosure && statsForClosure.timeSpentMinutes > 0 ? `- Time spent: approximately ${statsForClosure.timeSpentMinutes} minutes` : ''}
 
-Relevance
+3. Give them targeted feedback based on their performance:
+   ${statsForClosure && statsForClosure.percentage >= 85 ? 
+     '- Their performance was excellent, congratulate them and encourage them to continue advancing' : 
+     statsForClosure && statsForClosure.percentage >= 70 ? 
+     '- Their performance was good, acknowledge their understanding while suggesting areas to review' :
+     statsForClosure && statsForClosure.percentage >= 50 ? 
+     '- Their performance was satisfactory, emphasize the need for more practice and targeted review' :
+     '- They struggled with the assessment, be encouraging and suggest comprehensive review of the chapter'}
 
-Completeness
+4. End with a positive closing remark that motivates them to continue learning.
 
-Respond in this format:
-
-Score: x/${totalMarks}
-Explanation: [Clear, short explanation based on the student's answer]
-Scoring rules:
-
-Fully correct = full marks, short reinforcement
-
-Partially correct = partial marks, explain what was missing
-
-Incorrect = 0 marks, kindly give correct answer
-
-Keep tone firm but supportive. Use simple real-life examples or emojis where helpful, e.g. 🌿, 👶, 💡.
-
-3. Automatically continue:
-After scoring, immediately ask the next question (using updated Question variable).
-
-Use a natural lead-in like:
-
-"Next one."
-
-"Here's another for you."
-
-"Try this one now:"
-
-Then present the question just like before.
-
-🚫 Do not ask if the user wants to continue.
-✅ Continue automatically unless the student says "stop."
-
-4. Tone and Language:
-Speak like a real teacher: clear, confident, structured.
-
-Be encouraging but firm — you're guiding the student toward better understanding.
-
-Always respond in the same language the user is using.
-
-Explanations should be short, direct, and clear — no fluff.`;
-
-                    console.log(`- ASSESSMENT_AI prompt built (${systemPrompt.length} chars)`);
-                } else {
-                    console.log(`- Building EXPLAIN_AI prompt with teacher guidance format`);
-                    // Original prompt format for explain_ai and other classifications
-                    systemPrompt = `You are a strict yet friendly teacher who helps students by answering their doubts from a specific subject, grade, and chapter.
-
-When the user starts a conversation, greet them warmly and clearly mention the chapter. Then ask if they'd like to begin with a quick knowledge check.
+Keep your tone teacher-like - supportive, encouraging, and constructive. Focus on the learning journey rather than just the score.`;
+                        break;
+                        
+                    case "explanation_ai":
+                        console.log(`- Building EXPLANATION_AI prompt for providing explanations`);
+                        systemPrompt = `You are a strict yet friendly teacher who helps Grade ${grade} students understand concepts in ${subject}, Chapter: ${chapterTitle}.
 
 Your primary role is to:
+1. Provide clear, accurate explanations tailored to the student's grade level
+2. Use examples and analogies appropriate for the subject and grade
+3. Answer the student's questions about concepts without directly giving answers to assessment questions
+4. Keep explanations focused and structured
 
-Wait for the user to ask a doubt — do not proactively ask if they have any questions.
+If the student asks about a specific question from their assessment, help them understand the concept but do not provide direct answers.
 
-Once a doubt is answered, gently redirect the conversation by asking if they'd like to do a quick knowledge check now.
+After explaining, gently suggest they continue with their knowledge check when ready.
 
-Keep explanations accurate, focused, and suited to the grade level.
+Maintain a supportive, educational tone throughout your response.`;
+                        break;
+                        
+                    default:
+                        // Fallback to explanation_ai if classification is not recognized
+                        console.log(`- Unrecognized classification "${classification}", defaulting to EXPLANATION_AI prompt`);
+                        systemPrompt = `You are a strict yet friendly teacher who helps Grade ${grade} students understand concepts in ${subject}, Chapter: ${chapterTitle}.
 
-Maintain a friendly but structured tone — you're supportive, but expect focus and discipline.
+Your primary role is to:
+1. Provide clear, accurate explanations tailored to the student's grade level
+2. Use examples and analogies appropriate for the subject and grade
+3. Answer the student's questions about concepts without directly giving answers to assessment questions
+4. Keep explanations focused and structured
 
-If the user strays off-topic, kindly bring them back to the subject and chapter.
+If the student asks about a specific question from their assessment, help them understand the concept but do not provide direct answers.
 
-Initial Message Example:
-"Hi there! We're Chapter: ${chapterTitle}. Would you like to start with a quick knowledge check?"`;
+After explaining, gently suggest they continue with their knowledge check when ready.
 
-                    console.log(`- EXPLAIN_AI prompt built (${systemPrompt.length} chars)`);
+Maintain a supportive, educational tone throughout your response.`;
                 }
                 
                 // Add formatting instructions to whichever prompt was chosen
@@ -427,51 +484,42 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
 6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
 
-                // Log the complete system prompt with the question - ensure classification is defined
-                const promptType = classification ? classification.toUpperCase() : "DEFAULT";
-                console.log(`- Final prompt type: ${promptType}`);
+                // Log the complete system prompt with the question
+                console.log(`- Final prompt type: ${classification.toUpperCase()}`);
                 
                 // Store the current question for scoring purposes
                 currentQuestion = questionPrompt;
             } else {
-                console.log(`- Building default prompt (no questions available)`);
+                console.log(`- Building default explanation prompt (no questions available)`);
                 // Default prompt when no question is available
                 const grade = bookGrade || "appropriate grade";
                 const subject = bookSubject || "general";
                 
                 // Use a simplified explain_ai prompt without specific question references
-                systemPrompt = `You are a strict yet friendly teacher who helps students by answering their doubts from a specific subject, grade, and chapter.
-
-When the user starts a conversation, greet them warmly and clearly mention the chapter. Then ask if they'd like to begin with a quick knowledge check.
+                systemPrompt = `You are a strict yet friendly teacher who helps Grade ${grade} students understand concepts in ${subject}, Chapter: ${chapterTitle}.
 
 Your primary role is to:
-
-Wait for the user to ask a doubt — do not proactively ask if they have any questions.
-
-Once a doubt is answered, gently redirect the conversation by asking if they'd like to do a quick knowledge check now.
-
-Keep explanations accurate, focused, and suited to the grade level.
+1. Provide clear, accurate explanations tailored to the student's grade level
+2. Use examples and analogies appropriate for the subject and grade
+3. Keep explanations focused and structured
 
 Maintain a friendly but structured tone — you're supportive, but expect focus and discipline.
 
-If the user strays off-topic, kindly bring them back to the subject and chapter.
-
-Initial Message Example:
-"Hi there! We're Chapter: ${chapterTitle}. Would you like to start with a quick knowledge check?"`;
+If the student strays off-topic, kindly bring them back to the subject and chapter.`;
 
                 // Add formatting instructions
                 console.log(`- Adding formatting instructions`);
-        systemPrompt += `
-        
-        IMPORTANT FORMATTING INSTRUCTIONS:
-        1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
-        2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
-        3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
+                systemPrompt += `
+
+IMPORTANT FORMATTING INSTRUCTIONS:
+1. Do NOT use LaTeX formatting for mathematical expressions. Use plain text for all math.
+2. Do NOT use special syntax like \\text, \\frac, or other LaTeX commands.
+3. Do NOT put units in parentheses. Instead of writing (10 m/s), write 10 m/s.
 4. Format mathematical operations and expressions simply.
-        5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
-        6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
-        
-                console.log(`- DEFAULT prompt built (${systemPrompt.length} chars)`);
+5. Use standard characters for exponents where possible (e.g., m/s², km², etc.).
+6. Keep all mathematical expressions simple and readable, using plain text formatting only.`;
+                
+                console.log(`- DEFAULT explanation prompt built (${systemPrompt.length} chars)`);
             }
             
             console.log(`STEP 8: Preparing OpenAI request`);
@@ -559,12 +607,12 @@ Initial Message Example:
             console.log(`- Chat saved successfully`);
 
             // If this was a question being answered and question mode is enabled, mark it as answered
-            if (questionModeEnabled && currentQuestion && classification === "assessment_ai") {
-                console.log(`STEP 12: Updating question status (assessment_ai mode)`);
+            if (questionModeEnabled && currentQuestion && (classification === "oldchat_ai" || classification === "newchat_ai")) {
+                console.log(`STEP 12: Updating question status (${classification} mode)`);
                 console.log(`- Question Update Diagnostics:`);
                 console.log(`- questionModeEnabled: ${questionModeEnabled}`);
                 console.log(`- currentQuestion exists: ${!!currentQuestion}`);
-                console.log(`- classification is assessment_ai: ${classification === "assessment_ai"}`);
+                console.log(`- classification is chat mode: ${classification === "oldchat_ai" || classification === "newchat_ai"}`);
                 if (currentQuestion) {
                     console.log(`- Current question Q: ${currentQuestion.Q}`);
                     console.log(`- Current question ID: ${currentQuestion.questionId}`);
@@ -572,33 +620,38 @@ Initial Message Example:
                 }
                 
                 try {
-                    // Extract marks awarded from AI response
+                    // Extract marks awarded from AI response - only for oldchat_ai which includes scoring
                     let marksAwarded = 0;
                     const maxMarks = currentQuestion.question_marks || 1;
                     
-                    // Look for Score: pattern in the response
-                    const marksMatch = botMessage.match(/Score:\s*(\d+)\/(\d+)/i);
-                    if (marksMatch && marksMatch.length >= 3) {
-                        marksAwarded = parseInt(marksMatch[1], 10);
-                        console.log(`- AI awarded ${marksAwarded} out of ${maxMarks} marks (explicitly)`);
-                    } else {
-                        // If no Score pattern found, default to 0 marks
-                        marksAwarded = 0;
-                        console.log(`- No score pattern found, defaulting to ${marksAwarded} marks`);
+                    if (classification === "oldchat_ai") {
+                        // Look for Score: pattern in the response for oldchat_ai
+                        const marksMatch = botMessage.match(/Score:\s*(\d+)\/(\d+)/i);
+                        if (marksMatch && marksMatch.length >= 3) {
+                            marksAwarded = parseInt(marksMatch[1], 10);
+                            console.log(`- AI awarded ${marksAwarded} out of ${maxMarks} marks (explicitly)`);
+                        } else {
+                            // If no Score pattern found, default to 0 marks
+                            marksAwarded = 0;
+                            console.log(`- No score pattern found, defaulting to ${marksAwarded} marks`);
+                        }
+                        
+                        // Save the answer in QnALists for oldchat_ai
+                        await QnALists.recordAnswer({
+                            studentId: userId,
+                            bookId: bookId || chapter.bookId,
+                            chapterId: chapterId,
+                            questionId: currentQuestion.questionId,
+                            questionMarks: maxMarks,
+                            score: marksAwarded,
+                            answerText: message // The user's answer to the question
+                        });
+                        
+                        console.log(`- Recorded answer for question #${currentQuestion.Q} with ${marksAwarded}/${maxMarks} marks`);
+                    } else if (classification === "newchat_ai") {
+                        // For newchat_ai, we're just asking a question, not scoring an answer
+                        console.log(`- No score recorded (newchat_ai is presenting a question, not scoring an answer)`);
                     }
-                    
-                    // Save the answer in QnALists
-                    await QnALists.recordAnswer({
-                        studentId: userId,
-                        bookId: bookId || chapter.bookId,
-                        chapterId: chapterId,
-                        questionId: currentQuestion.questionId,
-                        questionMarks: maxMarks,
-                        score: marksAwarded,
-                        answerText: message // The user's answer to the question
-                    });
-                    
-                    console.log(`- Recorded answer for question #${currentQuestion.Q} with ${marksAwarded}/${maxMarks} marks`);
                 } catch (err) {
                     console.error("- Error updating question status:", err);
                     // Continue without failing the request
@@ -607,8 +660,8 @@ Initial Message Example:
                 console.log(`- Question update skipped - diagnostics:`);
                 console.log(`- questionModeEnabled: ${questionModeEnabled}`);
                 console.log(`- currentQuestion exists: ${!!currentQuestion}`);
-                console.log(`- classification is assessment_ai: ${classification === "assessment_ai"}`);
-                console.log(`- Skipping question update (not assessment_ai or no question available)`);
+                console.log(`- classification is chat mode: ${classification === "oldchat_ai" || classification === "newchat_ai"}`);
+                console.log(`- Skipping question update (not chat mode or no question available)`);
             }
 
             console.log(`STEP 13: Sending response to user`);

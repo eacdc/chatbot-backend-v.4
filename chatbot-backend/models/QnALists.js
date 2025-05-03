@@ -138,4 +138,50 @@ qnaListsSchema.statics.getChapterStats = async function(studentId, chapterId) {
   };
 };
 
+// Static method to get detailed chapter statistics for closure
+qnaListsSchema.statics.getChapterStatsForClosure = async function(studentId, chapterId) {
+  // First get the basic stats
+  const basicStats = await this.getChapterStats(studentId, chapterId);
+  
+  // Get all answered questions with details
+  const answeredQuestions = await this.find({
+    studentId,
+    chapterId,
+    status: 1
+  }).sort({ attemptedAt: 1 });
+  
+  // Calculate additional metrics
+  const totalAnswered = answeredQuestions.length;
+  const correctAnswers = answeredQuestions.filter(q => q.score >= q.questionMarks * 0.7).length;
+  const partialAnswers = answeredQuestions.filter(q => q.score > 0 && q.score < q.questionMarks * 0.7).length;
+  const incorrectAnswers = answeredQuestions.filter(q => q.score === 0).length;
+  
+  // Calculate percentages
+  const correctPercentage = totalAnswered > 0 ? (correctAnswers / totalAnswered) * 100 : 0;
+  const partialPercentage = totalAnswered > 0 ? (partialAnswers / totalAnswered) * 100 : 0;
+  const incorrectPercentage = totalAnswered > 0 ? (incorrectAnswers / totalAnswered) * 100 : 0;
+  
+  // Get time spent (from first to last answer)
+  let timeSpentMinutes = 0;
+  if (answeredQuestions.length > 1) {
+    const firstAttempt = new Date(answeredQuestions[0].attemptedAt);
+    const lastAttempt = new Date(answeredQuestions[answeredQuestions.length - 1].attemptedAt);
+    timeSpentMinutes = Math.round((lastAttempt - firstAttempt) / 60000); // Convert to minutes
+  }
+  
+  // Return detailed stats
+  return {
+    ...basicStats,
+    correctAnswers,
+    partialAnswers,
+    incorrectAnswers,
+    correctPercentage,
+    partialPercentage,
+    incorrectPercentage,
+    timeSpentMinutes,
+    lastAttemptedAt: answeredQuestions.length > 0 ? answeredQuestions[answeredQuestions.length - 1].attemptedAt : null,
+    firstAttemptedAt: answeredQuestions.length > 0 ? answeredQuestions[0].attemptedAt : null
+  };
+};
+
 module.exports = mongoose.model("QnALists", qnaListsSchema); 
