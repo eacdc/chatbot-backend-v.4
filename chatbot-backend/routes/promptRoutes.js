@@ -163,7 +163,8 @@ router.post("/chapters/:chapterId/process-questions", authenticateAdmin, async (
     }
 
     // Process the batch text into structured question objects
-    const questions = processQuestionBatch(batchText);
+    // Pass the chapter ID so it can be used in the questionId generation
+    const questions = processQuestionBatch(batchText, chapterId);
     
     if (!questions || questions.length === 0) {
       return res.status(400).json({ error: "No valid questions found in the batch" });

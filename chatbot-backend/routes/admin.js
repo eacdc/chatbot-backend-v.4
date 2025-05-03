@@ -37,8 +37,9 @@ router.post("/chapters/:chapterId/process-questions", authenticateAdmin, async (
         
         // Validate the required fields
         if (questionObj.Q !== undefined && questionObj.question) {
-          // Add default values for missing fields
+          // Add default values for missing fields and generate a unique questionId
           questions.push({
+            questionId: questionObj.questionId || `QID-${chapter._id}-${i}-${Date.now()}`,
             Q: questionObj.Q,
             question: questionObj.question,
             question_answered: questionObj.question_answered || false,

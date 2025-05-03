@@ -62,7 +62,8 @@ async function migrateChapters() {
                   parsedPrompt[0].question !== undefined) {
                 
                 // Set the questionPrompt array
-                chapter.questionPrompt = parsedPrompt.map(item => ({
+                chapter.questionPrompt = parsedPrompt.map((item, index) => ({
+                  questionId: item.questionId || `QID-${chapter._id}-${index}-${Date.now()}`,
                   Q: item.Q,
                   question: item.question,
                   question_answered: item.question_answered || false,

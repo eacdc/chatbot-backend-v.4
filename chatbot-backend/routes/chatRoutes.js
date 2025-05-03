@@ -219,7 +219,7 @@ Return only the agent name: "explain_ai" or "assessment_ai". Do not include any 
             let classification = "explain_ai"; // Default classification
             try {
                 const intentAnalysis = await openaiSelector.chat.completions.create({
-                    model: "gpt-3.5-turbo",  // Using GPT-3.5 for agent selection (widely available)
+                    model: "gpt-4o",  // Using GPT-3.5 for agent selection (widely available)
                     messages: intentAnalysisMessages,
                     temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
                 });
@@ -868,6 +868,7 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
             // Reset question status in the questions array
             const resetQuestions = questions.map(q => ({
                 ...q,
+                questionId: q.questionId || `QID-${chapterId}-${q.Q}-${Date.now()}`,
                 question_answered: false,
                 marks_gained: 0
             }));

@@ -11,9 +11,10 @@ const path = require('path');
 /**
  * Process raw batch text input into a structured question array
  * @param {string} batchText - Raw text containing JSON objects (one per line)
+ * @param {string} chapterId - ID of the chapter these questions belong to
  * @returns {Array} - Array of question objects
  */
-function processQuestionBatch(batchText) {
+function processQuestionBatch(batchText, chapterId = null) {
   console.log("Processing batch question input...");
   
   // Split the input by newlines and filter out empty lines
@@ -35,8 +36,13 @@ function processQuestionBatch(batchText) {
         return;
       }
       
+      // Create a unique ID if none exists
+      const timestamp = Date.now();
+      const uniqueId = `QID-${chapterId || 'BATCH'}-${index}-${timestamp}`;
+      
       // Ensure all required properties exist with defaults if missing
       const processedQuestion = {
+        questionId: questionObj.questionId || uniqueId,
         Q: questionObj.Q,
         question: questionObj.question,
         question_answered: questionObj.question_answered || false,

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const questionSchema = new mongoose.Schema({
+  questionId: { type: String, unique: true }, // Unique ID for each question
   Q: { type: Number, required: true },
   question: { type: String, required: true },
   question_answered: { type: Boolean, default: false },
@@ -61,8 +62,9 @@ chapterSchema.pre("save", async function (next) {
         
         console.log(`Successfully parsed question array format in prompt with ${parsedPrompt.length} questions`);
         
-        // Make sure each question has the required fields with proper types
-        const formattedQuestions = parsedPrompt.map(q => ({
+        // Make sure each question has the required fields with proper types and a unique questionId
+        const formattedQuestions = parsedPrompt.map((q, index) => ({
+          questionId: q.questionId || `QID-${this._id || new mongoose.Types.ObjectId()}-${index}-${Date.now()}`,
           Q: q.Q,
           question: q.question,
           question_answered: Boolean(q.question_answered || false),
@@ -100,6 +102,7 @@ chapterSchema.pre("save", async function (next) {
                 // Validate and add with proper types
                 if (questionObj.Q !== undefined && questionObj.question) {
                   structuredQuestions.push({
+                    questionId: questionObj.questionId || `QID-${this._id || new mongoose.Types.ObjectId()}-${index}-${Date.now()}`,
                     Q: questionObj.Q,
                     question: questionObj.question,
                     question_answered: Boolean(questionObj.question_answered || false),
@@ -123,6 +126,16 @@ chapterSchema.pre("save", async function (next) {
         console.error("Regex extraction attempt failed:", regexError.message);
       }
     }
+  }
+
+  // Ensure all questions in questionPrompt have a questionId if manually set
+  if (this.questionPrompt && Array.isArray(this.questionPrompt)) {
+    this.questionPrompt = this.questionPrompt.map((q, index) => {
+      if (!q.questionId) {
+        q.questionId = `QID-${this._id || new mongoose.Types.ObjectId()}-${index}-${Date.now()}`;
+      }
+      return q;
+    });
   }
 
   next();
