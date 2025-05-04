@@ -311,6 +311,59 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
+  // Function to clean response messages (remove LaTeX formatting)
+  const cleanMessageContent = (content) => {
+    if (!content) return '';
+    
+    // Replace LaTeX formulas with more readable versions
+    let cleanedContent = content
+      // Replace \text{...} with just the text inside
+      .replace(/\\text\{([^}]+)\}/g, '$1')
+      
+      // Replace \frac{a}{b} with a/b
+      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+      
+      // Replace [ ... ] LaTeX display math mode with italicized content
+      .replace(/\[\s*([^\]]+)\s*\]/g, '*$1*')
+      
+      // Other LaTeX commands to clean up
+      .replace(/\\cdot/g, '·')
+      .replace(/\\times/g, '×')
+      .replace(/\\div/g, '÷')
+      .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
+      .replace(/\\mathbf\{([^}]+)\}/g, '**$1**')
+      .replace(/\\mathit\{([^}]+)\}/g, '*$1*')
+      .replace(/\\mathbb\{([^}]+)\}/g, '$1')
+      .replace(/\\mathrm\{([^}]+)\}/g, '$1')
+      
+      // More complex LaTeX expressions - convert to simpler notation
+      .replace(/\\begin\{equation\}([\s\S]*?)\\end\{equation\}/g, '\n\n$1\n\n')
+      .replace(/\\begin\{align\}([\s\S]*?)\\end\{align\}/g, '\n\n$1\n\n')
+      .replace(/\\left/g, '')
+      .replace(/\\right/g, '')
+      
+      // Common LaTeX symbols
+      .replace(/\\alpha/g, 'α')
+      .replace(/\\beta/g, 'β')
+      .replace(/\\gamma/g, 'γ')
+      .replace(/\\delta/g, 'δ')
+      .replace(/\\epsilon/g, 'ε')
+      .replace(/\\theta/g, 'θ')
+      .replace(/\\lambda/g, 'λ')
+      .replace(/\\omega/g, 'ω')
+      .replace(/\\pi/g, 'π')
+      .replace(/\\sigma/g, 'σ')
+      .replace(/\\sum/g, '∑')
+      .replace(/\\infty/g, '∞')
+      .replace(/\\neq/g, '≠')
+      .replace(/\\approx/g, '≈')
+      .replace(/\\geq/g, '≥')
+      .replace(/\\leq/g, '≤');
+      
+    return cleanedContent;
+  };
+
+  // Update the handleSendMessage function to clean AI responses
   const handleSendMessage = async () => {
     if (!message.trim()) return;
     
@@ -346,10 +399,13 @@ export default function ChatbotLayout({ children }) {
       
       // Check for the message field in the response - that's the new structure
       if (response.data && response.data.message) {
+        // Clean up the message content to handle LaTeX formatting
+        const cleanedContent = cleanMessageContent(response.data.message);
+        
         // Force state update to ensure UI refreshes
         const aiResponse = { 
           role: "assistant", 
-          content: response.data.message 
+          content: cleanedContent
         };
         setChatHistory(prevHistory => [...prevHistory, aiResponse]);
         
@@ -359,7 +415,7 @@ export default function ChatbotLayout({ children }) {
             // Only add if not already added (prevent duplicates)
             if (!prevHistory.some(msg => 
                 msg.role === "assistant" && 
-                msg.content === response.data.message &&
+                msg.content === cleanedContent &&
                 prevHistory.indexOf(msg) === prevHistory.length - 1)) {
               return [...prevHistory, aiResponse];
             }
@@ -369,9 +425,12 @@ export default function ChatbotLayout({ children }) {
       } 
       // Fallback for legacy response format
       else if (response.data && response.data.response) {
+        // Clean up the message content to handle LaTeX formatting
+        const cleanedContent = cleanMessageContent(response.data.response);
+        
         const aiResponse = { 
           role: "assistant", 
-          content: response.data.response 
+          content: cleanedContent 
         };
         setChatHistory(prevHistory => [...prevHistory, aiResponse]);
       }
@@ -389,6 +448,34 @@ export default function ChatbotLayout({ children }) {
       if (chatEndRef && chatEndRef.current) {
         chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
       }
+    }
+  };
+
+  // Update the Let's Start button to use the cleanMessageContent function
+  const processStartTestResponse = (response) => {
+    console.log("Start Test response:", response.data);
+                                
+    // Check for message field in response (new format)
+    if (response.data && response.data.message) {
+      // Clean up the message content
+      const cleanedContent = cleanMessageContent(response.data.message);
+      
+      const aiResponse = { 
+        role: "assistant", 
+        content: cleanedContent 
+      };
+      setChatHistory(prevHistory => [...prevHistory, aiResponse]);
+    }
+    // Fallback for legacy response format
+    else if (response.data && response.data.response) {
+      // Clean up the message content
+      const cleanedContent = cleanMessageContent(response.data.response);
+      
+      const aiResponse = { 
+        role: "assistant", 
+        content: cleanedContent 
+      };
+      setChatHistory(prevHistory => [...prevHistory, aiResponse]);
     }
   };
 
@@ -520,9 +607,22 @@ export default function ChatbotLayout({ children }) {
       
       // Add AI response to chat history
       if (response.data && response.data.response) {
+        // Clean up the message content to handle LaTeX formatting
+        const cleanedContent = cleanMessageContent(response.data.response);
+        
         setChatHistory([...updatedChat, { 
           role: "assistant", 
-          content: response.data.response 
+          content: cleanedContent
+        }]);
+      }
+      else if (response.data && response.data.message) {
+        // Clean up the message content to handle LaTeX formatting
+        const cleanedContent = cleanMessageContent(response.data.message);
+        
+        setChatHistory([...updatedChat, { 
+          role: "assistant",
+
+          content: cleanedContent
         }]);
       }
     } catch (error) {
@@ -1489,37 +1589,7 @@ export default function ChatbotLayout({ children }) {
                                   'Authorization': `Bearer ${getToken()}`
                                 }
                               }).then(response => {
-                                console.log("Start Test response:", response.data);
-                                
-                                // Check for message field in response (new format)
-                                if (response.data && response.data.message) {
-                                  const aiResponse = { 
-                                    role: "assistant", 
-                                    content: response.data.message 
-                                  };
-                                  setChatHistory(prevHistory => [...prevHistory, aiResponse]);
-                                  
-                                  // Backup approach to ensure state updates properly
-                                  setTimeout(() => {
-                                    setChatHistory(prevHistory => {
-                                      if (!prevHistory.some(msg => 
-                                          msg.role === "assistant" && 
-                                          msg.content === response.data.message &&
-                                          prevHistory.indexOf(msg) === prevHistory.length - 1)) {
-                                        return [...prevHistory, aiResponse];
-                                      }
-                                      return prevHistory;
-                                    });
-                                  }, 100);
-                                }
-                                // Fallback for legacy response format
-                                else if (response.data && response.data.response) {
-                                  const aiResponse = { 
-                                    role: "assistant", 
-                                    content: response.data.response 
-                                  };
-                                  setChatHistory(prevHistory => [...prevHistory, aiResponse]);
-                                }
+                                processStartTestResponse(response);
                                 
                                 // Scroll to bottom of chat
                                 setTimeout(() => {
