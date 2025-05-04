@@ -11,7 +11,31 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow all origins
+    callback(null, true);
+  },
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization", "user-id", "x-requested-with"]
+}));
+
+// Add CORS headers to all responses as a backup
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, user-id");
+  if (req.method === 'OPTIONS') {
+    // Pre-flight request, respond immediately with 200
+    return res.status(200).end();
+  }
+  next();
+});
+
+// Handle OPTIONS preflight requests
+app.options('*', cors());
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
