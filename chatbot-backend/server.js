@@ -22,19 +22,30 @@ app.use(compression()); // Use compression for all responses
 // ✅ Improved CORS
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://chatbot-frontend-v-4.onrender.com",
-      "https://chatbot-backend-v-4-1.onrender.com",
-      "https://www.testyourlearning.com",
-      "https://testyourlearning.com",
-      process.env.FRONTEND_URL || "http://localhost:3000"
-    ].filter(Boolean),
+    origin: function(origin, callback) {
+      // Allow all origins
+      callback(null, true);
+    },
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "user-id", "x-requested-with"]
   })
 );
+
+// Add CORS headers to all responses as a backup
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, user-id");
+  if (req.method === 'OPTIONS') {
+    // Pre-flight request, respond immediately with 200
+    return res.status(200).end();
+  }
+  next();
+});
+
+// Handle OPTIONS preflight requests
+app.options('*', cors());
 
 // ✅ Debug Middleware (Logs API requests)
 app.use((req, res, next) => {
@@ -42,9 +53,6 @@ app.use((req, res, next) => {
   if (Object.keys(req.body).length) console.log("Request Body:", req.body);
   next();
 });
-
-// Handle OPTIONS preflight requests
-app.options('*', cors());
 
 // ✅ Import Routes
 // Add back routes one by one
