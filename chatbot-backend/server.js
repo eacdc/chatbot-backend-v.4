@@ -56,7 +56,14 @@ const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const bookCoversRoutes = require("./routes/bookcovers");
+
+// Optional routes - check if file exists first
+let bookCoversRoutes;
+try {
+  bookCoversRoutes = require("./routes/bookcovers");
+} catch (error) {
+  console.log("Note: bookcovers routes not found, skipping");
+}
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -93,7 +100,11 @@ app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/bookcovers", bookCoversRoutes);
+
+// Only add bookcovers route if it exists
+if (bookCoversRoutes) {
+  app.use("/api/bookcovers", bookCoversRoutes);
+}
 
 // Add root route handler back
 app.get("/", (req, res) => {
