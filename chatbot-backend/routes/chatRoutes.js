@@ -336,7 +336,7 @@ Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "ex
                 // Add formatting instructions
                 systemPrompt += `\n\nPlease format your response using Markdown for clarity. Use **bold** for important points, *italics* for emphasis, and - for bullet points when listing items.`;
             }
-            
+             console.log(`System Prompt ${systemPrompt}`);
             // Prepare the messages to send to OpenAI
             let messagesForOpenAI = [];
             if (!Array.isArray(messagesForOpenAI)) {
