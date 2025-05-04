@@ -1499,8 +1499,9 @@ export default function ChatbotLayout({ children }) {
                               // Send "Let's Start" message when button is clicked
                               const newMessage = { role: "user", content: "Let's Start" };
                               setChatHistory([...chatHistory, newMessage]);
+                              setIsProcessing(true);
                               
-                              // Then call handleSendMessage with this content
+                              // Then call API directly with this content
                               axios.post(`${API_ENDPOINTS.CHAT}/send`, {
                                 message: "Let's Start",
                                 userId: getUserId(),
@@ -1510,27 +1511,62 @@ export default function ChatbotLayout({ children }) {
                                   'Authorization': `Bearer ${getToken()}`
                                 }
                               }).then(response => {
-                                if (response.data && response.data.response) {
-                                  setChatHistory(prev => [...prev, { 
+                                console.log("Start Test response:", response.data);
+                                
+                                // Check for message field in response (new format)
+                                if (response.data && response.data.message) {
+                                  const aiResponse = { 
+                                    role: "assistant", 
+                                    content: response.data.message 
+                                  };
+                                  setChatHistory(prevHistory => [...prevHistory, aiResponse]);
+                                  
+                                  // Backup approach to ensure state updates properly
+                                  setTimeout(() => {
+                                    setChatHistory(prevHistory => {
+                                      if (!prevHistory.some(msg => 
+                                          msg.role === "assistant" && 
+                                          msg.content === response.data.message &&
+                                          prevHistory.indexOf(msg) === prevHistory.length - 1)) {
+                                        return [...prevHistory, aiResponse];
+                                      }
+                                      return prevHistory;
+                                    });
+                                  }, 100);
+                                }
+                                // Fallback for legacy response format
+                                else if (response.data && response.data.response) {
+                                  const aiResponse = { 
                                     role: "assistant", 
                                     content: response.data.response 
-                                  }]);
+                                  };
+                                  setChatHistory(prevHistory => [...prevHistory, aiResponse]);
                                 }
+                                
+                                // Scroll to bottom of chat
+                                setTimeout(() => {
+                                  if (chatEndRef && chatEndRef.current) {
+                                    chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                                  }
+                                }, 200);
                               }).catch(error => {
                                 console.error("Error sending initial message:", error);
                                 setChatHistory(prev => [...prev, { 
                                   role: "system", 
                                   content: "Failed to start test. Please try again." 
                                 }]);
+                              }).finally(() => {
+                                setIsProcessing(false);
                               });
                             }}
                             className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 flex items-center"
+                            disabled={isProcessing}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3-2a1 1 0 000-1.664z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            Start Test
+                            {isProcessing ? "Starting..." : "Start Test"}
                           </button>
                         </div>
                       )}
