@@ -728,9 +728,18 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             // Also record in QnALists
             try {
                 console.log(`Recording answer for question ${questionId} in QnALists`);
+                
+                // Get the chapter to get the bookId
+                const chapter = await Chapter.findById(chapterId);
+                const chapterBookId = chapter ? chapter.bookId : null;
+                
+                if (!chapterBookId) {
+                    console.error(`Cannot find bookId for chapter ${chapterId}`);
+                }
+                
                 await QnALists.recordAnswer({
                     studentId: userId,
-                    bookId: null, // Will be filled in later
+                    bookId: chapterBookId, // Use the bookId from the chapter
                     chapterId: chapterId,
                     questionId: questionId,
                     questionMarks: maxMarks,
@@ -739,6 +748,7 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                 });
             } catch (qnaError) {
                 console.error("Error recording answer in QnALists:", qnaError);
+                console.error("Error details:", qnaError.message);
                 // Continue execution despite QnALists error
             }
         }
