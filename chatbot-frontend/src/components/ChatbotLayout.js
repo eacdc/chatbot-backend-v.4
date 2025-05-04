@@ -342,6 +342,7 @@ export default function ChatbotLayout({ children }) {
       });
       
       // Add AI response to chat history
+      console.log("AI response:", response.data);
       if (response.data && response.data.response) {
         setChatHistory(prev => [...prev, { 
           role: "assistant", 

@@ -363,13 +363,12 @@ Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "ex
             const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
                 try {
                     // Attempt the request
-                    const response = await openai.chat.completions.create({
-                        model: "deepseek-chat", // For DeepSeek API we use this model
+                    const response = await openaiSelector.chat.completions.create({
+                        model: "gpt-4o", // For DeepSeek API we use this model
                         messages: messagesForOpenAI,
-                        temperature: 0.7,
-                        max_tokens: 1000,
-                        frequency_penalty: 0.2,
-                        presence_penalty: 0.6,
+                        temperature: 0.25,
+                        max_tokens: 1000
+                      
                     });
                     
                     return response;
@@ -408,7 +407,7 @@ Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "ex
             await chat.save();
             
             // If in question mode and we have a question, check for updating question status
-            if (questionModeEnabled && currentQuestion && (classification === "oldchat_ai" || classification === "newchat_ai")) {
+            if (questionModeEnabled && currentQuestion && (classification === "oldchat_ai")) {
                 // Process the bot response to estimate if the user's answer was correct
                 // and award some marks based on the response
                 
