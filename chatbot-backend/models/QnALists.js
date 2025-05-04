@@ -1,5 +1,35 @@
 const mongoose = require("mongoose");
 
+const qnaDetailSchema = new mongoose.Schema({
+  questionId: { 
+    type: String, 
+    required: true
+  },
+  questionMarks: { 
+    type: Number, 
+    required: true,
+    default: 1 
+  },
+  score: { 
+    type: Number, 
+    required: true,
+    default: 0 
+  },
+  status: { 
+    type: Number, 
+    enum: [0, 1], // 0 = not answered, 1 = answered
+    default: 0
+  },
+  answerText: {
+    type: String,
+    default: ""
+  },
+  attemptedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { timestamps: true });
+
 const qnaListsSchema = new mongoose.Schema(
   {
     studentId: { 
@@ -19,48 +49,21 @@ const qnaListsSchema = new mongoose.Schema(
       required: true,
       index: true 
     },
-    questionId: { 
-      type: String, 
-      required: true,
-      index: true 
-    },
-    questionMarks: { 
-      type: Number, 
-      required: true,
-      default: 1 
-    },
-    score: { 
-      type: Number, 
-      required: true,
-      default: 0 
-    },
-    status: { 
-      type: Number, 
-      enum: [0, 1], // 0 = not answered, 1 = answered
-      default: 0
-    },
-    answerText: {
-      type: String,
-      default: ""
-    },
-    attemptedAt: {
-      type: Date,
-      default: Date.now
-    }
+    qnaDetails: [qnaDetailSchema]
   },
   { timestamps: true }
 );
 
 // Create compound index for more efficient lookups
-qnaListsSchema.index({ studentId: 1, chapterId: 1, questionId: 1 }, { unique: true });
+qnaListsSchema.index({ studentId: 1, chapterId: 1 });
 
 // Static method to check if a question has been answered
 qnaListsSchema.statics.isQuestionAnswered = async function(studentId, chapterId, questionId) {
   const record = await this.findOne({ 
     studentId,
     chapterId,
-    questionId,
-    status: 1
+    "qnaDetails.questionId": questionId,
+    "qnaDetails.status": 1
   });
   
   return !!record;
@@ -70,52 +73,74 @@ qnaListsSchema.statics.isQuestionAnswered = async function(studentId, chapterId,
 qnaListsSchema.statics.recordAnswer = async function(data) {
   const { studentId, bookId, chapterId, questionId, questionMarks, score, answerText } = data;
   
-  // Check if record already exists
+  // Check if student-chapter record already exists
   const existingRecord = await this.findOne({
     studentId,
-    chapterId,
-    questionId
+    chapterId
   });
   
   if (existingRecord) {
-    // Update existing record
-    existingRecord.score = score;
-    existingRecord.status = 1;
-    existingRecord.answerText = answerText || "";
-    existingRecord.attemptedAt = Date.now();
+    // Check if this specific question exists in the array
+    const questionIndex = existingRecord.qnaDetails.findIndex(q => q.questionId === questionId);
+    
+    if (questionIndex >= 0) {
+      // Update existing question detail
+      existingRecord.qnaDetails[questionIndex].score = score;
+      existingRecord.qnaDetails[questionIndex].status = 1;
+      existingRecord.qnaDetails[questionIndex].answerText = answerText || "";
+      existingRecord.qnaDetails[questionIndex].attemptedAt = Date.now();
+    } else {
+      // Add new question detail
+      existingRecord.qnaDetails.push({
+        questionId,
+        questionMarks,
+        score,
+        status: 1,
+        answerText: answerText || "",
+        attemptedAt: Date.now()
+      });
+    }
+    
     return existingRecord.save();
   } else {
-    // Create new record
+    // Create new record with the first question detail
     return this.create({
       studentId,
       bookId,
       chapterId,
-      questionId,
-      questionMarks,
-      score,
-      status: 1,
-      answerText: answerText || ""
+      qnaDetails: [{
+        questionId,
+        questionMarks,
+        score,
+        status: 1,
+        answerText: answerText || "",
+        attemptedAt: Date.now()
+      }]
     });
   }
 };
 
 // Static method to get all answered questions for a chapter
 qnaListsSchema.statics.getAnsweredQuestionsForChapter = async function(studentId, chapterId) {
-  return this.find({
-    studentId,
-    chapterId,
-    status: 1
-  });
-};
-
-// Static method to get statistics for a chapter
-qnaListsSchema.statics.getChapterStats = async function(studentId, chapterId) {
-  const records = await this.find({
+  const record = await this.findOne({
     studentId,
     chapterId
   });
   
-  if (!records || records.length === 0) {
+  if (!record) return [];
+  
+  // Return only the answered questions from qnaDetails
+  return record.qnaDetails.filter(q => q.status === 1);
+};
+
+// Static method to get statistics for a chapter
+qnaListsSchema.statics.getChapterStats = async function(studentId, chapterId) {
+  const record = await this.findOne({
+    studentId,
+    chapterId
+  });
+  
+  if (!record || !record.qnaDetails || record.qnaDetails.length === 0) {
     return {
       totalQuestions: 0,
       answeredQuestions: 0,
@@ -125,12 +150,13 @@ qnaListsSchema.statics.getChapterStats = async function(studentId, chapterId) {
     };
   }
   
-  const answeredQuestions = records.filter(r => r.status === 1);
-  const totalMarks = records.reduce((sum, r) => sum + r.questionMarks, 0);
-  const earnedMarks = records.reduce((sum, r) => sum + r.score, 0);
+  const questions = record.qnaDetails;
+  const answeredQuestions = questions.filter(q => q.status === 1);
+  const totalMarks = questions.reduce((sum, q) => sum + q.questionMarks, 0);
+  const earnedMarks = questions.reduce((sum, q) => sum + q.score, 0);
   
   return {
-    totalQuestions: records.length,
+    totalQuestions: questions.length,
     answeredQuestions: answeredQuestions.length,
     totalMarks,
     earnedMarks,
@@ -143,12 +169,31 @@ qnaListsSchema.statics.getChapterStatsForClosure = async function(studentId, cha
   // First get the basic stats
   const basicStats = await this.getChapterStats(studentId, chapterId);
   
-  // Get all answered questions with details
-  const answeredQuestions = await this.find({
+  // Get all questions for this chapter
+  const record = await this.findOne({
     studentId,
-    chapterId,
-    status: 1
-  }).sort({ attemptedAt: 1 });
+    chapterId
+  });
+  
+  if (!record || !record.qnaDetails || record.qnaDetails.length === 0) {
+    return {
+      ...basicStats,
+      correctAnswers: 0,
+      partialAnswers: 0,
+      incorrectAnswers: 0,
+      correctPercentage: 0,
+      partialPercentage: 0,
+      incorrectPercentage: 0,
+      timeSpentMinutes: 0,
+      lastAttemptedAt: null,
+      firstAttemptedAt: null
+    };
+  }
+  
+  // Get answered questions and sort by attempted time
+  const answeredQuestions = record.qnaDetails
+    .filter(q => q.status === 1)
+    .sort((a, b) => new Date(a.attemptedAt) - new Date(b.attemptedAt));
   
   // Calculate additional metrics
   const totalAnswered = answeredQuestions.length;
