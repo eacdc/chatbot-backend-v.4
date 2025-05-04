@@ -47,11 +47,10 @@ app.use((req, res, next) => {
 app.options('*', cors());
 
 // ✅ Import Routes
-// Only import one route to test
-const userRoutes = require("./routes/userRoutes");
-// Temporarily comment out all other routes
+// Temporarily comment out all routes including userRoutes
 /*
 const chatRoutes = require("./routes/chatRoutes");
+const userRoutes = require("./routes/userRoutes");
 const adminRoutes = require("./routes/admin");
 const bookRoutes = require("./routes/bookRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
@@ -87,11 +86,10 @@ if (fs.existsSync(uploadsDir)) {
 }
 
 // ✅ Use Routes
-// Only use one route to test
-app.use("/api/users", userRoutes);
-// Temporarily comment out all other routes
+// Temporarily comment out all routes including userRoutes
 /*
 app.use("/api/chat", chatRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/books", bookRoutes);
 app.use("/api/chapters", chapterRoutes);
@@ -100,9 +98,9 @@ app.use("/api/prompts", promptRoutes);
 app.use("/api/notifications", notificationRoutes);
 */
 
-// Add root route handler
-app.get("/", (req, res) => {
-  res.json({ message: "Welcome to Chatbot API" });
+// Add a simple health check route
+app.get("/healthcheck", (req, res) => {
+  res.status(200).json({ status: "ok", message: "Server is running" });
 });
 
 // ✅ Fetch chapters by bookId API (Newly Added)
