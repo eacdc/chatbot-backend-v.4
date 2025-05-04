@@ -71,6 +71,9 @@ const upload = multer({
     }
 });
 
+// Add a map to track previous questions for each user-chapter pair
+const previousQuestionsMap = new Map();
+
 // Send Message & Get AI Response with Question Prompts
 router.post("/send", authenticateUser, async (req, res) => {
     try {
@@ -86,6 +89,7 @@ router.post("/send", authenticateUser, async (req, res) => {
         // Handle chapter-specific chats
         let chat;
         let currentQuestion = null;
+        let previousQuestion = null;
         let currentScore = null;
         let previousMessages = [];
         let bookGrade = null;
@@ -93,10 +97,17 @@ router.post("/send", authenticateUser, async (req, res) => {
         let bookId = null;
         let chapterTitle = "General Chapter";
         
-        chat = await Chat.findOne({ userId, chapterId });
-        
         // Initialize classification with a default value
         let classification = "explanation_ai"; // Default classification
+        
+        // Check if there's a previous question for this user-chapter combination
+        const userChapterKey = `${userId}-${chapterId}`;
+        if (previousQuestionsMap.has(userChapterKey)) {
+            previousQuestion = previousQuestionsMap.get(userChapterKey);
+            console.log(`Found previous question for ${userChapterKey}: ${previousQuestion.question ? previousQuestion.question.substring(0, 30) + '...' : 'No question text'}`);
+        }
+        
+        chat = await Chat.findOne({ userId, chapterId });
         
         // Get previous messages for context
         if (chat && chat.messages && chat.messages.length > 0) {
@@ -441,60 +452,67 @@ Return only the JSON object. Do not include anything else.`,
             
             await chat.save();
             
-            // If in question mode and we have a question, check for updating question status
-            if (questionModeEnabled && currentQuestion && (classification === "oldchat_ai")) {
-                // Process the bot response to estimate if the user's answer was correct
-                // and award some marks based on the response
-                
-                // Extract score from assistant message when using oldchat_ai agent
-                let marksAwarded = 0;
-                const maxScore = currentScore || 1;
-                
-                // Look for score patterns like "Score: 3/5" or "You earned 4 out of 5 points" in the bot message
-                const scorePattern = /(?:score|earned|awarded|get|receive|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i;
-                const scoreMatch = botMessage.match(scorePattern);
-                
-                if (scoreMatch && scoreMatch.length >= 3) {
-                    // Extract score from the matched pattern (first group is awarded, second is max)
-                    const extractedScore = parseFloat(scoreMatch[1]);
-                    marksAwarded = extractedScore;
-                    console.log(`Extracted score from message: ${marksAwarded}/${maxScore}`);
-                } else {
-                    // Fallback to the old method of approximate marking if score not explicitly found
-                    const positiveResponse = botMessage.toLowerCase().match(/\b(correct|right|well done|good job|excellent|perfect|spot on|exactly|accurate|yes|indeed)\b/);
-                    const partialResponse = botMessage.toLowerCase().match(/\b(partially|almost|close|not quite|incomplete|partly|somewhat|nearly|approaching)\b/);
-                    const negativeResponse = botMessage.toLowerCase().match(/\b(incorrect|wrong|not right|mistake|error|no,|afraid not|unfortunately|not correct|not accurate)\b/);
+            // If in question mode and classification is oldchat_ai, process scores and update questions
+            if (questionModeEnabled && (classification === "oldchat_ai")) {
+                // Check if we have a valid previous question to record the answer for
+                if (previousQuestion) {
+                    // Extract score from assistant message
+                    let marksAwarded = 0;
+                    const maxScore = previousQuestion.question_marks || 1;
                     
-                    if (positiveResponse) {
-                        // Award full marks for positive responses
-                        marksAwarded = maxScore;
-                    } else if (partialResponse) {
-                        // Award partial marks for partially correct answers
-                        marksAwarded = maxScore / 2;
-                    } else if (negativeResponse) {
-                        // No marks for negative responses
-                        marksAwarded = 0;
+                    // Look for score patterns like "Score: 3/5" or "You earned 4 out of 5 points" in the bot message
+                    const scorePattern = /(?:score|earned|awarded|get|receive|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i;
+                    const scoreMatch = botMessage.match(scorePattern);
+                    
+                    if (scoreMatch && scoreMatch.length >= 3) {
+                        // Extract score from the matched pattern (first group is awarded, second is max)
+                        const extractedScore = parseFloat(scoreMatch[1]);
+                        marksAwarded = extractedScore;
+                        console.log(`Extracted score from message: ${marksAwarded}/${maxScore}`);
                     } else {
-                        // If we can't determine, award partial marks
-                        marksAwarded = maxScore / 3;
+                        // Fallback to the old method of approximate marking if score not explicitly found
+                        const positiveResponse = botMessage.toLowerCase().match(/\b(correct|right|well done|good job|excellent|perfect|spot on|exactly|accurate|yes|indeed)\b/);
+                        const partialResponse = botMessage.toLowerCase().match(/\b(partially|almost|close|not quite|incomplete|partly|somewhat|nearly|approaching)\b/);
+                        const negativeResponse = botMessage.toLowerCase().match(/\b(incorrect|wrong|not right|mistake|error|no,|afraid not|unfortunately|not correct|not accurate)\b/);
+                        
+                        if (positiveResponse) {
+                            // Award full marks for positive responses
+                            marksAwarded = maxScore;
+                        } else if (partialResponse) {
+                            // Award partial marks for partially correct answers
+                            marksAwarded = maxScore / 2;
+                        } else if (negativeResponse) {
+                            // No marks for negative responses
+                            marksAwarded = 0;
+                        } else {
+                            // If we can't determine, award partial marks
+                            marksAwarded = maxScore / 3;
+                        }
+                        console.log(`Estimated score from message patterns: ${marksAwarded}/${maxScore}`);
                     }
-                    console.log(`Estimated score from message patterns: ${marksAwarded}/${maxScore}`);
+                    
+                    try {
+                        // Record the answer for the PREVIOUS question with the user's current message as the answer
+                        await markQuestionAsAnswered(
+                            userId, 
+                            chapterId, 
+                            previousQuestion.questionId, 
+                            marksAwarded, 
+                            maxScore,
+                            previousQuestion.question || "", // Use previous question text
+                            message // Current message is the answer to the previous question
+                        );
+                        
+                        console.log(`Recorded answer for previous question: ${previousQuestion.questionId}`);
+                    } catch (markError) {
+                        console.error("Error marking question as answered:", markError);
+                    }
                 }
                 
-                try {
-                    // Record the answer in the database with question text and user's answer
-                    await markQuestionAsAnswered(
-                        userId, 
-                        chapterId, 
-                        currentQuestion.questionId, 
-                        marksAwarded, 
-                        maxScore,
-                        currentQuestion.question || "", // Pass question text
-                        message // Pass user's answer (current message)
-                    );
-                } catch (markError) {
-                    console.error("Error marking question as answered:", markError);
-                    // Don't fail the request if marking fails, just log the error
+                // Store current question as the previous question for next time
+                if (currentQuestion) {
+                    previousQuestionsMap.set(userChapterKey, currentQuestion);
+                    console.log(`Set current question as previous for next time: ${currentQuestion.questionId}`);
                 }
             }
             
@@ -503,7 +521,8 @@ Return only the JSON object. Do not include anything else.`,
                 message: botMessage,
                 questionId: currentQuestion ? currentQuestion.questionId : null,
                 fullQuestion: currentQuestion,
-                agentType: classification
+                agentType: classification,
+                previousQuestionId: previousQuestion ? previousQuestion.questionId : null
             });
         } catch (chapterError) {
             console.error("Error fetching chapter:", chapterError);
