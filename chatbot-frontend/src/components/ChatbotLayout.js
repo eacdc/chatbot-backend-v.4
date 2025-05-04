@@ -906,7 +906,7 @@ export default function ChatbotLayout({ children }) {
   useEffect(() => {
     // Preload the background image
     const img = new Image();
-    img.src = "/images/chat-background.jpg";
+    img.src = `${process.env.PUBLIC_URL}/images/chat-background.jpg`;
     img.onload = () => {
       console.log('Background image successfully loaded');
     };
@@ -917,7 +917,7 @@ export default function ChatbotLayout({ children }) {
 
   // Inline styles for background patterns - with fallback to gradient
   const chatBackgroundStyle = {
-    backgroundImage: `url('/images/chat-background.jpg')`,
+    backgroundImage: `url('${process.env.PUBLIC_URL}/images/chat-background.jpg')`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
@@ -1414,14 +1414,7 @@ export default function ChatbotLayout({ children }) {
           {activeChapter ? (
             <div 
               className="flex-1 flex flex-col overflow-hidden" 
-              style={{
-                backgroundImage: `url('/images/chat-background.jpg')`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
-                position: 'relative',
-                zIndex: 0
-              }}
+              style={chatBackgroundStyle}
             >
               {/* Semi-transparent overlay */}
               <div style={overlayStyle}></div>
