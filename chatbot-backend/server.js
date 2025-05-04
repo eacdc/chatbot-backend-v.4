@@ -47,14 +47,16 @@ app.use((req, res, next) => {
 app.options('*', cors());
 
 // ✅ Import Routes
-const chatRoutes = require("./routes/chatRoutes");
+// Add back routes one by one
 const userRoutes = require("./routes/userRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const bookRoutes = require("./routes/bookRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const promptRoutes = require("./routes/promptRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const bookCoversRoutes = require("./routes/bookcovers");
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -82,19 +84,25 @@ if (fs.existsSync(uploadsDir)) {
     .forEach(dirent => console.log(`- ${dirent.name}`));
 }
 
-// ✅ Use Routes
-app.use("/api/chat", chatRoutes);
+// Add routes one by one
 app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/books", bookRoutes);
 app.use("/api/chapters", chapterRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/prompts", promptRoutes);
+app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/bookcovers", bookCoversRoutes);
 
-// Add root route handler
+// Add root route handler back
 app.get("/", (req, res) => {
   res.json({ message: "Welcome to Chatbot API" });
+});
+
+// Add a simple health check route
+app.get("/healthcheck", (req, res) => {
+  res.status(200).json({ status: "ok", message: "Server is running" });
 });
 
 // ✅ Fetch chapters by bookId API (Newly Added)

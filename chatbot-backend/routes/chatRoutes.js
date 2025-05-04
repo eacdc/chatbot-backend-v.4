@@ -773,3 +773,6 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
         throw error;
     }
 }
+
+// Add the missing export statement
+module.exports = router;
