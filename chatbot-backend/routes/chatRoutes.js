@@ -95,6 +95,9 @@ router.post("/send", authenticateUser, async (req, res) => {
         
         chat = await Chat.findOne({ userId, chapterId });
         
+        // Initialize classification with a default value
+        let classification = "explanation_ai"; // Default classification
+        
         // Get previous messages for context
         if (chat && chat.messages && chat.messages.length > 0) {
             if (classification === "explanation_ai") {
@@ -190,7 +193,6 @@ Return only the JSON object. Do not include anything else.`,
             intentAnalysisMessages.push({ role: "user", content: message });
 
             // Call OpenAI to get the agent classification
-            let classification = "explanation_ai"; // Default classification
             try {
                 const intentAnalysis = await openaiSelector.chat.completions.create({
                     model: "gpt-4o",
@@ -199,9 +201,9 @@ Return only the JSON object. Do not include anything else.`,
                 });
 
                 // Extract the classification
-               const responseContent = intentAnalysis.choices[0].message.content.trim();
-  const result = JSON.parse(responseContent);
-  classification = result.agent;
+                const responseContent = intentAnalysis.choices[0].message.content.trim();
+                const result = JSON.parse(responseContent);
+                classification = result.agent;
                 
                 // Log the selected agent
                 console.log(`Selected agent: "${classification}"`);
@@ -792,7 +794,7 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                 
                 await QnALists.recordAnswer({
                     studentId: userId,
-                    bookId: chapterBookId, // Use the bookId from the chapter
+                    bookId: chapterBookId,
                     chapterId: chapterId,
                     questionId: questionId,
                     questionMarks: maxMarks,
