@@ -47,15 +47,18 @@ app.use((req, res, next) => {
 app.options('*', cors());
 
 // ✅ Import Routes
-const chatRoutes = require("./routes/chatRoutes");
+// Only import one route to test
 const userRoutes = require("./routes/userRoutes");
+// Temporarily comment out all other routes
+/*
+const chatRoutes = require("./routes/chatRoutes");
 const adminRoutes = require("./routes/admin");
 const bookRoutes = require("./routes/bookRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const promptRoutes = require("./routes/promptRoutes");
-// Temporary comment out notification routes to debug deployment
-// const notificationRoutes = require("./routes/notificationRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+*/
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -84,15 +87,18 @@ if (fs.existsSync(uploadsDir)) {
 }
 
 // ✅ Use Routes
-app.use("/api/chat", chatRoutes);
+// Only use one route to test
 app.use("/api/users", userRoutes);
+// Temporarily comment out all other routes
+/*
+app.use("/api/chat", chatRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/books", bookRoutes);
 app.use("/api/chapters", chapterRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/prompts", promptRoutes);
-// Temporary comment out notification routes to debug deployment
-// app.use("/api/notifications", notificationRoutes);
+app.use("/api/notifications", notificationRoutes);
+*/
 
 // Add root route handler
 app.get("/", (req, res) => {
