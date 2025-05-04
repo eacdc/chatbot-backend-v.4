@@ -343,11 +343,37 @@ export default function ChatbotLayout({ children }) {
       
       // Add AI response to chat history
       console.log("AI response:", response.data);
-      if (response.data && response.data.response) {
-        setChatHistory(prev => [...prev, { 
+      
+      // Check for the message field in the response - that's the new structure
+      if (response.data && response.data.message) {
+        // Force state update to ensure UI refreshes
+        const aiResponse = { 
+          role: "assistant", 
+          content: response.data.message 
+        };
+        setChatHistory(prevHistory => [...prevHistory, aiResponse]);
+        
+        // Backup approach to ensure state updates properly
+        setTimeout(() => {
+          setChatHistory(prevHistory => {
+            // Only add if not already added (prevent duplicates)
+            if (!prevHistory.some(msg => 
+                msg.role === "assistant" && 
+                msg.content === response.data.message &&
+                prevHistory.indexOf(msg) === prevHistory.length - 1)) {
+              return [...prevHistory, aiResponse];
+            }
+            return prevHistory;
+          });
+        }, 100);
+      } 
+      // Fallback for legacy response format
+      else if (response.data && response.data.response) {
+        const aiResponse = { 
           role: "assistant", 
           content: response.data.response 
-        }]);
+        };
+        setChatHistory(prevHistory => [...prevHistory, aiResponse]);
       }
     } catch (error) {
       console.error("Error sending message:", error);
@@ -358,6 +384,11 @@ export default function ChatbotLayout({ children }) {
     } finally {
       // Set processing state back to false
       setIsProcessing(false);
+      
+      // Scroll to the bottom of chat after updating
+      if (chatEndRef && chatEndRef.current) {
+        chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   };
 
