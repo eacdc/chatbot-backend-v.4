@@ -47,13 +47,13 @@ app.use((req, res, next) => {
 app.options('*', cors());
 
 // ✅ Import Routes
-// Add back userRoutes and adminRoutes
+// Add back routes one by one
 const userRoutes = require("./routes/userRoutes");
 const adminRoutes = require("./routes/admin");
+const bookRoutes = require("./routes/bookRoutes");
 // Temporarily comment out all other routes
 /*
 const chatRoutes = require("./routes/chatRoutes");
-const bookRoutes = require("./routes/bookRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const promptRoutes = require("./routes/promptRoutes");
@@ -89,11 +89,11 @@ if (fs.existsSync(uploadsDir)) {
 // Add routes one by one
 app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
+app.use("/api/books", bookRoutes);
 
 // Temporarily comment out all other routes
 /*
 app.use("/api/chat", chatRoutes);
-app.use("/api/books", bookRoutes);
 app.use("/api/chapters", chapterRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/prompts", promptRoutes);
