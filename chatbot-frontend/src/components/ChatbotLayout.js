@@ -1410,17 +1410,14 @@ export default function ChatbotLayout({ children }) {
         </aside>
         
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {activeChapter ? (
-            <div 
-              className="flex-1 flex flex-col overflow-hidden" 
-              style={chatBackgroundStyle}
-            >
-              {/* Semi-transparent overlay */}
-              <div style={overlayStyle}></div>
+        <div className="flex-1 flex flex-col overflow-hidden" style={chatBackgroundStyle}>
+          {/* Semi-transparent overlay applies to all screens */}
+          <div style={overlayStyle}></div>
 
+          {activeChapter ? (
+            <div className="flex-1 flex flex-col overflow-hidden relative z-10">
               {/* Current chapter indicator */}
-              <div className="relative z-10">
+              <div className="relative">
                 <div className="bg-white bg-opacity-90 text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
                   <div>
                     <span className="text-xs font-medium uppercase tracking-wider text-blue-500">Active Chapter</span>
@@ -1437,7 +1434,7 @@ export default function ChatbotLayout({ children }) {
               
               {/* Chat Messages Area - Only shown when activeChapter is selected */}
               <div 
-                className="flex-1 overflow-y-auto p-4 sm:p-6 relative z-10"
+                className="flex-1 overflow-y-auto p-4 sm:p-6"
                 ref={chatContainerRef}
               >
                 <div className="flex flex-col space-y-4">
@@ -1656,12 +1653,14 @@ export default function ChatbotLayout({ children }) {
             </div>
           ) : (
             /* Display SubscribedBooksView when no chapter is selected */
-            <SubscribedBooksView 
-              subscribedBooks={subscribedBooks}
-              onSelectChapter={handleChapterSelect}
-              fetchChapters={fetchBookChaptersData}
-              loading={loading}
-            />
+            <div className="flex-1 overflow-hidden relative z-10">
+              <SubscribedBooksView 
+                subscribedBooks={subscribedBooks}
+                onSelectChapter={handleChapterSelect}
+                fetchChapters={fetchBookChaptersData}
+                loading={loading}
+              />
+            </div>
           )}
         </div>
       </div>

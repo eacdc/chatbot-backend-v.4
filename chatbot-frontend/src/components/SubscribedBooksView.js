@@ -164,13 +164,13 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
 
   return (
     <div className="h-full flex flex-col">
-      <div className="bg-gradient-to-b from-blue-50 to-gray-50 px-6 py-4 border-b border-gray-200">
+      <div className="bg-white bg-opacity-90 px-6 py-4 border-b border-gray-200 shadow-sm">
         <h1 className="text-xl font-bold text-gray-900">My Subscribed Books</h1>
         <p className="text-sm text-gray-600 mt-1">Select a book to view its chapters and start testing</p>
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 flex-1">
+        <div className="flex flex-col items-center justify-center py-20 flex-1 bg-white bg-opacity-75">
           <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600"></div>
           <p className="mt-4 text-gray-600 font-medium">Loading your books...</p>
         </div>
