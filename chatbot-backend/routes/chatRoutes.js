@@ -136,40 +136,43 @@ router.post("/send", authenticateUser, async (req, res) => {
             const lastThreeMessages = previousMessages.slice(-6).filter(msg => msg.role === 'user' || msg.role === 'assistant').slice(-6);
             
             // Create messages array for the classifier with chat history
-            const intentAnalysisMessages = [
-                {
-                    role: "system",
-                    content: `You are an AI that classifies user messages to determine which agent should handle them.
+           const intentAnalysisMessages = [
+  {
+    role: "system",
+    content: `You are an AI that classifies user messages into exactly one of the following four categories:
 
-Classify the user message into one of these four categories:
+- "oldchat_ai"
+- "newchat_ai"
+- "closureChat_ai"
+- "explanation_ai"
 
-1. "oldchat_ai" - Select when:
-   - The conversation is ongoing (not the first message like "Hi" or "Hello")
-   - The user is answering questions from a chapter assessment
-   - The user is continuing a knowledge check
-   - The user provides an answer to a previously asked question
-   
-2. "newchat_ai" - Select when:
-   - This is the first message in a conversation (like "Hi" or "Hello")
-   - The user wants to start a new knowledge check
-   - The user indicates they're ready to begin (words like "let's start", "begin", "ready")
-   - No previous questions have been asked in this session
+Your job is to read the user’s latest message and the recent chat history, and classify the intent into one of these categories.
 
-3. "closureChat_ai" - Select when:
-   - The user explicitly wants to end the knowledge check/test
-   - The user asks about their score or results
-   - The user indicates they want to finish or stop the assessment
-   - The user types things like "finish", "end", "stop", "I'm done", "that's all"
+Respond only with a JSON object like this:
+{ "agent": "oldchat_ai" }
 
-4. "explanation_ai" - Select when:
-   - The user asks for explanations or clarifications about concepts
-   - The user needs help understanding a topic
-   - The user is asking about subject matter rather than answering questions
-   - The message is not an answer to a question but a request for information
+Rules:
+1. "oldchat_ai":
+   - Ongoing conversation (not a greeting)
+   - User is continuing a knowledge check or answering a question
 
-Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "explanation_ai". Do not include any additional text or explanation.`
-                }
-            ];
+2. "newchat_ai":
+   - First message, like "Hi", "Hello"
+   - User says they are ready to begin
+   - No previous question in session
+
+3. "closureChat_ai":
+   - User wants to stop, see score, or end assessment
+   - Says: "finish", "stop", "done", "end", "that's all"
+
+4. "explanation_ai":
+   - Asking for explanation or clarification
+   - Not an answer, but a question about the topic
+   - General doubt or concept help
+
+Return only the JSON object. Do not include anything else.`,
+  },
+];
             
             // Add chat history
             lastThreeMessages.forEach(msg => {
@@ -189,7 +192,9 @@ Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "ex
                 });
 
                 // Extract the classification
-                classification = intentAnalysis.choices[0].message.content.trim();
+               const responseContent = intentAnalysis.choices[0].message.content.trim();
+  const result = JSON.parse(responseContent);
+  classification = result.agent;
                 
                 // Log the selected agent
                 console.log(`Selected agent: "${classification}"`);
