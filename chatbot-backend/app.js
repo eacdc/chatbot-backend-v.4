@@ -27,13 +27,13 @@ mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI)
 const chatRoutes = require("./routes/chatRoutes");
 const authRoutes = require("./routes/authRoutes");
 const promptRoutes = require("./routes/promptRoutes");
-const adminRoutes = require("./routes/admin");
+const adminRoutes = require("./routes/adminRoutes");
 
 // Use routes
 app.use("/api/chat", chatRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/prompts", promptRoutes);
-app.use("/api/admin", adminRoutes);
+app.use("/api/admins", adminRoutes);
 
 // Serve static files if in production
 if (process.env.NODE_ENV === 'production') {
