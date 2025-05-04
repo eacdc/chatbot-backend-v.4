@@ -396,7 +396,7 @@ Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "ex
             
             // Extract the bot message
             const botMessage = openaiResponse.choices[0].message.content;
-            
+            console.log(`Bot reply ${botMessage}`);
             // Save the message to chat history
             chat.messages.push({ role: "user", content: message });
             chat.messages.push({ role: "assistant", content: botMessage });
