@@ -53,10 +53,10 @@ const adminRoutes = require("./routes/admin");
 const bookRoutes = require("./routes/bookRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const promptRoutes = require("./routes/promptRoutes");
 // Temporarily comment out all other routes
 /*
 const chatRoutes = require("./routes/chatRoutes");
-const promptRoutes = require("./routes/promptRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 */
 
@@ -92,11 +92,11 @@ app.use("/api/admins", adminRoutes);
 app.use("/api/books", bookRoutes);
 app.use("/api/chapters", chapterRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
+app.use("/api/prompts", promptRoutes);
 
 // Temporarily comment out all other routes
 /*
 app.use("/api/chat", chatRoutes);
-app.use("/api/prompts", promptRoutes);
 app.use("/api/notifications", notificationRoutes);
 */
 
