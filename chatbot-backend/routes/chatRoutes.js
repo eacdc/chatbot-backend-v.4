@@ -146,7 +146,7 @@ router.post("/send", authenticateUser, async (req, res) => {
 - "closureChat_ai"
 - "explanation_ai"
 
-Your job is to read the user’s latest message and the recent chat history, and classify the intent into one of these categories.
+Your job is to read the user's latest message and the recent chat history, and classify the intent into one of these categories.
 
 Respond only with a JSON object like this:
 { "agent": "oldchat_ai" }
@@ -402,9 +402,21 @@ Return only the JSON object. Do not include anything else.`,
             // Extract the bot message
             const botMessage = openaiResponse.choices[0].message.content;
             console.log(`Bot reply ${botMessage}`);
-            // Save the message to chat history
+            
+            // Save the message to chat history, managing history based on agent type
             chat.messages.push({ role: "user", content: message });
-            chat.messages.push({ role: "assistant", content: botMessage });
+            
+            // For explanation_ai agent, keep full history. For all other agents, keep only the latest assistant message
+            if (classification === "explanation_ai") {
+                // Save the full message history for explanation agent
+                chat.messages.push({ role: "assistant", content: botMessage });
+            } else {
+                // For all other agents, remove previous assistant messages and keep only the latest
+                // First, filter out assistant messages
+                chat.messages = chat.messages.filter(msg => msg.role !== "assistant");
+                // Then add the current assistant message
+                chat.messages.push({ role: "assistant", content: botMessage });
+            }
             
             // Update the lastActive timestamp
             chat.lastActive = Date.now();
@@ -738,153 +750,4 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                 const chapterBookId = chapter ? chapter.bookId : null;
                 
                 if (!chapterBookId) {
-                    console.error(`Cannot find bookId for chapter ${chapterId}`);
-                }
-                
-                await QnALists.recordAnswer({
-                    studentId: userId,
-                    bookId: chapterBookId, // Use the bookId from the chapter
-                    chapterId: chapterId,
-                    questionId: questionId,
-                    questionMarks: maxMarks,
-                    score: marksAwarded,
-                    answerText: ""
-                });
-            } catch (qnaError) {
-                console.error("Error recording answer in QnALists:", qnaError);
-                console.error("Error details:", qnaError.message);
-                // Continue execution despite QnALists error
-            }
-        }
-        
-        await chat.save();
-        return chat;
-    } catch (error) {
-        console.error("Error marking question as answered:", error);
-        // Log more detailed error information
-        console.error(`Details - userId: ${userId}, chapterId: ${chapterId}, questionId: ${questionId}`);
-        return null;
-    }
-}
-
-// Check if a question has been answered by this user
-async function hasUserAnsweredQuestion(userId, chapterId, questionId) {
-    try {
-        return await QnALists.isQuestionAnswered(userId, chapterId, questionId);
-    } catch (error) {
-        console.error("Error checking if question was answered:", error);
-        return false;
-    }
-}
-
-// Get all questions for a chapter with their answer status
-router.get("/questions/:chapterId", authenticateUser, async (req, res) => {
-    try {
-        // Check if question mode is enabled
-        const questionModeEnabled = await isQuestionModeEnabled();
-        if (!questionModeEnabled) {
-            return res.status(400).json({ 
-                error: "Question mode is disabled. Enable it in system configuration to use this feature."
-            });
-        }
-        
-        const { chapterId } = req.params;
-        
-        // console.log removed;
-        
-        const chapter = await Chapter.findById(chapterId);
-        
-        if (!chapter) {
-            return res.status(404).json({ error: "Chapter not found" });
-        }
-        
-        if (!chapter.questionPrompt || chapter.questionPrompt.length === 0) {
-            return res.json({ 
-                chapterId,
-                title: chapter.title,
-                hasQuestions: false,
-                questions: []
-            });
-        }
-        
-        res.json({ 
-            chapterId,
-            title: chapter.title,
-            hasQuestions: true,
-            questions: chapter.questionPrompt
-        });
-        
-    } catch (error) {
-        console.error("Error fetching chapter questions:", error);
-        res.status(500).json({ error: "Failed to fetch chapter questions" });
-    }
-});
-
-// Get statistics for a chapter (replacing the Score endpoint)
-router.get("/chapter-stats/:userId/:chapterId", authenticateUser, async (req, res) => {
-    try {
-        const { userId, chapterId } = req.params;
-        
-        // Ensure the user can only access their own stats
-        if (req.user.userId !== userId) {
-            return res.status(403).json({ error: "Unauthorized: You can only access your own statistics" });
-        }
-        
-        // console.log removed;
-        
-        // Fetch the chapter to get all questions
-        const chapter = await Chapter.findById(chapterId);
-        if (!chapter) {
-            return res.status(404).json({ error: "Chapter not found" });
-        }
-        
-        // Get statistics from QnALists
-        const stats = await QnALists.getChapterStats(userId, chapterId);
-        
-        // Get book details
-        try {
-            const book = await Book.findById(chapter.bookId);
-            stats.bookTitle = book ? book.title : "Unknown Book";
-            stats.bookGrade = book ? book.grade : null;
-            stats.bookSubject = book ? book.subject : null;
-        } catch (bookErr) {
-            console.error("Error fetching book details:", bookErr);
-        }
-        
-        // Add chapter details
-        stats.chapterTitle = chapter.title;
-        stats.totalQuestionsInChapter = chapter.questionPrompt ? chapter.questionPrompt.length : 0;
-        
-        res.json(stats);
-    } catch (error) {
-        console.error("Error fetching chapter statistics:", error);
-        res.status(500).json({ error: "Failed to fetch statistics" });
-    }
-});
-
-// Get all answers for a user across all chapters
-router.get("/answers/:userId", authenticateUser, async (req, res) => {
-    try {
-        const { userId } = req.params;
-        
-        // Ensure the user can only access their own answers
-        if (req.user.userId !== userId) {
-            return res.status(403).json({ error: "Unauthorized: You can only access your own answers" });
-        }
-        
-        // console.log removed;
-        
-        // Find all QnALists entries for this user
-        const answers = await QnALists.find({ studentId: userId, status: 1 })
-            .populate('bookId', 'title grade subject')
-            .populate('chapterId', 'title')
-            .sort({ attemptedAt: -1 });
-        
-        res.json(answers);
-    } catch (error) {
-        console.error("Error fetching user answers:", error);
-        res.status(500).json({ error: "Failed to fetch answers" });
-    }
-});
-
-module.exports = router;
+                    console.error(`
