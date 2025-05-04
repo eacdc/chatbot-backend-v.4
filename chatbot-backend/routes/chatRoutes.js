@@ -750,4 +750,26 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                 const chapterBookId = chapter ? chapter.bookId : null;
                 
                 if (!chapterBookId) {
-                    console.error(`
+                    console.error(`Cannot find bookId for chapter ${chapterId}`);
+                }
+                
+                await QnALists.recordAnswer({
+                    studentId: userId,
+                    bookId: chapterBookId, // Use the bookId from the chapter
+                    chapterId: chapterId,
+                    questionId: questionId,
+                    questionMarks: maxMarks,
+                    score: marksAwarded,
+                    answerText: ""
+                });
+            } catch (qnaError) {
+                console.error("Error recording answer in QnALists:", qnaError);
+            }
+        }
+        
+        await chat.save();
+    } catch (error) {
+        console.error("Error marking question as answered:", error);
+        throw error;
+    }
+}
