@@ -51,10 +51,10 @@ app.options('*', cors());
 const userRoutes = require("./routes/userRoutes");
 const adminRoutes = require("./routes/admin");
 const bookRoutes = require("./routes/bookRoutes");
+const chapterRoutes = require("./routes/chapterRoutes");
 // Temporarily comment out all other routes
 /*
 const chatRoutes = require("./routes/chatRoutes");
-const chapterRoutes = require("./routes/chapterRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
@@ -90,11 +90,11 @@ if (fs.existsSync(uploadsDir)) {
 app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/books", bookRoutes);
+app.use("/api/chapters", chapterRoutes);
 
 // Temporarily comment out all other routes
 /*
 app.use("/api/chat", chatRoutes);
-app.use("/api/chapters", chapterRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/notifications", notificationRoutes);
