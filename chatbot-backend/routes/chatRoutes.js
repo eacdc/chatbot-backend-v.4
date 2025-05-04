@@ -97,8 +97,15 @@ router.post("/send", authenticateUser, async (req, res) => {
         
         // Get previous messages for context
         if (chat && chat.messages && chat.messages.length > 0) {
-            // Get last 6 messages or all if less than 6
-            previousMessages = chat.messages.slice(-6);
+            if (classification === "explanation_ai") {
+                // For explanation agent, use more context - last 6 messages
+                previousMessages = chat.messages.slice(-6);
+            } else {
+                // For other agents, use limited context - last 2 assistant + 1 user message
+                const assistantMessages = chat.messages.filter(msg => msg.role === "assistant").slice(-2);
+                const userMessages = chat.messages.filter(msg => msg.role === "user").slice(-1);
+                previousMessages = [...assistantMessages, ...userMessages];
+            }
         }
         
         if (!chat) {
@@ -406,15 +413,24 @@ Return only the JSON object. Do not include anything else.`,
             // Save the message to chat history, managing history based on agent type
             chat.messages.push({ role: "user", content: message });
             
-            // For explanation_ai agent, keep full history. For all other agents, keep only the latest assistant message
+            // For explanation_ai agent, keep full history. For all other agents, keep limited history
             if (classification === "explanation_ai") {
                 // Save the full message history for explanation agent
                 chat.messages.push({ role: "assistant", content: botMessage });
             } else {
-                // For all other agents, remove previous assistant messages and keep only the latest
-                // First, filter out assistant messages
-                chat.messages = chat.messages.filter(msg => msg.role !== "assistant");
-                // Then add the current assistant message
+                // For all other agents, keep only last 2 assistant messages and 1 user message
+                // First, get all assistant messages
+                const assistantMessages = chat.messages.filter(msg => msg.role === "assistant");
+                // Get the last user message (which we just added)
+                const lastUserMessage = chat.messages.filter(msg => msg.role === "user").slice(-1);
+                
+                // Keep only the last 2 assistant messages (if they exist)
+                const lastTwoAssistantMessages = assistantMessages.slice(-2);
+                
+                // Rebuild the messages array with limited history
+                chat.messages = [...lastTwoAssistantMessages, ...lastUserMessage];
+                
+                // Add the current assistant message
                 chat.messages.push({ role: "assistant", content: botMessage });
             }
             
