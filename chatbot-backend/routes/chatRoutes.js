@@ -439,6 +439,7 @@ Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "ex
                     await markQuestionAsAnswered(userId, chapterId, currentQuestion.questionId, marksAwarded, currentScore);
                 } catch (markError) {
                     console.error("Error marking question as answered:", markError);
+                    // Don't fail the request if marking fails, just log the error
                 }
             }
             
@@ -451,11 +452,19 @@ Return only the agent name: "oldchat_ai", "newchat_ai", "closureChat_ai", or "ex
             });
         } catch (chapterError) {
             console.error("Error fetching chapter:", chapterError);
-            return res.status(500).json({ error: "Error fetching chapter details" });
+            if (chapterError.name === 'CastError') {
+                console.error(`Invalid chapterId format: ${chapterId}`);
+                return res.status(400).json({ error: "Invalid chapter ID format" });
+            }
+            return res.status(500).json({ error: "Error fetching chapter details", details: chapterError.message });
         }
     } catch (error) {
         console.error("Error processing message:", error);
-        return res.status(500).json({ error: "Error processing message" });
+        console.error("Request details:", { userId, chapterId });
+        return res.status(500).json({ 
+            error: "Error processing message", 
+            details: error.message || "Unknown error"
+        });
     }
 });
 
@@ -716,25 +725,30 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             chat.metadata.totalMarks = (chat.metadata.totalMarks || 0) + maxMarks;
             chat.metadata.earnedMarks = (chat.metadata.earnedMarks || 0) + marksAwarded;
             
-            // console.log removed;
-            // console.log removed;
-            
             // Also record in QnALists
-            await QnALists.recordAnswer({
-                studentId: userId,
-                bookId: null, // Will be filled in later
-                chapterId: chapterId,
-                questionId: questionId,
-                questionMarks: maxMarks,
-                score: marksAwarded,
-                answerText: ""
-            });
+            try {
+                console.log(`Recording answer for question ${questionId} in QnALists`);
+                await QnALists.recordAnswer({
+                    studentId: userId,
+                    bookId: null, // Will be filled in later
+                    chapterId: chapterId,
+                    questionId: questionId,
+                    questionMarks: maxMarks,
+                    score: marksAwarded,
+                    answerText: ""
+                });
+            } catch (qnaError) {
+                console.error("Error recording answer in QnALists:", qnaError);
+                // Continue execution despite QnALists error
+            }
         }
         
         await chat.save();
         return chat;
     } catch (error) {
         console.error("Error marking question as answered:", error);
+        // Log more detailed error information
+        console.error(`Details - userId: ${userId}, chapterId: ${chapterId}, questionId: ${questionId}`);
         return null;
     }
 }
