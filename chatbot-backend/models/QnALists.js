@@ -84,33 +84,27 @@ qnaListsSchema.statics.recordAnswer = async function(data) {
     const questionIndex = existingRecord.qnaDetails.findIndex(q => q.questionId === questionId);
     
     if (questionIndex >= 0) {
-      // Question already exists in the array
-      // Return a special response to indicate this question should be skipped
-      return {
-        success: false,
-        message: "Question already exists in student's record",
-        skipQuestion: true,
-        existingQuestionIds: existingRecord.qnaDetails.map(q => q.questionId)
-      };
+      // Question already exists - update it
+      existingRecord.qnaDetails[questionIndex].score = score;
+      existingRecord.qnaDetails[questionIndex].status = 1; // Mark as answered
+      existingRecord.qnaDetails[questionIndex].answerText = answerText || "";
+      existingRecord.qnaDetails[questionIndex].attemptedAt = Date.now();
     } else {
       // Add new question detail
       existingRecord.qnaDetails.push({
         questionId,
         questionMarks,
         score,
-        status: 1,
+        status: 1, // Mark as answered
         answerText: answerText || "",
         attemptedAt: Date.now()
       });
     }
     
-    return {
-      success: true,
-      result: await existingRecord.save()
-    };
+    return existingRecord.save();
   } else {
     // Create new record with the first question detail
-    const newRecord = await this.create({
+    return this.create({
       studentId,
       bookId,
       chapterId,
@@ -118,16 +112,11 @@ qnaListsSchema.statics.recordAnswer = async function(data) {
         questionId,
         questionMarks,
         score,
-        status: 1,
+        status: 1, // Mark as answered
         answerText: answerText || "",
         attemptedAt: Date.now()
       }]
     });
-    
-    return {
-      success: true,
-      result: newRecord
-    };
   }
 };
 
