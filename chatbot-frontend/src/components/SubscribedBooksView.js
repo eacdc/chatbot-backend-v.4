@@ -164,20 +164,20 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
 
   return (
     <div className="h-full flex flex-col">
-      <div className="bg-white bg-opacity-90 px-6 py-4 border-b border-gray-200 shadow-sm">
+      <div className="bg-white bg-opacity-95 px-6 py-4 border-b border-gray-200 shadow-sm">
         <h1 className="text-xl font-bold text-gray-900">My Subscribed Books</h1>
         <p className="text-sm text-gray-600 mt-1">Select a book to view its chapters and start testing</p>
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 flex-1 bg-white bg-opacity-75">
+        <div className="flex flex-col items-center justify-center py-20 flex-1 bg-white bg-opacity-90">
           <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600"></div>
           <p className="mt-4 text-gray-600 font-medium">Loading your books...</p>
         </div>
       ) : subscribedBooks.length > 0 ? (
         <div className="px-4 sm:px-6 py-4 sm:py-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 overflow-y-auto">
           {subscribedBooks.map((book) => (
-            <div key={book._id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100 flex flex-col min-h-[270px] sm:min-h-0">
+            <div key={book._id} className="bg-white bg-opacity-95 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100 flex flex-col min-h-[270px] sm:min-h-0">
               <div className="relative h-52 sm:h-48 overflow-hidden">
                 <img 
                   src={fixImageUrl(book.bookCoverImgLink)} 
@@ -209,7 +209,7 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center flex-1">
-          <div className="bg-white rounded-xl shadow-md border border-gray-100 p-8 max-w-md w-full">
+          <div className="bg-white bg-opacity-95 rounded-xl shadow-md border border-gray-100 p-8 max-w-md w-full">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-6">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />

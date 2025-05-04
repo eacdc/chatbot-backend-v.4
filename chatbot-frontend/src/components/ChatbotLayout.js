@@ -925,17 +925,6 @@ export default function ChatbotLayout({ children }) {
     zIndex: 0
   };
 
-  // Apply content overlay for better readability
-  const overlayStyle = {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    zIndex: 1
-  };
-
   // Add this function to fetch chapters for a book and return them
   const fetchBookChaptersData = async (bookId) => {
     const token = getToken();
@@ -1411,14 +1400,13 @@ export default function ChatbotLayout({ children }) {
         
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden" style={chatBackgroundStyle}>
-          {/* Semi-transparent overlay applies to all screens */}
-          <div style={overlayStyle}></div>
+          {/* No overlay - removed for full background visibility */}
 
           {activeChapter ? (
-            <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
               {/* Current chapter indicator */}
               <div className="relative">
-                <div className="bg-white bg-opacity-90 text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
+                <div className="bg-white bg-opacity-95 text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
                   <div>
                     <span className="text-xs font-medium uppercase tracking-wider text-blue-500">Active Chapter</span>
                     <h3 className="text-sm sm:text-base font-medium text-gray-800">{currentChapterTitle}</h3>
@@ -1564,7 +1552,7 @@ export default function ChatbotLayout({ children }) {
                       <div ref={chatEndRef} />
                     </>
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-90 rounded-xl p-8 shadow-sm">
+                    <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-95 rounded-xl p-8 shadow-sm">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                       </svg>
@@ -1578,7 +1566,7 @@ export default function ChatbotLayout({ children }) {
               </div>
               
               {/* Message Input - Only shown when activeChapter is selected */}
-              <div className="border-t border-gray-100 p-3 sm:p-4 relative z-10 bg-white">
+              <div className="border-t border-gray-100 p-3 sm:p-4 bg-white bg-opacity-95">
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
                     <input
@@ -1653,7 +1641,7 @@ export default function ChatbotLayout({ children }) {
             </div>
           ) : (
             /* Display SubscribedBooksView when no chapter is selected */
-            <div className="flex-1 overflow-hidden relative z-10">
+            <div className="flex-1 overflow-hidden relative">
               <SubscribedBooksView 
                 subscribedBooks={subscribedBooks}
                 onSelectChapter={handleChapterSelect}
