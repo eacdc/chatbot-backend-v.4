@@ -5,6 +5,10 @@ const qnaDetailSchema = new mongoose.Schema({
     type: String, 
     required: true
   },
+  questionText: {
+    type: String,
+    default: ""
+  },
   questionMarks: { 
     type: Number, 
     required: true,
@@ -71,7 +75,7 @@ qnaListsSchema.statics.isQuestionAnswered = async function(studentId, chapterId,
 
 // Static method to record a question answer
 qnaListsSchema.statics.recordAnswer = async function(data) {
-  const { studentId, bookId, chapterId, questionId, questionMarks, score, answerText } = data;
+  const { studentId, bookId, chapterId, questionId, questionMarks, score, answerText, questionText } = data;
   
   // Check if student-chapter record already exists
   const existingRecord = await this.findOne({
@@ -88,11 +92,13 @@ qnaListsSchema.statics.recordAnswer = async function(data) {
       existingRecord.qnaDetails[questionIndex].score = score;
       existingRecord.qnaDetails[questionIndex].status = 1; // Mark as answered
       existingRecord.qnaDetails[questionIndex].answerText = answerText || "";
+      existingRecord.qnaDetails[questionIndex].questionText = questionText || "";
       existingRecord.qnaDetails[questionIndex].attemptedAt = Date.now();
     } else {
       // Add new question detail
       existingRecord.qnaDetails.push({
         questionId,
+        questionText: questionText || "",
         questionMarks,
         score,
         status: 1, // Mark as answered
@@ -110,6 +116,7 @@ qnaListsSchema.statics.recordAnswer = async function(data) {
       chapterId,
       qnaDetails: [{
         questionId,
+        questionText: questionText || "",
         questionMarks,
         score,
         status: 1, // Mark as answered

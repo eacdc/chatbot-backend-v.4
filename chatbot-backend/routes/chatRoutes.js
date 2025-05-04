@@ -444,31 +444,52 @@ Return only the JSON object. Do not include anything else.`,
                 // Process the bot response to estimate if the user's answer was correct
                 // and award some marks based on the response
                 
-                // Approximate marking logic:
-                // Check if the bot response contains phrases like "correct", "right", "well done"
-                const positiveResponse = botMessage.toLowerCase().match(/\b(correct|right|well done|good job|excellent|perfect|spot on|exactly|accurate|yes|indeed)\b/);
-                const partialResponse = botMessage.toLowerCase().match(/\b(partially|almost|close|not quite|incomplete|partly|somewhat|nearly|approaching)\b/);
-                const negativeResponse = botMessage.toLowerCase().match(/\b(incorrect|wrong|not right|mistake|error|no,|afraid not|unfortunately|not correct|not accurate)\b/);
-                
+                // Extract score from assistant message when using oldchat_ai agent
                 let marksAwarded = 0;
+                const maxScore = currentScore || 1;
                 
-                if (positiveResponse) {
-                    // Award full marks for positive responses
-                    marksAwarded = currentScore;
-                } else if (partialResponse) {
-                    // Award partial marks for partially correct answers
-                    marksAwarded = currentScore / 2;
-                } else if (negativeResponse) {
-                    // No marks for negative responses
-                    marksAwarded = 0;
+                // Look for score patterns like "Score: 3/5" or "You earned 4 out of 5 points" in the bot message
+                const scorePattern = /(?:score|earned|awarded|get|receive|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i;
+                const scoreMatch = botMessage.match(scorePattern);
+                
+                if (scoreMatch && scoreMatch.length >= 3) {
+                    // Extract score from the matched pattern (first group is awarded, second is max)
+                    const extractedScore = parseFloat(scoreMatch[1]);
+                    marksAwarded = extractedScore;
+                    console.log(`Extracted score from message: ${marksAwarded}/${maxScore}`);
                 } else {
-                    // If we can't determine, award partial marks
-                    marksAwarded = currentScore / 3;
+                    // Fallback to the old method of approximate marking if score not explicitly found
+                    const positiveResponse = botMessage.toLowerCase().match(/\b(correct|right|well done|good job|excellent|perfect|spot on|exactly|accurate|yes|indeed)\b/);
+                    const partialResponse = botMessage.toLowerCase().match(/\b(partially|almost|close|not quite|incomplete|partly|somewhat|nearly|approaching)\b/);
+                    const negativeResponse = botMessage.toLowerCase().match(/\b(incorrect|wrong|not right|mistake|error|no,|afraid not|unfortunately|not correct|not accurate)\b/);
+                    
+                    if (positiveResponse) {
+                        // Award full marks for positive responses
+                        marksAwarded = maxScore;
+                    } else if (partialResponse) {
+                        // Award partial marks for partially correct answers
+                        marksAwarded = maxScore / 2;
+                    } else if (negativeResponse) {
+                        // No marks for negative responses
+                        marksAwarded = 0;
+                    } else {
+                        // If we can't determine, award partial marks
+                        marksAwarded = maxScore / 3;
+                    }
+                    console.log(`Estimated score from message patterns: ${marksAwarded}/${maxScore}`);
                 }
                 
                 try {
-                    // Record the answer in the database
-                    await markQuestionAsAnswered(userId, chapterId, currentQuestion.questionId, marksAwarded, currentScore);
+                    // Record the answer in the database with question text and user's answer
+                    await markQuestionAsAnswered(
+                        userId, 
+                        chapterId, 
+                        currentQuestion.questionId, 
+                        marksAwarded, 
+                        maxScore,
+                        currentQuestion.question || "", // Pass question text
+                        message // Pass user's answer (current message)
+                    );
                 } catch (markError) {
                     console.error("Error marking question as answered:", markError);
                     // Don't fail the request if marking fails, just log the error
@@ -718,7 +739,7 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
 
 // Store answered question in the chat document
 // Add this function to track which questions a user has answered
-async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks) {
+async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks, questionText, answerText) {
     try {
         // Find or create the chat document
         let chat = await Chat.findOne({ userId, chapterId });
@@ -776,7 +797,8 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     questionId: questionId,
                     questionMarks: maxMarks,
                     score: marksAwarded,
-                    answerText: ""
+                    answerText: answerText || "",
+                    questionText: questionText || ""
                 });
             } catch (qnaError) {
                 console.error("Error recording answer in QnALists:", qnaError);
