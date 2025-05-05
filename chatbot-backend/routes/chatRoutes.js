@@ -78,6 +78,9 @@ const previousQuestionsMap = new Map();
 router.post("/send", authenticateUser, async (req, res) => {
     try {
         const { userId, message, chapterId } = req.body;
+        // Initialize variables for scoring that will be used later in the function
+        let marksAwarded = 0;
+        let maxScore = 1;
 
         if (!userId || !message || !chapterId) {
             return res.status(400).json({ error: "User ID, chapter ID, and message are required" });
@@ -443,8 +446,8 @@ Return only the JSON object. Do not include anything else.`,
                     let marksAwarded = 0;
                     const maxScore = previousQuestion.question_marks || 1;
                     
-                    // Look for score patterns like "Score: 3/5" or "You earned 4 out of 5 points" in the bot message
-                    const scorePattern = /(?:score|earned|awarded|get|receive|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i;
+                    // Look for score patterns like "Score: 3/5" or "You earned 4 out of 5 points" or "Score: 3 / 3" with spaces
+                    const scorePattern = /(?:score|earned|awarded|get|receive|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i;
                     const scoreMatch = botMessage.match(scorePattern);
                     
                     if (scoreMatch && scoreMatch.length >= 3) {
@@ -501,6 +504,9 @@ Return only the JSON object. Do not include anything else.`,
                 }
             }
             
+            // Log the marksAwarded value before sending the response
+            console.log(`Final score to be returned: marksAwarded=${marksAwarded}, classification=${classification}`);
+            
             // Return the response
             return res.json({
                 message: botMessage,
@@ -509,8 +515,8 @@ Return only the JSON object. Do not include anything else.`,
                 agentType: classification,
                 previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
                 score: {
-                    marksAwarded: previousQuestion && classification === "oldchat_ai" ? marksAwarded : null,
-                    maxMarks: previousQuestion && classification === "oldchat_ai" ? (previousQuestion.question_marks || 1) : null,
+                    marksAwarded: (previousQuestion && classification === "oldchat_ai") ? marksAwarded : null,
+                    maxMarks: (previousQuestion && classification === "oldchat_ai") ? (previousQuestion.question_marks || 1) : null,
                     previousQuestion: previousQuestion ? previousQuestion.question : null
                 }
             });
