@@ -115,8 +115,8 @@ router.post("/send", authenticateUser, async (req, res) => {
                 // For explanation agent, use more context - last 6 messages
                 previousMessages = chat.messages.slice(-6);
             } else {
-                // For other agents, use limited context - last 2 assistant + 1 user message
-                const assistantMessages = chat.messages.filter(msg => msg.role === "assistant").slice(-2);
+                // For other agents, use only the last assistant message + current user message
+                const assistantMessages = chat.messages.filter(msg => msg.role === "assistant").slice(-1);
                 const userMessages = chat.messages.filter(msg => msg.role === "user").slice(-1);
                 previousMessages = [...assistantMessages, ...userMessages];
             }
