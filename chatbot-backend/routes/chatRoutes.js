@@ -176,6 +176,7 @@ Rules:
 1. "oldchat_ai":
    - Ongoing conversation (not a greeting)
    - User is continuing a knowledge check or answering a question
+   - select this agent even if user says he/she dont know the answer
 
 2. "newchat_ai":
    - First message, like "Hi", "Hello"
