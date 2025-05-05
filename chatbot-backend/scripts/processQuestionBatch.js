@@ -55,7 +55,7 @@ Respond ONLY with the word "keep" or "skip" - no explanation or additional text.
         { role: "user", content: questionText }
       ],
       max_tokens: 10,
-      temperature: 0.1,
+      temperature: 0.0,
     });
 
     // Extract response
