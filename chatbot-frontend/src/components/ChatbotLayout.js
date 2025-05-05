@@ -173,9 +173,15 @@ export default function ChatbotLayout({ children }) {
     
     try {
       setLoading(true);
-      console.log(`Fetching chat history for chapter: ${chapterId}`);
       
-      const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_HISTORY.replace(':chapterId', chapterId), {
+      // Extract the chapterId string if it's an object
+      const chapterIdString = typeof chapterId === 'object' && chapterId.chapterId 
+        ? chapterId.chapterId 
+        : chapterId;
+        
+      console.log(`Fetching chat history for chapter: ${chapterIdString}`);
+      
+      const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_HISTORY.replace(':chapterId', chapterIdString), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'user-id': userId
@@ -212,8 +218,13 @@ export default function ChatbotLayout({ children }) {
       return;
     }
     
+    // Extract the chapterId string if it's an object
+    const chapterIdString = typeof chapterId === 'object' && chapterId.chapterId 
+      ? chapterId.chapterId 
+      : chapterId;
+    
     try {
-      const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_STATS.replace(':chapterId', chapterId), {
+      const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_STATS.replace(':chapterId', chapterIdString), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'user-id': userId
@@ -502,6 +513,11 @@ export default function ChatbotLayout({ children }) {
       
       const endpoint = audioBlob ? API_ENDPOINTS.TRANSCRIBE_AUDIO : API_ENDPOINTS.CHAT;
       
+      // Extract the chapterId string from the activeChapter object
+      const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
+        ? activeChapter.chapterId 
+        : activeChapter;
+      
       // Set up the request data based on whether this is audio or text
       let requestData;
       let requestConfig = {
@@ -516,7 +532,7 @@ export default function ChatbotLayout({ children }) {
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
         formData.append('userId', userId);
-        formData.append('chapterId', activeChapter);
+        formData.append('chapterId', chapterId);
         
         requestData = formData;
         requestConfig = {
@@ -530,7 +546,7 @@ export default function ChatbotLayout({ children }) {
         requestData = {
           userId,
           message: userMessage,
-          chapterId: activeChapter
+          chapterId
         };
       }
       
@@ -554,7 +570,7 @@ export default function ChatbotLayout({ children }) {
         const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
           userId,
           message: response.data.transcription,
-          chapterId: activeChapter
+          chapterId
         }, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -573,7 +589,7 @@ export default function ChatbotLayout({ children }) {
       
       // After receiving response, fetch the updated chapter score
       if (activeChapter) {
-        fetchChapterScore(activeChapter);
+        fetchChapterScore(chapterId);
       }
     } catch (error) {
       console.error("Error sending message:", error);
