@@ -23,6 +23,9 @@ export const API_ENDPOINTS = {
   TRANSCRIBE_AUDIO: `${API_URL}/api/chat/transcribe`,
   UPLOAD_BOOK_COVER: `${API_URL}/api/books/upload-cover`,
   
+  // Add the new chapter stats endpoint
+  GET_CHAPTER_STATS: `${API_URL}/api/chat/chapter-stats/:chapterId`,
+  
   // Chapter preparation endpoints
   PROCESS_TEXT: `${API_URL}/api/chapters/process-text`,
   PROCESS_TEXT_BATCH: `${API_URL}/api/chapters/process-text-batch`,

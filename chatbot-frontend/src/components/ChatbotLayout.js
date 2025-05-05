@@ -44,6 +44,11 @@ export default function ChatbotLayout({ children }) {
   // Add state for current notification popup
   const [currentNotification, setCurrentNotification] = useState(null);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  
+  // Add state for chapter score
+  const [chapterScore, setChapterScore] = useState(null);
+  const [showScorePopup, setShowScorePopup] = useState(false);
+  const scorePopupTimeoutRef = useRef(null);
 
   const getUserId = () => localStorage.getItem("userId");
   const getToken = () => localStorage.getItem("token");
@@ -186,12 +191,62 @@ export default function ChatbotLayout({ children }) {
         console.warn("Unexpected data format from server:", response.data);
         setChatHistory([]);
       }
+
+      // Fetch the chapter score when loading chat history
+      fetchChapterScore(chapterId);
       
     } catch (error) {
       console.error("Error fetching chapter chat history:", error);
       setChatHistory([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add function to fetch chapter score
+  const fetchChapterScore = async (chapterId) => {
+    const userId = getUserId();
+    const token = getToken();
+    
+    if (!userId || !token || !chapterId) {
+      return;
+    }
+    
+    try {
+      const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_STATS.replace(':chapterId', chapterId), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'user-id': userId
+        }
+      });
+      
+      console.log("Chapter Score Response:", response.data);
+      
+      // Only show score if there are stats available
+      if (response.data.hasStats) {
+        setChapterScore(response.data);
+        
+        // Show score popup with timeout to hide it
+        setShowScorePopup(true);
+        
+        // Clear any existing timeout
+        if (scorePopupTimeoutRef.current) {
+          clearTimeout(scorePopupTimeoutRef.current);
+        }
+        
+        // Set timeout to hide the popup after 5 seconds
+        scorePopupTimeoutRef.current = setTimeout(() => {
+          setShowScorePopup(false);
+        }, 5000);
+      } else {
+        // If no stats, clear the score and don't show popup
+        setChapterScore(null);
+        setShowScorePopup(false);
+      }
+    } catch (error) {
+      console.error("Error fetching chapter score:", error);
+      setChapterScore(null);
+      setShowScorePopup(false);
     }
   };
 
@@ -404,8 +459,33 @@ export default function ChatbotLayout({ children }) {
 
   // Update the handleSendMessage function to clean AI responses
   const handleSendMessage = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() && !audioBlob) return;
     
+    const userMessage = message.trim();
+    setMessage("");
+    setAudioBlob(null);
+    
+    if (!activeChapter) {
+      setNotification({
+        show: true,
+        type: "error",
+        message: "Please select a chapter to start a conversation"
+      });
+      
+      setTimeout(() => {
+        setNotification({ show: false, type: "", message: "" });
+      }, 3000);
+      
+      return;
+    }
+
+    updateLastActivity();
+    setIsProcessing(true);
+
+    // Add user message to chat immediately
+    const userMessageObj = { role: "user", content: userMessage || "[Audio Message]" };
+    setChatHistory(prev => [...prev, userMessageObj]);
+
     try {
       const userId = getUserId();
       const token = getToken();
@@ -415,78 +495,91 @@ export default function ChatbotLayout({ children }) {
         return;
       }
       
-      // Set processing state to true
-      setIsProcessing(true);
+      const endpoint = audioBlob ? API_ENDPOINTS.TRANSCRIBE_AUDIO : API_ENDPOINTS.CHAT;
       
-      // Add user message to chat history immediately for better UX
-      const newMessage = { role: "user", content: message };
-      setChatHistory([...chatHistory, newMessage]);
-      setMessage("");
-      
-      const response = await axios.post(`${API_ENDPOINTS.CHAT}/send`, {
-        message: message,
-        userId: getUserId(),
-        ...(activeChapter && { chapterId: activeChapter.chapterId }),
-      }, {
+      // Set up the request data based on whether this is audio or text
+      let requestData;
+      let requestConfig = {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      });
+      };
       
-      // Add AI response to chat history
-      console.log("AI response:", response.data);
+      if (audioBlob) {
+        // For audio, we need to use FormData
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
+        formData.append('userId', userId);
+        formData.append('chapterId', activeChapter);
+        
+        requestData = formData;
+        requestConfig = {
+          headers: {
+            'Authorization': `Bearer ${token}`
+            // Content-Type is automatically set by browser for FormData
+          }
+        };
+      } else {
+        // For text messages
+        requestData = {
+          userId,
+          message: userMessage,
+          chapterId: activeChapter
+        };
+      }
       
-      // Check for the message field in the response - that's the new structure
-      if (response.data && response.data.message) {
-        // Clean up the message content to handle LaTeX formatting
-        const cleanedContent = cleanMessageContent(response.data.message);
+      // Make the request
+      const response = await axios.post(endpoint, requestData, requestConfig);
+      
+      // Handle audio transcription redirecting to chat
+      if (audioBlob && response.data.redirect) {
+        console.log("Audio transcribed, sending to chat API:", response.data.transcription);
         
-        // Force state update to ensure UI refreshes
-        const aiResponse = { 
-          role: "assistant", 
-          content: cleanedContent
-        };
-        setChatHistory(prevHistory => [...prevHistory, aiResponse]);
+        // Update chat with transcription
+        const updatedUserMessage = { role: "user", content: response.data.transcription };
+        setChatHistory(prev => {
+          // Remove the last "[Audio Message]" and replace with actual transcript
+          const newHistory = [...prev];
+          newHistory.pop();
+          return [...newHistory, updatedUserMessage];
+        });
         
-        // Backup approach to ensure state updates properly
-        setTimeout(() => {
-          setChatHistory(prevHistory => {
-            // Only add if not already added (prevent duplicates)
-            if (!prevHistory.some(msg => 
-                msg.role === "assistant" && 
-                msg.content === cleanedContent &&
-                prevHistory.indexOf(msg) === prevHistory.length - 1)) {
-              return [...prevHistory, aiResponse];
-            }
-            return prevHistory;
-          });
-        }, 100);
-      } 
-      // Fallback for legacy response format
-      else if (response.data && response.data.response) {
-        // Clean up the message content to handle LaTeX formatting
-        const cleanedContent = cleanMessageContent(response.data.response);
+        // Now send the transcribed message to chat
+        const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
+          userId,
+          message: response.data.transcription,
+          chapterId: activeChapter
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
         
-        const aiResponse = { 
-          role: "assistant", 
-          content: cleanedContent 
-        };
-        setChatHistory(prevHistory => [...prevHistory, aiResponse]);
+        // Handle the chat response
+        const botResponse = { role: "assistant", content: chatResponse.data.message };
+        setChatHistory(prev => [...prev, botResponse]);
+      } else if (!audioBlob) {
+        // For text messages, process the response directly
+        const botResponse = { role: "assistant", content: response.data.message };
+        setChatHistory(prev => [...prev, botResponse]);
+      }
+      
+      // After receiving response, fetch the updated chapter score
+      if (activeChapter) {
+        fetchChapterScore(activeChapter);
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      setChatHistory(prev => [...prev, { 
-        role: "system", 
-        content: "Failed to send message. Please try again." 
-      }]);
+      // Handle error...
+      const errorMessage = {
+        role: "assistant",
+        content: "I'm sorry, I'm having trouble processing your message right now. Please try again later."
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
     } finally {
-      // Set processing state back to false
       setIsProcessing(false);
-      
-      // Scroll to the bottom of chat after updating
-      if (chatEndRef && chatEndRef.current) {
-        chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-      }
     }
   };
 
@@ -1861,6 +1954,22 @@ export default function ChatbotLayout({ children }) {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Add Score Popup */}
+      {showScorePopup && chapterScore && (
+        <div className="fixed bottom-24 right-5 z-50 animate-pulse">
+          <div className="bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg flex flex-col items-center">
+            <h3 className="font-bold text-lg mb-1">Current Score</h3>
+            <div className="flex items-center justify-center space-x-2">
+              <span className="text-xl font-bold">{chapterScore.earnedMarks}/{chapterScore.totalMarks}</span>
+              <span className="text-lg">({Math.round(chapterScore.percentage)}%)</span>
+            </div>
+            <p className="text-sm mt-1">
+              Questions: {chapterScore.answeredQuestions}/{chapterScore.totalQuestions}
+            </p>
           </div>
         </div>
       )}
