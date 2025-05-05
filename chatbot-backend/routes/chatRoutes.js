@@ -288,7 +288,8 @@ Return only the JSON object. Do not include anything else.`,
                     .replace("{{CHAPTER_TITLE}}", chapterTitle || "this chapter")
                     .replace("{{QUESTION}}", currentQuestion ? currentQuestion.question : "review questions")
                     .replace("{{QUESTION_ID}}", currentQuestion ? currentQuestion.questionId : "Q1")
-                    .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1);
+                    .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1)
+                    .replace("{{PREVIOUS_QUESTION_MARKS}}", previousQuestion ? previousQuestion.question_marks || 1 : 1);
                 
             } else if (classification === "newchat_ai") {
                 // Get the newchat_ai prompt template
