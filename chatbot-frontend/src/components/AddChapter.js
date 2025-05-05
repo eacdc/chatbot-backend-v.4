@@ -6,23 +6,15 @@ import { API_ENDPOINTS } from "../config";
 const AddChapter = () => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [qnaLoading, setQnaLoading] = useState(false);
-  const [finalPromptLoading, setFinalPromptLoading] = useState(false);
+  const [processingLoading, setProcessingLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [chapterData, setChapterData] = useState({
     bookId: "",
     title: "",
     rawText: "",
-    goodText: "",
-    subject: "",
-    specialInstructions: "",
-    qnaOutput: "",
     finalPrompt: ""
   });
-
-  // Always use batch processing, no longer a toggle option
-  const [batchProcessingLoading, setBatchProcessingLoading] = useState(false);
 
   // Fetch books for dropdown
   useEffect(() => {
@@ -63,7 +55,7 @@ const AddChapter = () => {
     setError(""); // Clear error when user types
   };
 
-  const handleGoodText = async () => {
+  const handleProcessText = async () => {
     if (!chapterData.rawText.trim()) {
       setError("Please enter some text in the Raw Text field");
       return;
@@ -74,7 +66,7 @@ const AddChapter = () => {
       return;
     }
 
-    setBatchProcessingLoading(true);
+    setProcessingLoading(true);
     setError("");
     setSuccessMessage("");
     
@@ -82,19 +74,19 @@ const AddChapter = () => {
       const adminToken = localStorage.getItem("adminToken");
       if (!adminToken) {
         setError("Please log in as an admin to continue");
-        setBatchProcessingLoading(false);
+        setProcessingLoading(false);
         return;
       }
 
-      console.log("Using batch processing approach for text processing");
+      console.log("Processing text using batch processing");
       console.log("Text length:", chapterData.rawText.length);
       
-      // Use batch processing endpoint for all text processing
+      // Use batch processing endpoint for text processing
       const response = await adminAxiosInstance.post(API_ENDPOINTS.PROCESS_TEXT_BATCH, 
         { rawText: chapterData.rawText }
       );
       
-      console.log("Batch processing response received:", response.status);
+      console.log("Processing response received:", response.status);
       
       if (response.data && response.data.success) {
         // Check if response contains structured question data
@@ -102,10 +94,8 @@ const AddChapter = () => {
           console.log(`Received structured question data with ${response.data.totalQuestions} questions`);
           
           // Store the question array in finalPrompt as JSON string
-          // This ensures it's properly saved to the database in the right format
           setChapterData({
             ...chapterData,
-            goodText: response.data.combinedPrompt,
             finalPrompt: response.data.combinedPrompt,
             hasQuestionFormat: true,
             questionCount: response.data.totalQuestions
@@ -113,22 +103,20 @@ const AddChapter = () => {
           
           setSuccessMessage(`Text successfully processed! ${response.data.totalQuestions} questions extracted and ready to save.`);
         } else if (response.data.combinedPrompt) {
-          // Original behavior for regular text
+          // Regular text processing
           setChapterData({
             ...chapterData,
-            goodText: response.data.combinedPrompt,
             finalPrompt: response.data.combinedPrompt,
             hasQuestionFormat: false
           });
           setSuccessMessage("Text successfully processed! Ready to save as chapter.");
         } else {
-          setError("Batch processing did not complete successfully");
+          setError("Processing did not complete successfully");
         }
       } else if (response.data && response.data.processedText) {
         // Handle response from regular process-text endpoint (for backward compatibility)
         setChapterData({
           ...chapterData,
-          goodText: response.data.processedText,
           finalPrompt: response.data.processedText,
           hasQuestionFormat: false
         });
@@ -139,7 +127,7 @@ const AddChapter = () => {
     } catch (error) {
       console.error("Error in text processing:", error);
       
-      // More detailed error logging
+      // Error logging
       if (error.response) {
         console.error("Response status:", error.response.status);
         console.error("Response data:", JSON.stringify(error.response.data));
@@ -167,161 +155,7 @@ const AddChapter = () => {
       
       setError(error.response?.data?.error || error.response?.data?.message || "Failed during text processing. Please try again.");
     } finally {
-      setBatchProcessingLoading(false);
-      setLoading(false); // Also clear the loading state for compatibility
-    }
-  };
-
-  const handleMakeQnA = async () => {
-    if (!chapterData.subject.trim()) {
-      setError("Please enter a subject");
-      return;
-    }
-
-    if (!chapterData.goodText.trim() && !chapterData.rawText.trim()) {
-      setError("Please provide content in either Raw Text or Good Text field");
-      return;
-    }
-
-    if (!chapterData.bookId) {
-      setError("Please select a book");
-      return;
-    }
-
-    setQnaLoading(true);
-    setError("");
-    setSuccessMessage("");
-    try {
-      const adminToken = localStorage.getItem("adminToken");
-      if (!adminToken) {
-        setError("Please log in as an admin to continue");
-        setQnaLoading(false);
-        return;
-      }
-
-      console.log("Sending request to generate QnA with admin token...");
-      const response = await adminAxiosInstance.post(API_ENDPOINTS.GENERATE_QNA, 
-        {
-          bookId: chapterData.bookId,
-          subject: chapterData.subject,
-          text: chapterData.goodText || chapterData.rawText,
-          specialInstructions: chapterData.specialInstructions
-        }
-      );
-      
-      console.log("Response received:", response.status);
-      setChapterData({
-        ...chapterData,
-        qnaOutput: response.data.qnaOutput
-      });
-      setSuccessMessage("QnA generated successfully!");
-    } catch (error) {
-      console.error("Error generating QnA:", error);
-      if (error.response) {
-        console.error("Response status:", error.response.status);
-        console.error("Response data:", error.response.data);
-        
-        // Handle specific error cases
-        if (error.response.status === 401) {
-          setError("Authentication failed. Please log in again as an admin.");
-          return;
-        }
-        
-        if (error.response.status === 504) {
-          setError("Processing timed out. The text may be too complex. Please try again later.");
-          return;
-        }
-        
-        if (error.response.status === 500) {
-          setError("Server error processing QnA. Please try again later.");
-          return;
-        }
-      } else if (error.request) {
-        console.error("No response received from server");
-        setError("No response received from server. Please check your connection and try again later.");
-        return;
-      }
-      
-      setError(error.response?.data?.error || error.response?.data?.message || "Failed to generate QnA. Please try again.");
-    } finally {
-      setQnaLoading(false);
-    }
-  };
-
-  const handleGetFinalPrompt = async () => {
-    if (!chapterData.qnaOutput.trim()) {
-      setError("Please generate QnA first");
-      return;
-    }
-
-    if (!chapterData.bookId) {
-      setError("Please select a book");
-      return;
-    }
-
-    if (!chapterData.title.trim()) {
-      setError("Please enter a chapter title");
-      return;
-    }
-
-    setFinalPromptLoading(true);
-    setError("");
-    setSuccessMessage("");
-    try {
-      const adminToken = localStorage.getItem("adminToken");
-      if (!adminToken) {
-        setError("Please log in as an admin to continue");
-        setFinalPromptLoading(false);
-        return;
-      }
-
-      console.log("Sending request to generate final prompt with admin token...");
-      const response = await adminAxiosInstance.post(API_ENDPOINTS.GENERATE_FINAL_PROMPT, 
-        {
-          bookId: chapterData.bookId,
-          subject: chapterData.subject,
-          chapterTitle: chapterData.title,
-          specialInstructions: chapterData.specialInstructions,
-          qnaOutput: chapterData.qnaOutput
-        }
-      );
-      
-      console.log("Response received:", response.status);
-      setChapterData({
-        ...chapterData,
-        finalPrompt: response.data.finalPrompt
-      });
-      setSuccessMessage("Final prompt generated successfully!");
-    } catch (error) {
-      console.error("Error generating final prompt:", error);
-      if (error.response) {
-        console.error("Response status:", error.response.status);
-        console.error("Response data:", error.response.data);
-        
-        // Handle specific error cases
-        if (error.response.status === 401) {
-          setError("Authentication failed. Please log in again as an admin.");
-          return;
-        }
-        
-        if (error.response.status === 504) {
-          setError("Processing timed out. The text may be too complex. Please try again later.");
-          return;
-        }
-        
-        if (error.response.status === 500) {
-          setError("Server error generating final prompt. Please try again later.");
-          return;
-        }
-      } else if (error.request) {
-        console.error("No response received from server");
-        setError("No response received from server. Please check your connection and try again later.");
-        return;
-      }
-      
-      setError(error.response?.data?.error || error.response?.data?.message || "Failed to generate final prompt. Please try again.");
-    } finally {
-      setFinalPromptLoading(false);
+      setProcessingLoading(false);
     }
   };
 
@@ -330,10 +164,16 @@ const AddChapter = () => {
     setError("");
     setLoading(true);
   
+    if (!chapterData.finalPrompt) {
+      setError("Please process the text before adding the chapter");
+      setLoading(false);
+      return;
+    }
+    
     const dataToSubmit = {
       bookId: chapterData.bookId,
       title: chapterData.title,
-      prompt: chapterData.finalPrompt || chapterData.goodText || chapterData.rawText
+      prompt: chapterData.finalPrompt
     };
     
     try {
@@ -357,10 +197,6 @@ const AddChapter = () => {
           bookId: "",
           title: "",
           rawText: "",
-          goodText: "",
-          subject: "",
-          specialInstructions: "",
-          qnaOutput: "",
           finalPrompt: ""
         });
       }
@@ -477,26 +313,6 @@ const AddChapter = () => {
                       />
                     </div>
                   </div>
-                  
-                  <div className="sm:col-span-3">
-                    <label className="block text-sm font-medium text-gray-700">Subject</label>
-                    <div className="mt-1">
-                      <input
-                        type="text"
-                        name="subject"
-                        value={chapterData.subject}
-                        onChange={handleChange}
-                        className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200 ${chapterData.bookId ? 'bg-gray-100' : ''}`}
-                        readOnly={chapterData.bookId ? true : false}
-                        required
-                      />
-                      {chapterData.bookId && (
-                        <p className="mt-1 text-xs text-gray-500">
-                          Subject is auto-populated from the selected book
-                        </p>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
               
@@ -507,11 +323,11 @@ const AddChapter = () => {
                     <div className="flex-shrink-0">
                       <button 
                         type="button" 
-                        onClick={handleGoodText}
-                        disabled={batchProcessingLoading}
-                        className={`${batchProcessingLoading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
+                        onClick={handleProcessText}
+                        disabled={processingLoading}
+                        className={`${processingLoading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
                       >
-                        {batchProcessingLoading ? (
+                        {processingLoading ? (
                           <span className="flex items-center">
                             <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -542,147 +358,19 @@ const AddChapter = () => {
                   </div>
                 </div>
                 
-                {/* Only show Good Text in batch mode as information only */}
-                {batchProcessingLoading && (
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 opacity-50">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Good Text (Not Used in Batch Mode)</h2>
-                  <div>
-                    <textarea
-                      name="goodText"
-                      placeholder="In batch mode, text is processed directly into the final prompt..."
-                      value={chapterData.goodText}
-                      onChange={handleChange}
-                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-16 transition-colors duration-200 bg-gray-100"
-                      readOnly={true}
-                      disabled={true}
-                    />
-                  </div>
-                </div>
-                )}
-                
-                {/* Only show Special Instructions in non-batch mode */}
-                {!batchProcessingLoading && (
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-medium text-gray-900">Special Instructions</h2>
-                    <div className="flex-shrink-0">
-                      <button 
-                        type="button" 
-                        onClick={handleMakeQnA}
-                        disabled={qnaLoading}
-                        className={`${qnaLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
-                      >
-                        {qnaLoading ? (
-                          <span className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Generating...
-                          </span>
-                        ) : (
-                          <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Make QnA
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mb-4">
-                    <textarea
-                      name="specialInstructions"
-                      placeholder="Enter special instructions for generation (100 chars max)"
-                      value={chapterData.specialInstructions}
-                      onChange={handleChange}
-                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md transition-colors duration-200"
-                      maxLength="100"
-                      rows="3"
-                    />
-                  </div>
-                </div>
-                )}
-                
-                {/* Only show QnA Output in non-batch mode */}
-                {!batchProcessingLoading && (
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-medium text-gray-900">QnA Output</h2>
-                    <div className="flex-shrink-0">
-                      <button 
-                        type="button" 
-                        onClick={handleMakeQnA}
-                        disabled={qnaLoading}
-                        className={`${qnaLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
-                      >
-                        {qnaLoading ? (
-                          <span className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Generating QnA...
-                          </span>
-                        ) : (
-                          <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Generate QnA
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <textarea
-                      name="qnaOutput"
-                      placeholder="Generated QnA will appear here..."
-                      value={chapterData.qnaOutput}
-                      onChange={handleChange}
-                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-64 transition-colors duration-200"
-                    />
-                  </div>
-                </div>
-                )}
-                
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-medium text-gray-900">Final Prompt</h2>
-                    {!batchProcessingLoading && (
                     <div className="flex-shrink-0">
-                      <button 
-                        type="button" 
-                        onClick={handleGetFinalPrompt}
-                        disabled={finalPromptLoading}
-                        className={`${finalPromptLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
-                      >
-                        {finalPromptLoading ? (
-                          <span className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Generating Prompt...
-                          </span>
-                        ) : (
-                          <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                            </svg>
-                            Generate Final Prompt
-                          </>
-                        )}
-                      </button>
+                      <span className="text-sm text-gray-500">
+                        Processed text will appear here automatically
+                      </span>
                     </div>
-                    )}
                   </div>
                   <div>
                     <textarea
                       name="finalPrompt"
-                      placeholder="Final prompt to be sent to backend..."
+                      placeholder="Processed text will appear here after clicking 'Process Text'..."
                       value={chapterData.finalPrompt}
                       onChange={handleChange}
                       className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-64 transition-colors duration-200"
