@@ -660,16 +660,17 @@ router.get("/chapter-history/:chapterId", authenticateUser, async (req, res) => 
         const { chapterId } = req.params;
         const userId = req.user.userId;
         
-        // console.log removed;
+        console.log(`Fetching chat history for chapter ${chapterId} and user ${userId}`);
         
         const chat = await Chat.findOne({ userId, chapterId });
         
         if (!chat || !Array.isArray(chat.messages)) {
-            // console.log removed;
+            console.log(`No chat history found for chapter ${chapterId} and user ${userId}`);
             return res.json([]);
         }
         
-        // console.log removed;
+        // Return all messages without filtering
+        console.log(`Returning ${chat.messages.length} messages for chapter ${chapterId}`);
         res.json(chat.messages);
         
     } catch (error) {
