@@ -747,11 +747,16 @@ export default function ChatbotLayout({ children }) {
       }];
       setChatHistory(updatedChat);
       
+      // Extract the chapterId string from the activeChapter object
+      const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
+        ? activeChapter.chapterId 
+        : activeChapter;
+      
       // Now send the transcribed text to the chat API
-      const response = await axios.post(`${API_ENDPOINTS.CHAT}/send`, {
+      const response = await axios.post(API_ENDPOINTS.CHAT, {
         message: transcribedText,
         userId: getUserId(),
-        ...(activeChapter && { chapterId: activeChapter.chapterId }),
+        chapterId
       }, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -774,7 +779,6 @@ export default function ChatbotLayout({ children }) {
         
         setChatHistory([...updatedChat, { 
           role: "assistant",
-
           content: cleanedContent
         }]);
       }
@@ -1732,11 +1736,16 @@ export default function ChatbotLayout({ children }) {
                               setChatHistory([...chatHistory, newMessage]);
                               setIsProcessing(true);
                               
+                              // Extract the chapterId string from the activeChapter object
+                              const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
+                                ? activeChapter.chapterId 
+                                : activeChapter;
+                              
                               // Then call API directly with this content
-                              axios.post(`${API_ENDPOINTS.CHAT}/send`, {
+                              axios.post(API_ENDPOINTS.CHAT, {
                                 message: "Let's Start",
                                 userId: getUserId(),
-                                ...(activeChapter && { chapterId: activeChapter.chapterId }),
+                                chapterId
                               }, {
                                 headers: {
                                   'Authorization': `Bearer ${getToken()}`
