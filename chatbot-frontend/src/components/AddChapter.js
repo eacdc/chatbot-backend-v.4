@@ -13,6 +13,7 @@ const AddChapter = () => {
     bookId: "",
     title: "",
     rawText: "",
+    subject: "",
     finalPrompt: ""
   });
 
@@ -45,6 +46,7 @@ const AddChapter = () => {
           [name]: value,
           subject: selectedBook.subject
         });
+        console.log(`Selected book: ${selectedBook.title}, subject: ${selectedBook.subject}`);
       } else {
         setChapterData({ ...chapterData, [name]: value });
       }
@@ -66,6 +68,20 @@ const AddChapter = () => {
       return;
     }
 
+    if (!chapterData.subject) {
+      const selectedBook = books.find((book) => book._id === chapterData.bookId);
+      if (selectedBook && selectedBook.subject) {
+        // Update subject if it's not set but book is selected
+        setChapterData(prevData => ({
+          ...prevData,
+          subject: selectedBook.subject
+        }));
+      } else {
+        setError("Could not determine subject from selected book");
+        return;
+      }
+    }
+
     setProcessingLoading(true);
     setError("");
     setSuccessMessage("");
@@ -80,10 +96,14 @@ const AddChapter = () => {
 
       console.log("Processing text using batch processing");
       console.log("Text length:", chapterData.rawText.length);
+      console.log("Subject:", chapterData.subject);
       
       // Use batch processing endpoint for text processing
       const response = await adminAxiosInstance.post(API_ENDPOINTS.PROCESS_TEXT_BATCH, 
-        { rawText: chapterData.rawText }
+        { 
+          rawText: chapterData.rawText,
+          subject: chapterData.subject
+        }
       );
       
       console.log("Processing response received:", response.status);
@@ -169,10 +189,26 @@ const AddChapter = () => {
       setLoading(false);
       return;
     }
+
+    if (!chapterData.subject) {
+      const selectedBook = books.find((book) => book._id === chapterData.bookId);
+      if (selectedBook && selectedBook.subject) {
+        // Ensure subject is set before submission
+        setChapterData(prevData => ({
+          ...prevData,
+          subject: selectedBook.subject
+        }));
+      } else {
+        setError("Could not determine subject from selected book");
+        setLoading(false);
+        return;
+      }
+    }
     
     const dataToSubmit = {
       bookId: chapterData.bookId,
       title: chapterData.title,
+      subject: chapterData.subject,
       prompt: chapterData.finalPrompt
     };
     
@@ -185,6 +221,13 @@ const AddChapter = () => {
       }
 
       console.log("Sending request to add chapter with admin token...");
+      console.log("Chapter data:", { 
+        bookId: dataToSubmit.bookId, 
+        title: dataToSubmit.title, 
+        subject: dataToSubmit.subject,
+        promptLength: dataToSubmit.prompt.length 
+      });
+      
       const response = await adminAxiosInstance.post(
         API_ENDPOINTS.ADD_CHAPTER, 
         dataToSubmit
@@ -197,6 +240,7 @@ const AddChapter = () => {
           bookId: "",
           title: "",
           rawText: "",
+          subject: "",
           finalPrompt: ""
         });
       }
