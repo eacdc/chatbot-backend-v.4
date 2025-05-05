@@ -664,6 +664,40 @@ router.get("/chapter-history/:chapterId", authenticateUser, async (req, res) => 
     }
 });
 
+// Get Chapter Statistics for Live Score Display
+router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
+    try {
+        const { chapterId } = req.params;
+        const userId = req.user.userId;
+        
+        console.log(`Fetching chapter stats for chapter ${chapterId} and user ${userId}`);
+        
+        // Get stats from QnALists
+        const stats = await QnALists.getChapterStats(userId, chapterId);
+        
+        // Only return stats if there are answered questions
+        if (stats.answeredQuestions === 0) {
+            console.log(`No answered questions for chapter ${chapterId} and user ${userId}`);
+            return res.json({ hasStats: false });
+        }
+        
+        // Return the stats with a flag indicating there are stats
+        console.log(`Returning stats for chapter ${chapterId}: ${stats.earnedMarks}/${stats.totalMarks}`);
+        return res.json({
+            hasStats: true,
+            earnedMarks: stats.earnedMarks,
+            totalMarks: stats.totalMarks,
+            percentage: stats.percentage,
+            answeredQuestions: stats.answeredQuestions,
+            totalQuestions: stats.totalQuestions
+        });
+        
+    } catch (error) {
+        console.error("Error fetching chapter stats:", error);
+        res.status(500).json({ error: "Failed to fetch chapter statistics" });
+    }
+});
+
 // Get General Chat History
 router.get("/general-history", authenticateUser, async (req, res) => {
     try {
