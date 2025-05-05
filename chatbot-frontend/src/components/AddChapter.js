@@ -345,6 +345,22 @@ const AddChapter = () => {
                   </div>
                   
                   <div className="sm:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700">Subject</label>
+                    <div className="mt-1">
+                      <input
+                        type="text"
+                        name="subject"
+                        value={chapterData.subject}
+                        readOnly
+                        className="shadow-sm bg-gray-100 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md transition-colors duration-200"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        This field is automatically populated based on the selected book
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="sm:col-span-3">
                     <label className="block text-sm font-medium text-gray-700">Chapter Title</label>
                     <div className="mt-1">
                       <input
