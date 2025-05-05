@@ -3,7 +3,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'https://chatbot-backend-v-4.on
 export const API_ENDPOINTS = {
   LOGIN: `${API_URL}/api/users/login`,
   SIGNUP: `${API_URL}/api/users/signup`,
-  CHAT: `${API_URL}/api/chat`,
+  CHAT: `${API_URL}/api/chat/send`,
   BOOKS: `${API_URL}/api/books`,
   CHAPTERS: `${API_URL}/api/chapters`,
   SUBSCRIPTIONS: `${API_URL}/api/subscriptions`,
