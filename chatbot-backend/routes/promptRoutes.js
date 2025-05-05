@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Prompt = require("../models/Prompt");
+const Chapter = require("../models/Chapter");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 const { processQuestionBatch } = require('../scripts/processQuestionBatch');
 
@@ -148,13 +149,13 @@ router.put("/configs/:key", authenticateAdmin, async (req, res) => {
 router.post("/chapters/:chapterId/process-questions", authenticateAdmin, async (req, res) => {
   try {
     const { chapterId } = req.params;
-    const { batchText } = req.body;
+    const { batchText, validateQuestions = true } = req.body;
 
     if (!batchText) {
       return res.status(400).json({ error: "Question batch text is required" });
     }
 
-    console.log(`Processing question batch for chapter ${chapterId}`);
+    console.log(`Processing question batch for chapter ${chapterId} with validation: ${validateQuestions}`);
     
     // Find the chapter
     const chapter = await Chapter.findById(chapterId);
@@ -164,7 +165,8 @@ router.post("/chapters/:chapterId/process-questions", authenticateAdmin, async (
 
     // Process the batch text into structured question objects
     // Pass the chapter ID so it can be used in the questionId generation
-    const questions = processQuestionBatch(batchText, chapterId);
+    // Also pass the validateQuestions flag
+    const questions = await processQuestionBatch(batchText, chapterId, validateQuestions);
     
     if (!questions || questions.length === 0) {
       return res.status(400).json({ error: "No valid questions found in the batch" });

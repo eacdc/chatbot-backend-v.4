@@ -7,14 +7,83 @@
 
 const fs = require('fs');
 const path = require('path');
+const OpenAI = require("openai");
+
+// Create the OpenAI client
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+/**
+ * Validate a question using OpenAI to check if it's complete and doesn't reference external elements
+ * @param {string} questionText - The question text to validate
+ * @returns {Promise<string>} - Returns 'keep' or 'skip'
+ */
+async function validateQuestion(questionText) {
+  try {
+    if (!questionText || questionText.trim() === '') {
+      console.log("Empty question, skipping validation");
+      return "skip";
+    }
+
+    // System prompt to check if question is suitable
+    const systemPrompt = `You are an AI that evaluates questions for completeness and self-containment.
+Your job is to determine if a question can be answered without external references or visual elements.
+
+Analyze each question and respond with ONLY "keep" or "skip" based on these criteria:
+
+Return "skip" if ANY of these conditions are true:
+- The question is incomplete or lacks sufficient context
+- The question refers to a chart, diagram, graph, image, or table that is not described in the question itself
+- The question uses phrases like "according to the diagram", "refer to the image", "as shown in the figure", etc.
+- The question contains references to external examples, exhibits, or visual elements
+- The question has ellipses (...) indicating missing content
+- The question includes "See example/image/figure/chart number X"
+- The question cannot be understood without seeing something not in the text
+
+Return "keep" if:
+- The question is self-contained
+- The question provides all necessary context within its text
+- The question can be answered without referring to external elements
+- The question is complete and well-formed
+
+Respond ONLY with the word "keep" or "skip" - no explanation or additional text.`;
+
+    // Make the API call
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: questionText }
+      ],
+      max_tokens: 10,
+      temperature: 0.1,
+    });
+
+    // Extract response
+    const result = response.choices[0].message.content.trim().toLowerCase();
+    
+    // Validate response format
+    if (result === "keep" || result === "skip") {
+      console.log(`Question validation result: ${result}`);
+      return result;
+    } else {
+      console.warn(`Unexpected validation response: ${result}, defaulting to "keep"`);
+      return "keep";
+    }
+  } catch (error) {
+    console.error("Error validating question:", error.message);
+    // Default to keep if there's an error
+    return "keep";
+  }
+}
 
 /**
  * Process raw batch text input into a structured question array
  * @param {string} batchText - Raw text containing JSON objects (one per line)
  * @param {string} chapterId - ID of the chapter these questions belong to
- * @returns {Array} - Array of question objects
+ * @param {boolean} validateQuestions - Whether to validate questions with OpenAI
+ * @returns {Promise<Array>} - Array of question objects
  */
-function processQuestionBatch(batchText, chapterId = null) {
+async function processQuestionBatch(batchText, chapterId = null, validateQuestions = true) {
   console.log("Processing batch question input...");
   
   // Split the input by newlines and filter out empty lines
@@ -22,9 +91,11 @@ function processQuestionBatch(batchText, chapterId = null) {
   
   const questions = [];
   let errorCount = 0;
+  let skippedCount = 0;
   
   // Process each line as a potential JSON object
-  lines.forEach((line, index) => {
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
     try {
       // Attempt to parse the JSON object
       const questionObj = JSON.parse(line);
@@ -33,7 +104,17 @@ function processQuestionBatch(batchText, chapterId = null) {
       if (questionObj.Q === undefined || !questionObj.question) {
         console.log(`Warning: Question at line ${index + 1} is missing required fields`);
         errorCount++;
-        return;
+        continue;
+      }
+
+      // Validate the question with OpenAI if enabled
+      if (validateQuestions) {
+        const validationResult = await validateQuestion(questionObj.question);
+        if (validationResult === "skip") {
+          console.log(`Skipping question at line ${index + 1} based on validation`);
+          skippedCount++;
+          continue;
+        }
       }
       
       // Create a unique ID if none exists
@@ -56,9 +137,9 @@ function processQuestionBatch(batchText, chapterId = null) {
       console.error(`Error parsing question at line ${index + 1}:`, error.message);
       errorCount++;
     }
-  });
+  }
   
-  console.log(`Processed ${questions.length} questions successfully with ${errorCount} errors`);
+  console.log(`Processed ${questions.length} questions successfully with ${errorCount} errors and ${skippedCount} skipped by validation`);
   
   return questions;
 }
@@ -117,21 +198,21 @@ if (require.main === module) {
       const batchText = fs.readFileSync(inputPath, 'utf8');
       
       // Process the input
-      const questions = processQuestionBatch(batchText);
-      
-      // Output path (optional)
-      const outputPath = args[1] || path.join(__dirname, 'processed_questions.json');
-      saveQuestions(questions, outputPath);
-      
-      // Select and display a random question
-      const randomQuestion = getRandomQuestion(questions);
-      console.log("\nRandom question example:");
-      console.log(randomQuestion);
-      
-      // Count unanswered questions
-      const unansweredCount = questions.filter(q => !q.question_answered).length;
-      console.log(`\nTotal questions: ${questions.length}`);
-      console.log(`Unanswered questions: ${unansweredCount}`);
+      processQuestionBatch(batchText).then(questions => {
+        // Output path (optional)
+        const outputPath = args[1] || path.join(__dirname, 'processed_questions.json');
+        saveQuestions(questions, outputPath);
+        
+        // Select and display a random question
+        const randomQuestion = getRandomQuestion(questions);
+        console.log("\nRandom question example:");
+        console.log(randomQuestion);
+        
+        // Count unanswered questions
+        const unansweredCount = questions.filter(q => !q.question_answered).length;
+        console.log(`\nTotal questions: ${questions.length}`);
+        console.log(`Unanswered questions: ${unansweredCount}`);
+      });
       
     } catch (error) {
       console.error("Error processing file:", error);
@@ -143,5 +224,6 @@ if (require.main === module) {
 
 module.exports = {
   processQuestionBatch,
-  getRandomQuestion
+  getRandomQuestion,
+  validateQuestion
 }; 
