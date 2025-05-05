@@ -803,7 +803,8 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     questionMarks: maxMarks,
                     score: marksAwarded,
                     answerText: answerText || "",
-                    questionText: questionText || ""
+                    questionText: questionText || "",
+                    agentType: "oldchat_ai" // Always oldchat_ai for answered questions
                 });
             } catch (qnaError) {
                 console.error("Error recording answer in QnALists:", qnaError);

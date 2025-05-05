@@ -31,6 +31,11 @@ const qnaDetailSchema = new mongoose.Schema({
   attemptedAt: {
     type: Date,
     default: Date.now
+  },
+  agentType: {
+    type: String,
+    enum: ["oldchat_ai", "newchat_ai", "closureChat_ai", "explanation_ai"],
+    default: "oldchat_ai"
   }
 }, { timestamps: true });
 
@@ -75,7 +80,7 @@ qnaListsSchema.statics.isQuestionAnswered = async function(studentId, chapterId,
 
 // Static method to record a question answer
 qnaListsSchema.statics.recordAnswer = async function(data) {
-  const { studentId, bookId, chapterId, questionId, questionMarks, score, answerText, questionText } = data;
+  const { studentId, bookId, chapterId, questionId, questionMarks, score, answerText, questionText, agentType } = data;
   
   // Check if student-chapter record already exists
   const existingRecord = await this.findOne({
@@ -94,6 +99,7 @@ qnaListsSchema.statics.recordAnswer = async function(data) {
       existingRecord.qnaDetails[questionIndex].answerText = answerText || "";
       existingRecord.qnaDetails[questionIndex].questionText = questionText || "";
       existingRecord.qnaDetails[questionIndex].attemptedAt = Date.now();
+      existingRecord.qnaDetails[questionIndex].agentType = agentType || "oldchat_ai";
     } else {
       // Add new question detail
       existingRecord.qnaDetails.push({
@@ -103,7 +109,8 @@ qnaListsSchema.statics.recordAnswer = async function(data) {
         score,
         status: 1, // Mark as answered
         answerText: answerText || "",
-        attemptedAt: Date.now()
+        attemptedAt: Date.now(),
+        agentType: agentType || "oldchat_ai"
       });
     }
     
@@ -121,7 +128,8 @@ qnaListsSchema.statics.recordAnswer = async function(data) {
         score,
         status: 1, // Mark as answered
         answerText: answerText || "",
-        attemptedAt: Date.now()
+        attemptedAt: Date.now(),
+        agentType: agentType || "oldchat_ai"
       }]
     });
   }
