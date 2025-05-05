@@ -507,7 +507,12 @@ Return only the JSON object. Do not include anything else.`,
                 questionId: currentQuestion ? currentQuestion.questionId : null,
                 fullQuestion: currentQuestion,
                 agentType: classification,
-                previousQuestionId: previousQuestion ? previousQuestion.questionId : null
+                previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
+                score: {
+                    marksAwarded: previousQuestion && classification === "oldchat_ai" ? marksAwarded : null,
+                    maxMarks: previousQuestion && classification === "oldchat_ai" ? (previousQuestion.question_marks || 1) : null,
+                    previousQuestion: previousQuestion ? previousQuestion.question : null
+                }
             });
         } catch (chapterError) {
             console.error("Error fetching chapter:", chapterError);

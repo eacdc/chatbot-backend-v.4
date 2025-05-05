@@ -578,12 +578,31 @@ export default function ChatbotLayout({ children }) {
           }
         });
         
+        // Check if there's score information and append it to the message
+        let botContent = chatResponse.data.message;
+        
+        // Add score information if present
+        if (chatResponse.data.score && chatResponse.data.score.marksAwarded !== null) {
+          const scoreInfo = `\n\n**Score: ${chatResponse.data.score.marksAwarded}/${chatResponse.data.score.maxMarks}**`;
+          botContent += scoreInfo;
+        }
+        
         // Handle the chat response
-        const botResponse = { role: "assistant", content: chatResponse.data.message };
+        const botResponse = { role: "assistant", content: botContent };
         setChatHistory(prev => [...prev, botResponse]);
       } else if (!audioBlob) {
         // For text messages, process the response directly
-        const botResponse = { role: "assistant", content: response.data.message };
+        
+        // Check if there's score information and append it to the message
+        let botContent = response.data.message;
+        
+        // Add score information if present
+        if (response.data.score && response.data.score.marksAwarded !== null) {
+          const scoreInfo = `\n\n**Score: ${response.data.score.marksAwarded}/${response.data.score.maxMarks}**`;
+          botContent += scoreInfo;
+        }
+        
+        const botResponse = { role: "assistant", content: botContent };
         setChatHistory(prev => [...prev, botResponse]);
       }
       
@@ -611,7 +630,13 @@ export default function ChatbotLayout({ children }) {
     // Check for message field in response (new format)
     if (response.data && response.data.message) {
       // Clean up the message content
-      const cleanedContent = cleanMessageContent(response.data.message);
+      let cleanedContent = cleanMessageContent(response.data.message);
+      
+      // Add score information if present
+      if (response.data.score && response.data.score.marksAwarded !== null) {
+        const scoreInfo = `\n\n**Score: ${response.data.score.marksAwarded}/${response.data.score.maxMarks}**`;
+        cleanedContent += scoreInfo;
+      }
       
       const aiResponse = { 
         role: "assistant", 
@@ -622,7 +647,13 @@ export default function ChatbotLayout({ children }) {
     // Fallback for legacy response format
     else if (response.data && response.data.response) {
       // Clean up the message content
-      const cleanedContent = cleanMessageContent(response.data.response);
+      let cleanedContent = cleanMessageContent(response.data.response);
+      
+      // Add score information if present
+      if (response.data.score && response.data.score.marksAwarded !== null) {
+        const scoreInfo = `\n\n**Score: ${response.data.score.marksAwarded}/${response.data.score.maxMarks}**`;
+        cleanedContent += scoreInfo;
+      }
       
       const aiResponse = { 
         role: "assistant", 
