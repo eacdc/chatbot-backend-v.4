@@ -418,6 +418,8 @@ export default function ChatbotLayout({ children }) {
       .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
       
       // Replace [ ... ] LaTeX display math mode with italicized content
+      // More aggressive replacement for square bracket LaTeX notation
+      .replace(/\[\s*\\text\{([^}]+)\}\s*=\s*\\frac\{([^}]+)\}\{([^}]+)\}\s*\]/g, '*$1 = $2/$3*')
       .replace(/\[\s*([^\]]+)\s*\]/g, '*$1*')
       
       // Other LaTeX commands to clean up
@@ -453,6 +455,9 @@ export default function ChatbotLayout({ children }) {
       .replace(/\\approx/g, '≈')
       .replace(/\\geq/g, '≥')
       .replace(/\\leq/g, '≤');
+      
+    // Do a final pass to remove any remaining square bracket LaTeX that wasn't caught
+    cleanedContent = cleanedContent.replace(/\[\s*\\[^\]]+\]/g, '*formula*');
       
     return cleanedContent;
   };
