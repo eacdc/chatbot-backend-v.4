@@ -269,28 +269,67 @@ export default function ChatbotLayout({ children }) {
       setExpandedBook(bookId); // Expand the book in sidebar
       setLoading(true);
       
+      // Find the book in subscribed books to get its cover image
+      const book = subscribedBooks.find(b => b.bookId === bookId);
+      if (book && book.bookCoverImgLink) {
+        setCurrentBookCover(book.bookCoverImgLink);
+      }
+      
       // If chapters for this book aren't loaded yet, fetch them
       if (!bookChapters[bookId]) {
         await fetchBookChapters(bookId);
       }
       
-      // Fetch chat history for this chapter
-      const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_HISTORY.replace(':chapterId', chapterId), {
-        headers: {
-          'Authorization': `Bearer ${getToken()}`,
-          'user-id': getUserId()
-        }
-      });
+      console.log(`Fetching chat history for chapter: ${chapterId}`);
       
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        // Use existing chat history if available
-        setChatHistory(response.data);
-      } else {
-        // If no history, show an empty chat with welcome message
+      // Fetch chat history for this chapter with retry logic
+      const fetchHistoryWithRetry = async (retries = 3) => {
+        try {
+          const response = await axios.get(API_ENDPOINTS.GET_CHAPTER_HISTORY.replace(':chapterId', chapterId), {
+            headers: {
+              'Authorization': `Bearer ${getToken()}`,
+              'user-id': getUserId()
+            }
+          });
+          
+          console.log(`Received ${response.data?.length || 0} messages for chapter ${chapterId}`);
+          
+          if (response.data && Array.isArray(response.data)) {
+            if (response.data.length > 0) {
+              // Use existing chat history if available
+              setChatHistory(response.data);
+              console.log("Chat history loaded successfully");
+            } else {
+              // If empty array returned, show welcome message
+              setChatHistory([{
+                role: 'system',
+                content: `Welcome to chapter "${chapterTitle}". Click the "Start Test" button below to begin.`
+              }]);
+              console.log("No chat history found, showing welcome message");
+            }
+            return true;
+          }
+          return false;
+        } catch (error) {
+          console.error(`Error fetching chat history (attempt ${4-retries}/3):`, error);
+          if (retries > 1) {
+            // Wait a moment before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return fetchHistoryWithRetry(retries - 1);
+          }
+          return false;
+        }
+      };
+      
+      const historyFetched = await fetchHistoryWithRetry();
+      
+      if (!historyFetched) {
+        // If all retries failed, show welcome message
         setChatHistory([{
           role: 'system',
           content: `Welcome to chapter "${chapterTitle}". Click the "Start Test" button below to begin.`
         }]);
+        console.log("Failed to fetch chat history after retries, showing welcome message");
       }
 
       // Scroll to bottom of chat
@@ -300,7 +339,7 @@ export default function ChatbotLayout({ children }) {
         }
       }, 100);
     } catch (error) {
-      console.error("Error loading chat history:", error);
+      console.error("Error handling chapter selection:", error);
       // Add welcome message for empty chat
       setChatHistory([{
         role: 'system',
