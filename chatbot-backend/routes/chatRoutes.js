@@ -491,8 +491,10 @@ Return only the JSON object. Do not include anything else.`,
                         console.error("Error marking question as answered:", markError);
                     }
                 }
-                
-                // Store current question as the previous question for next time
+            }
+            
+            // Store current question as the previous question for next time, for both oldchat_ai and newchat_ai
+            if (questionModeEnabled && (classification === "oldchat_ai" || classification === "newchat_ai")) {
                 if (currentQuestion) {
                     previousQuestionsMap.set(userChapterKey, currentQuestion);
                     console.log(`Set current question as previous for next time: ${currentQuestion.questionId}`);
