@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaUserEdit, FaSignOutAlt, FaBook, FaChevronDown, FaChevronRight, FaPlus, FaMicrophone, FaStop, FaTimes, FaBell } from "react-icons/fa";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
-import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import bookLogo from '../book-logo1.jpeg';
-import SubscribedBooksView from "./SubscribedBooksView"; // Import the new component
+import { ThemeContext } from "../ThemeContext";
+import bookLogo from "../assets/logo.png";
+import successmark from "../assets/successmark.png";
+import { FaBook, FaSignOutAlt, FaShareAlt, FaChevronUp, FaChevronDown, FaBell, FaCheck, FaTimes, FaMicrophone, FaCircle, FaPaperPlane, FaVolumeUp } from "react-icons/fa";
+import "./ChatbotLayout.css";
+import { BsBook } from "react-icons/bs";
+import { io } from "socket.io-client";
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -1251,12 +1252,41 @@ export default function ChatbotLayout({ children }) {
       if (transcriptionResponse.data.redirect) {
         console.log("Audio transcribed, sending to chat API:", transcriptionResponse.data.transcription);
         
+        // Get the audio URL from the response
+        const { audioUrl, audioFileId, messageId: serverMessageId } = transcriptionResponse.data;
+        
+        // Store the audio URL for playback (use server URL instead of blob URL)
+        if (audioUrl) {
+          // Release the blob URL we created earlier to prevent memory leaks
+          if (audioMessages[messageId]) {
+            URL.revokeObjectURL(audioMessages[messageId]);
+          }
+          
+          // Use the server-provided audio URL
+          setAudioMessages(prev => ({
+            ...prev,
+            [messageId]: audioUrl
+          }));
+          
+          // Save this audio message ID to localStorage for persistence
+          const savedAudioMessages = JSON.parse(localStorage.getItem('audioMessages') || '{}');
+          localStorage.setItem('audioMessages', JSON.stringify({
+            ...savedAudioMessages,
+            [messageId]: {
+              url: audioUrl,
+              audioFileId: audioFileId,
+              timestamp: new Date().toISOString()
+            }
+          }));
+        }
+        
         // Update chat with transcription
         const updatedUserMessage = { 
           role: "user", 
           content: transcriptionResponse.data.transcription,
           messageId: messageId,
-          isAudio: true
+          isAudio: true,
+          audioFileId: audioFileId
         };
         
         setChatHistory(prev => {
@@ -1311,25 +1341,75 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
+  // Add an effect to load audio messages from localStorage
+  useEffect(() => {
+    try {
+      // Load saved audio messages from localStorage
+      const savedAudioMessages = JSON.parse(localStorage.getItem('audioMessages') || '{}');
+      
+      if (Object.keys(savedAudioMessages).length > 0) {
+        console.log(`Loading ${Object.keys(savedAudioMessages).length} audio messages from localStorage`);
+        
+        // Create a new object with the saved audio URLs
+        const loadedAudioMessages = {};
+        
+        // Add each saved audio message to the state
+        Object.entries(savedAudioMessages).forEach(([messageId, audioData]) => {
+          if (audioData.url) {
+            loadedAudioMessages[messageId] = audioData.url;
+          }
+        });
+        
+        // Update audio messages state
+        if (Object.keys(loadedAudioMessages).length > 0) {
+          setAudioMessages(prev => ({
+            ...prev,
+            ...loadedAudioMessages
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading audio messages from localStorage:', error);
+    }
+  }, []);
+
   return (
     <>
       <style>
         {`
           /* Toggle switch styles */
           .toggle-checkbox {
-            transition: .3s;
+            transition: 0.4s;
             z-index: 1;
             position: absolute;
+            top: 0;
             left: 0;
           }
           
           .toggle-checkbox:checked {
             transform: translateX(100%);
             border-color: #3B82F6;
+            transition: 0.4s;
           }
           
           .toggle-label {
-            transition: .3s;
+            transition: 0.4s;
+          }
+          
+          /* Audio player styles */
+          .audio-player audio::-webkit-media-controls-panel {
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 4px;
+          }
+          .audio-player audio::-webkit-media-controls-play-button {
+            background-color: #2563eb;
+            border-radius: 50%;
+            color: white;
+          }
+          .audio-player audio::-webkit-media-controls-current-time-display,
+          .audio-player audio::-webkit-media-controls-time-remaining-display {
+            color: #2563eb;
+            font-weight: bold;
           }
         `}
       </style>
@@ -1834,17 +1914,27 @@ export default function ChatbotLayout({ children }) {
                                   {msg.isAudio && msg.messageId && (
                                   <div className="mt-3 p-2 bg-blue-600 rounded-lg">
                                     {audioMessages[msg.messageId] ? (
-                                      <audio 
-                                        src={audioMessages[msg.messageId]} 
-                                        controls 
-                                        className="h-10 w-full max-w-[250px] opacity-90" 
-                                      />
+                                      <div className="audio-player">
+                                        <audio 
+                                          src={audioMessages[msg.messageId]} 
+                                          controls 
+                                          controlsList="nodownload"
+                                          className="h-10 w-full max-w-[250px] opacity-90" 
+                                          preload="metadata"
+                                        />
+                                        <div className="text-xs text-blue-100 mt-1 flex items-center">
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                          </svg>
+                                          <span>Audio message saved</span>
+                                        </div>
+                                      </div>
                                     ) : (
                                       <div className="text-xs text-blue-100 p-2 flex items-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                         </svg>
-                                        <span>Audio playback unavailable after page refresh (Audio is not stored permanently)</span>
+                                        <span>Audio playback unavailable</span>
                                       </div>
                                     )}
                                   </div>

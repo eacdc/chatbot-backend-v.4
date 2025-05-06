@@ -11,6 +11,7 @@ const Prompt = require("../models/Prompt");
 const Config = require("../models/Config");
 const Book = require("../models/Book");
 const QnALists = require("../models/QnALists");
+const { storeAudio, getAudioStream, getAudioUrl } = require('../utils/gridfs');
 
 // Initialize default configs if needed
 (async () => {
@@ -116,7 +117,7 @@ router.post("/send", authenticateUser, async (req, res) => {
         if (chat && chat.messages && chat.messages.length > 0) {
             if (classification === "explanation_ai") {
                 // For explanation agent, use more context - last 6 messages
-                previousMessages = chat.messages.slice(-6);
+            previousMessages = chat.messages.slice(-6);
             } else {
                 // For other agents, use only the last assistant message + current user message
                 const assistantMessages = chat.messages.filter(msg => msg.role === "assistant").slice(-1);
@@ -216,9 +217,9 @@ Return only the JSON object. Do not include anything else.`,
                 });
 
                 // Extract the classification
-                const responseContent = intentAnalysis.choices[0].message.content.trim();
-                const result = JSON.parse(responseContent);
-                classification = result.agent;
+               const responseContent = intentAnalysis.choices[0].message.content.trim();
+  const result = JSON.parse(responseContent);
+  classification = result.agent;
                 
                 // Log the selected agent
                 console.log(`Selected agent: "${classification}"`);
@@ -432,7 +433,7 @@ Return only the JSON object. Do not include anything else.`,
             chat.messages.push({ role: "user", content: message });
             
             // Always save the full message history for all agent types
-            chat.messages.push({ role: "assistant", content: botMessage });
+                chat.messages.push({ role: "assistant", content: botMessage });
             
             // Update the lastActive timestamp
             chat.lastActive = Date.now();
@@ -458,27 +459,27 @@ Return only the JSON object. Do not include anything else.`,
                         console.log(`Extracted score from message: ${marksAwarded}/${maxScore}`);
                     } else {
                         // Fallback to the old method of approximate marking if score not explicitly found
-                        const positiveResponse = botMessage.toLowerCase().match(/\b(correct|right|well done|good job|excellent|perfect|spot on|exactly|accurate|yes|indeed)\b/);
-                        const partialResponse = botMessage.toLowerCase().match(/\b(partially|almost|close|not quite|incomplete|partly|somewhat|nearly|approaching)\b/);
-                        const negativeResponse = botMessage.toLowerCase().match(/\b(incorrect|wrong|not right|mistake|error|no,|afraid not|unfortunately|not correct|not accurate)\b/);
-                        
-                        if (positiveResponse) {
-                            // Award full marks for positive responses
+                const positiveResponse = botMessage.toLowerCase().match(/\b(correct|right|well done|good job|excellent|perfect|spot on|exactly|accurate|yes|indeed)\b/);
+                const partialResponse = botMessage.toLowerCase().match(/\b(partially|almost|close|not quite|incomplete|partly|somewhat|nearly|approaching)\b/);
+                const negativeResponse = botMessage.toLowerCase().match(/\b(incorrect|wrong|not right|mistake|error|no,|afraid not|unfortunately|not correct|not accurate)\b/);
+                
+                if (positiveResponse) {
+                    // Award full marks for positive responses
                             marksAwarded = maxScore;
-                        } else if (partialResponse) {
-                            // Award partial marks for partially correct answers
+                } else if (partialResponse) {
+                    // Award partial marks for partially correct answers
                             marksAwarded = maxScore / 2;
-                        } else if (negativeResponse) {
-                            // No marks for negative responses
-                            marksAwarded = 0;
-                        } else {
-                            // If we can't determine, award partial marks
+                } else if (negativeResponse) {
+                    // No marks for negative responses
+                    marksAwarded = 0;
+                } else {
+                    // If we can't determine, award partial marks
                             marksAwarded = maxScore / 3;
                         }
                         console.log(`Estimated score from message patterns: ${marksAwarded}/${maxScore}`);
-                    }
-                    
-                    try {
+                }
+                
+                try {
                         // Record the answer for the PREVIOUS question with the user's current message as the answer
                         await markQuestionAsAnswered(
                             userId, 
@@ -491,8 +492,8 @@ Return only the JSON object. Do not include anything else.`,
                         );
                         
                         console.log(`Recorded answer for previous question: ${previousQuestion.questionId}`);
-                    } catch (markError) {
-                        console.error("Error marking question as answered:", markError);
+                } catch (markError) {
+                    console.error("Error marking question as answered:", markError);
                     }
                 }
             }
@@ -546,107 +547,104 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             return res.status(400).json({ error: "No audio file uploaded" });
         }
 
-        // console.log removed;
+        // Read the audio file
         const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
+        const fileBuffer = fs.readFileSync(audioFilePath);
+        
+        // Create unique message ID for this audio message
+        const messageId = `audio-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        
+        // Store audio file in GridFS
+        const audioFileId = await storeAudio(
+            fileBuffer, 
+            req.file.originalname || `audio-${Date.now()}.webm`, 
+            req.file.mimetype || 'audio/webm',
+            {
+                userId: req.body.userId,
+                chapterId: req.body.chapterId || null,
+                messageId: messageId
+            }
+        );
 
         // Add timeout for the OpenAI transcription request
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('OpenAI transcription timed out')), 300000); // 5 minutes timeout
+            setTimeout(() => reject(new Error('Transcription request timed out')), 45000);
         });
-        
-        // Function to make OpenAI transcription request with retry logic
-        const makeTranscriptionRequest = async (retryCount = 0, maxRetries = 2) => {
-            try {
-                // console.log removed;
-                
-                // Use the dedicated OpenAI client for transcription
-                const transcription = await openaiTranscription.audio.transcriptions.create({
-                    file: fs.createReadStream(audioFilePath),
-                    model: "whisper-1",
-                });
-                
-                if (!transcription || !transcription.text) {
-                    throw new Error("Invalid transcription response from OpenAI");
-                }
-                
-                return transcription;
-            } catch (error) {
-                // If we've reached max retries, throw the error
-                if (retryCount >= maxRetries) {
-                    throw error;
-                }
-                
-                // console.log removed;
-                
-                // Wait before retrying (exponential backoff: 2s, 4s)
-                await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
-                
-                // Try again with incremented retry count
-                return makeTranscriptionRequest(retryCount + 1, maxRetries);
-            }
-        };
-        
-        // Race the promises
-        const transcriptionPromise = makeTranscriptionRequest();
-        const transcription = await Promise.race([transcriptionPromise, timeoutPromise]);
 
-        // Clean up file after transcription is complete
-        fs.unlink(audioFilePath, (err) => {
-            if (err) {
-                console.error("Error removing audio file:", err);
-            } else {
-                // console.log removed;
-            }
+        // Transcribe the audio using OpenAI's API
+        const transcriptionPromise = openai.audio.transcriptions.create({
+            file: fs.createReadStream(audioFilePath),
+            model: "gpt-4o-transcribe",
+            response_format: "text"
         });
+
+        // Use Promise.race to implement the timeout
+        const transcription = await Promise.race([transcriptionPromise, timeoutPromise]);
         
+        // Delete the temporary file from the uploads directory
+        fs.unlinkSync(audioFilePath);
+
         // Check for empty transcription
         if (!transcription.text || transcription.text.trim() === "") {
             return res.status(400).json({ error: "Couldn't transcribe audio. The file might be empty or corrupted." });
         }
-        
-        // console.log removed;
-        
-        // Now handle the message similar to text input but through the /send endpoint
-        const { userId, chapterId } = req.body;
 
-        if (!userId) {
-            return res.status(400).json({ error: "User ID is required" });
-        }
-
-        // Instead of duplicating the logic to process the message here,
-        // we'll call the /send endpoint with the transcribed text
-        // This ensures consistent handling of messages for both text and audio
-        
-        // Return both the transcribed text and redirect to text processing
-        res.json({ 
-            transcription: transcription.text,
-            redirect: true,
-            message: transcription.text,
-            userId: userId,
-            chapterId: chapterId || null
+        // Get the user's chat history
+        const chatHistory = await Chat.findOne({ 
+            userId: req.body.userId,
+            chapterId: req.body.chapterId || null 
         });
 
+        // Create or update chat history with this transcribed message
+        if (chatHistory) {
+            // Add this message to existing chat
+            chatHistory.messages.push({
+                role: "user",
+                content: transcription.text,
+                isAudio: true,
+                audioFileId: audioFileId,
+                messageId: messageId
+            });
+            await chatHistory.save();
+        } else {
+            // Create a new chat with this message
+            await Chat.create({
+                userId: req.body.userId,
+                chapterId: req.body.chapterId || null,
+                messages: [{
+                    role: "user",
+                    content: transcription.text,
+                    isAudio: true,
+                    audioFileId: audioFileId,
+                    messageId: messageId
+                }]
+            });
+        }
+
+        // we'll call the /send endpoint with the transcribed text
+        console.log(`Transcribed text: ${transcription.text}`);
+
+        // Return both the transcribed text and redirect to text processing
+        return res.status(200).json({
+            transcription: transcription.text,
+            audioUrl: getAudioUrl(audioFileId),
+            audioFileId: audioFileId,
+            messageId: messageId,
+            redirect: true
+        });
     } catch (error) {
-        console.error("Error in audio transcription:", error);
+        console.error("Transcription error:", error);
         
-        // Add specific error messages based on the error type
-        if (error.message.includes('timed out')) {
-            return res.status(504).json({ 
-            error: "Processing timed out. The audio may be too long or complex. Please try again with a shorter recording." 
-            });
+        // Clean up temporary file if it exists
+        if (req.file) {
+            const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
+            if (fs.existsSync(audioFilePath)) {
+                fs.unlinkSync(audioFilePath);
+            }
         }
         
-        // Check for OpenAI API errors
-        if (error.response?.status) {
-            console.error("OpenAI API error:", error.response.status, error.response.data);
-            return res.status(502).json({ 
-            error: "Error from AI service. Please try again later." 
-            });
-        }
-        
-        res.status(500).json({ 
-          error: "Error processing audio", 
-            message: error.message || "Unknown error" 
+        return res.status(500).json({ 
+            error: error.message || "Failed to transcribe audio message" 
         });
     }
 });
@@ -865,6 +863,30 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
         throw error;
     }
 }
+
+// Add a new endpoint to retrieve audio files by ID
+router.get("/audio/:fileId", authenticateUser, async (req, res) => {
+    try {
+        const fileId = req.params.fileId;
+        
+        // Get the audio file from GridFS
+        const audioFile = await getAudioStream(fileId);
+        
+        if (!audioFile) {
+            return res.status(404).json({ error: "Audio file not found" });
+        }
+        
+        // Set the content type header
+        res.set('Content-Type', audioFile.contentType);
+        res.set('Content-Disposition', `inline; filename="${audioFile.filename}"`);
+        
+        // Return the file stream
+        audioFile.stream.pipe(res);
+    } catch (error) {
+        console.error("Error retrieving audio file:", error);
+        res.status(500).json({ error: "Failed to retrieve audio file" });
+    }
+});
 
 // Add the missing export statement
 module.exports = router;
