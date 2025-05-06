@@ -341,6 +341,9 @@ async function processBatchText(req, res) {
                 
                 // Validate the required fields
                 if (questionObj.Q !== undefined && questionObj.question) {
+                  // Track this validation
+                  pendingValidations++;
+                  
                   // Run the validation asynchronously
                   (async () => {
                     try {
@@ -371,11 +374,19 @@ async function processBatchText(req, res) {
                         marks_gained: questionObj.marks_gained || 0
                       });
                       successCount++;
+                    } finally {
+                      // Mark this validation as complete
+                      pendingValidations--;
+                      // Check if all processing is complete and send response if needed
+                      finishProcessing();
                     }
                   })();
                 } else {
                   console.log(`Question object at index ${index} is missing required fields`);
                   errorCount++;
+                  
+                  // No validation to do, check if all processing is done
+                  finishProcessing();
                 }
               } catch (parseError) {
                 console.error(`Error parsing question JSON at index ${index}:`, parseError.message);
