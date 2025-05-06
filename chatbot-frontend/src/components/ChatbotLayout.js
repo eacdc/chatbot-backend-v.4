@@ -683,7 +683,16 @@ export default function ChatbotLayout({ children }) {
         }
       };
       
-      mediaRecorder.onstop = () => {\n        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });\n        setAudioBlob(audioBlob);\n        \n        // Release the microphone\n        stream.getTracks().forEach(track => track.stop());\n        \n        // Automatically send the audio message when recording stops\n        setTimeout(() => sendAudioMessage(), 100);\n      };
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(audioBlob);
+        
+        // Release the microphone
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Automatically send the audio message when recording stops
+        setTimeout(() => sendAudioMessage(), 100);
+      };
       
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
@@ -720,6 +729,7 @@ export default function ChatbotLayout({ children }) {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      // The audio will be sent automatically by the onstop handler
     }
   };
   
@@ -1263,6 +1273,34 @@ export default function ChatbotLayout({ children }) {
     };
   }, [audioMessages]);
 
+  // Save audio messages to localStorage when they're created or updated
+  useEffect(() => {
+    // Create a serializable version of the audio messages
+    const serializedAudioMessages = {};
+    Object.entries(audioMessages).forEach(([id, url]) => {
+      // We can't store blob URLs, so just store a flag that audio exists
+      serializedAudioMessages[id] = true;
+    });
+    
+    // Save to localStorage if we have any audio messages
+    if (Object.keys(serializedAudioMessages).length > 0) {
+      localStorage.setItem('audioMessagesInfo', JSON.stringify(serializedAudioMessages));
+    }
+  }, [audioMessages]);
+
+  // Load audio message info from localStorage on component mount
+  useEffect(() => {
+    const savedAudioInfo = localStorage.getItem('audioMessagesInfo');
+    if (savedAudioInfo) {
+      try {
+        const audioInfo = JSON.parse(savedAudioInfo);
+        console.log("Found saved audio message info:", audioInfo);
+      } catch (e) {
+        console.error("Error parsing saved audio info:", e);
+      }
+    }
+  }, []);
+
   return (
     <>
       <style>
@@ -1271,11 +1309,11 @@ export default function ChatbotLayout({ children }) {
           .toggle-checkbox {
             transition: .3s;
             z-index: 1;
-            position: absolute; left: 0;
+            position: absolute;
+            left: 0;
           }
           
           .toggle-checkbox:checked {
-            position: absolute; left: 0;
             transform: translateX(100%);
             border-color: #3B82F6;
           }
@@ -1783,7 +1821,21 @@ export default function ChatbotLayout({ children }) {
                               {msg.role === "user" ? (
                                 <>
                                   {msg.content}
-                                  {msg.isAudio && msg.messageId && (\n                                  <div className="mt-2 flex items-center">\n                                    {audioMessages[msg.messageId] ? (\n                                      <audio \n                                        src={audioMessages[msg.messageId]} \n                                        controls \n                                        className="h-8 w-full max-w-[200px] opacity-75" \n                                      />\n                                    ) : (\n                                      <div className="text-xs text-blue-300">\n                                        [Audio message - Playback unavailable after page reload]\n                                      </div>\n                                    )}\n                                  </div>\n                                )}
+                                  {msg.isAudio && msg.messageId && (
+                                  <div className="mt-2 flex items-center">
+                                    {audioMessages[msg.messageId] ? (
+                                      <audio 
+                                        src={audioMessages[msg.messageId]} 
+                                        controls 
+                                        className="h-8 w-full max-w-[200px] opacity-75" 
+                                      />
+                                    ) : (
+                                      <div className="text-xs text-blue-300">
+                                        [Audio message - Playback unavailable after page reload]
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                                 </>
                               ) : (
                                 <ReactMarkdown 
