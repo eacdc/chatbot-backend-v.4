@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
 import { ThemeContext } from "../ThemeContext";
-import bookLogo from "../assets/logo.png";
-import successmark from "../assets/successmark.png";
+import successmark from "../book-logo1.jpeg"; // Use an existing image
 import { FaBook, FaSignOutAlt, FaShareAlt, FaChevronUp, FaChevronDown, FaBell, FaCheck, FaTimes, FaMicrophone, FaCircle, FaPaperPlane, FaVolumeUp } from "react-icons/fa";
 import "./ChatbotLayout.css";
 import { BsBook } from "react-icons/bs";
