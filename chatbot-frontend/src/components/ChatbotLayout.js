@@ -1196,6 +1196,17 @@ export default function ChatbotLayout({ children }) {
       try {
         const audioInfo = JSON.parse(savedAudioInfo);
         console.log("Found saved audio message info:", audioInfo);
+        
+        // Update chat history to mark messages as audio messages
+        setChatHistory(prev => 
+          prev.map(msg => {
+            // If this message ID is in the saved audio info, mark it as an audio message
+            if (msg.messageId && audioInfo[msg.messageId]) {
+              return { ...msg, isAudio: true };
+            }
+            return msg;
+          })
+        );
       } catch (e) {
         console.error("Error parsing saved audio info:", e);
       }
@@ -1821,15 +1832,15 @@ export default function ChatbotLayout({ children }) {
                                 <>
                                   {msg.content}
                                   {msg.isAudio && msg.messageId && (
-                                  <div className="mt-2 flex items-center">
+                                  <div className="mt-3 p-2 bg-blue-600 rounded-lg">
                                     {audioMessages[msg.messageId] ? (
                                       <audio 
                                         src={audioMessages[msg.messageId]} 
                                         controls 
-                                        className="h-8 w-full max-w-[200px] opacity-75" 
+                                        className="h-10 w-full max-w-[250px] opacity-90" 
                                       />
                                     ) : (
-                                      <div className="text-xs text-blue-300">
+                                      <div className="text-xs text-blue-100 p-2">
                                         [Audio message - Playback unavailable after page reload]
                                       </div>
                                     )}
