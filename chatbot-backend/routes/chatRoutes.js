@@ -573,7 +573,7 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
 
         // Transcribe the audio using OpenAI's API
         const transcriptionPromise = openaiTranscription.audio.transcriptions.create({
-            file: fs.createReadStream(audioFilePath),
+                    file: fs.createReadStream(audioFilePath),
             model: "whisper-1"
         });
 
@@ -582,12 +582,12 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
         
         // Delete the temporary file from the uploads directory
         fs.unlinkSync(audioFilePath);
-
+        
         // Check for empty transcription
         if (!transcription.text || transcription.text.trim() === "") {
             return res.status(400).json({ error: "Couldn't transcribe audio. The file might be empty or corrupted." });
         }
-
+        
         // Get the user's chat history
         const chatHistory = await Chat.findOne({ 
             userId: req.body.userId,
@@ -622,7 +622,7 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
 
         // we'll call the /send endpoint with the transcribed text
         console.log(`Transcribed text: ${transcription.text}`);
-
+        
         // Return both the transcribed text and redirect to text processing
         return res.status(200).json({
             transcription: transcription.text,
@@ -727,6 +727,30 @@ router.get("/general-history", authenticateUser, async (req, res) => {
     } catch (error) {
         console.error("Error fetching general chat history:", error);
         res.status(500).json({ error: "Failed to fetch general chat history" });
+    }
+});
+
+// Get Chat History by User ID
+router.get("/history/:userId", authenticateUser, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        // Verify the requesting user is the same as the userId parameter
+        if (req.user.userId !== userId) {
+            return res.status(403).json({ error: "Unauthorized to access this user's chat history" });
+        }
+        
+        const chat = await Chat.findOne({ userId, chapterId: null });
+        
+        if (!chat || !Array.isArray(chat.messages)) {
+            return res.json([]);
+        }
+        
+        res.json(chat.messages);
+        
+    } catch (error) {
+        console.error("Error fetching user chat history:", error);
+        res.status(500).json({ error: "Failed to fetch user chat history" });
     }
 });
 
