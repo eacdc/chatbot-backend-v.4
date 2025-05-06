@@ -204,7 +204,7 @@ const AddChapter = () => {
         return;
       }
     }
-    
+  
     const dataToSubmit = {
       bookId: chapterData.bookId,
       title: chapterData.title,
@@ -424,7 +424,7 @@ const AddChapter = () => {
                     <div className="flex-shrink-0">
                       <span className="text-sm text-gray-500">
                         Processed text will appear here automatically
-                      </span>
+                          </span>
                     </div>
                   </div>
                   <div>

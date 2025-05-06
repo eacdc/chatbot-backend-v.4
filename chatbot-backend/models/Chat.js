@@ -3,7 +3,10 @@ const mongoose = require("mongoose");
 const messageSchema = new mongoose.Schema({
     role: { type: String, enum: ["user", "assistant", "system"] },
     content: { type: String },
-    timestamp: { type: Date, default: Date.now }
+    timestamp: { type: Date, default: Date.now },
+    isAudio: { type: Boolean, default: false },
+    audioFileId: { type: String, default: null },
+    messageId: { type: String, default: null }
 });
 
 const chatSchema = new mongoose.Schema({

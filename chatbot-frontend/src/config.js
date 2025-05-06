@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
   SEND_AUDIO: `${API_URL}/api/chat/send-audio`,
   TRANSCRIBE_AUDIO: `${API_URL}/api/chat/transcribe`,
   UPLOAD_BOOK_COVER: `${API_URL}/api/books/upload-cover`,
+  GET_AUDIO: `${API_URL}/api/chat/audio/:fileId`,
   
   // Add the new chapter stats endpoint
   GET_CHAPTER_STATS: `${API_URL}/api/chat/chapter-stats/:chapterId`,

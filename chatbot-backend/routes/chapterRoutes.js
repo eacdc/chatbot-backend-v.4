@@ -350,15 +350,15 @@ async function processBatchText(req, res) {
                       // Check if the question should be kept
                       const validationResult = await validateQuestionWithOpenAI(questionObj.question);
                       if (validationResult === "keep") {
-                        // Add default values for missing fields
-                        structuredQuestions.push({
-                          Q: questionObj.Q,
-                          question: questionObj.question,
-                          question_answered: questionObj.question_answered || false,
-                          question_marks: questionObj.question_marks || 1,
-                          marks_gained: questionObj.marks_gained || 0
-                        });
-                        successCount++;
+                  // Add default values for missing fields
+                  structuredQuestions.push({
+                    Q: questionObj.Q,
+                    question: questionObj.question,
+                    question_answered: questionObj.question_answered || false,
+                    question_marks: questionObj.question_marks || 1,
+                    marks_gained: questionObj.marks_gained || 0
+                  });
+                  successCount++;
                       } else {
                         console.log(`Skipping question at index ${index} based on validation`);
                         errorCount++;
@@ -571,7 +571,7 @@ Respond ONLY with the word "keep" or "skip" - no explanation or additional text.
     const response = await openai.chat.completions.create({
       model: "gpt-4.1",
       messages: [
-        { role: "system", content: systemPrompt },
+      { role: "system", content: systemPrompt },
         { role: "user", content: questionText }
       ],
       temperature: 0, // Use 0 for consistent outputs
