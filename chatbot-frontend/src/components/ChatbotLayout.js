@@ -29,6 +29,8 @@ export default function ChatbotLayout({ children }) {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false); // New state to track message processing
+  const [audioModeEnabled, setAudioModeEnabled] = useState(false); // New state for audio mode toggle
+  const [audioMessages, setAudioMessages] = useState({}); // Store audio blobs by message ID
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const navigate = useNavigate();
@@ -740,6 +742,15 @@ export default function ChatbotLayout({ children }) {
     // Set processing state to true
     setIsProcessing(true);
     
+    // Create a unique message ID for this audio message
+    const messageId = `audio-${Date.now()}`;
+    
+    // Store audio blob for later playback
+    setAudioMessages(prev => ({
+      ...prev,
+      [messageId]: URL.createObjectURL(audioBlob)
+    }));
+    
     // Reset audio state immediately to restore normal UI
     const audioBlobCopy = audioBlob;
     setAudioBlob(null);
@@ -747,7 +758,9 @@ export default function ChatbotLayout({ children }) {
     // Create message indicating audio is being processed
     const newChat = [...chatHistory, { 
       role: "user", 
-      content: "🎤 Processing audio message..." 
+      content: "🎤 Processing audio message...",
+      messageId: messageId,
+      isAudio: true
     }];
     setChatHistory(newChat);
     
@@ -755,6 +768,14 @@ export default function ChatbotLayout({ children }) {
       // Create form data to send the audio file for transcription
       const formData = new FormData();
       formData.append('audio', audioBlobCopy, 'recording.webm');
+      
+      // Extract the chapterId string from the activeChapter object
+      const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
+        ? activeChapter.chapterId 
+        : activeChapter;
+      
+      formData.append('userId', userId);
+      formData.append('chapterId', chapterId || '');
       
       // Use our secure backend endpoint for transcription
       const transcriptionResponse = await axios.post(
@@ -768,57 +789,61 @@ export default function ChatbotLayout({ children }) {
         }
       );
       
-      // Get the transcribed text
-      const transcribedText = transcriptionResponse.data.text;
-      
-      // Update chat with transcribed text
-      const updatedChat = [...newChat.slice(0, -1), { 
-        role: "user", 
-        content: transcribedText 
-      }];
-      setChatHistory(updatedChat);
-      
-      // Extract the chapterId string from the activeChapter object
-      const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
-        ? activeChapter.chapterId 
-        : activeChapter;
-      
-      // Now send the transcribed text to the chat API
-      const response = await axios.post(API_ENDPOINTS.CHAT, {
-        message: transcribedText,
-        userId: getUserId(),
-        chapterId
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      // Handle audio transcription redirecting to chat
+      if (transcriptionResponse.data.redirect) {
+        console.log("Audio transcribed, sending to chat API:", transcriptionResponse.data.transcription);
+        
+        // Update chat with transcription
+        const updatedUserMessage = { 
+          role: "user", 
+          content: transcriptionResponse.data.transcription,
+          messageId: messageId,
+          isAudio: true
+        };
+        
+        setChatHistory(prev => {
+          // Remove the last "[Audio Message]" and replace with actual transcript
+          const newHistory = [...prev];
+          newHistory.pop();
+          return [...newHistory, updatedUserMessage];
+        });
+        
+        // Now send the transcribed message to chat
+        const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
+          userId,
+          message: transcriptionResponse.data.transcription,
+          chapterId
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        // Check if there's score information and append it to the message
+        let botContent = chatResponse.data.message;
+        
+        // Add score information if present
+        if (chatResponse.data.score && chatResponse.data.score.marksAwarded !== null) {
+          const scoreInfo = `\n\n**Score: ${chatResponse.data.score.marksAwarded}/${chatResponse.data.score.maxMarks}**`;
+          botContent += scoreInfo;
         }
-      });
-      
-      // Add AI response to chat history
-      if (response.data && response.data.response) {
-        // Clean up the message content to handle LaTeX formatting
-        const cleanedContent = cleanMessageContent(response.data.response);
         
-        setChatHistory([...updatedChat, { 
-          role: "assistant", 
-          content: cleanedContent
-        }]);
-      }
-      else if (response.data && response.data.message) {
-        // Clean up the message content to handle LaTeX formatting
-        const cleanedContent = cleanMessageContent(response.data.message);
-        
-        setChatHistory([...updatedChat, { 
-          role: "assistant",
-          content: cleanedContent
-        }]);
+        // Handle the chat response
+        const botResponse = { role: "assistant", content: botContent };
+        setChatHistory(prev => [...prev, botResponse]);
       }
     } catch (error) {
       console.error("Error processing audio message:", error);
       
       // Check if it's a transcription error or a chat API error
       const errorMessage = error.response?.data?.error || "Failed to process audio message. Please try again.";
-      setChatHistory([...newChat, { 
+      setChatHistory([...newChat.slice(0, -1), { 
+        role: "user", 
+        content: "🎤 Audio message (Transcription failed)",
+        messageId: messageId,
+        isAudio: true
+      }, {
         role: "system", 
         content: errorMessage
       }]);
@@ -1233,403 +1258,465 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
+  // Add cleanup function for audio URLs on component unmount
+  useEffect(() => {
+    return () => {
+      // Revoke all object URLs to prevent memory leaks
+      Object.values(audioMessages).forEach(url => {
+        URL.revokeObjectURL(url);
+      });
+    };
+  }, [audioMessages]);
+
   return (
-    <div className="flex h-screen flex-col bg-gray-50">
-      {/* Hidden image to preload and validate book cover */}
-      {currentBookCover && (
-        <img 
-          src={currentBookCover}
-          alt=""
-          className="hidden"
-          onError={handleBookCoverError}
-        />
-      )}
-    
-      <div className="w-full bg-white text-gray-800 p-2 sm:p-3 flex justify-between items-center shadow-sm border-b border-gray-100">
-        <div className="flex items-center space-x-4">
-          <div className="flex flex-col items-center bg-blue-50 px-3 py-3 rounded-lg">
-            <img 
-              src={bookLogo}
-              alt="Book Logo" 
-              className="h-12 w-auto object-contain rounded mb-1"
-              onError={(e) => {
-                console.error("Failed to load book logo");
-                e.target.onerror = null;
-                e.target.src = `${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`;
-              }}
-            />
-            <span className="text-sm font-bold tracking-wide text-gray-800">TestYourLearning</span>
-          </div>
-        </div>
-        
-        {/* Carousel of book covers - updated to match image style */}
-        <div className="hidden md:block flex-1 mx-8 overflow-hidden carousel-container">
-          <h2 className="text-xl font-bold text-center text-blue-500 mb-2">Your Educational Resources</h2>
-          <div className="h-48 overflow-hidden">
-            {publisherBooks.length > 0 && (
-              <div 
-                ref={carouselRef}
-                className="whitespace-nowrap animate-slider h-full"
-                style={{
-                  animationDuration: `${Math.max(40, publisherBooks.length * 8)}s`,
-                  animationTimingFunction: 'linear',
-                  animationIterationCount: 'infinite',
-                  animationDelay: '-2s' // Start with content slightly moved in
-                }}
-              >
-                {/* Duplicate the books to create seamless looping */}
-                {[...publisherBooks, ...publisherBooks].map((book, index) => (
-                  <div 
-                    key={`${book._id}-${index}`} 
-                    className="inline-block mx-8 rounded-xl overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top bg-white border border-gray-100"
-                    title={book.title}
-                    onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
-                    style={{ width: '160px' }}
-                  >
-                    <div className="flex flex-col items-center p-2">
-                      <div className="h-24 w-24 mb-2 bg-blue-50 rounded-lg p-2 flex items-center justify-center">
-                        <img 
-                          src={book.bookCoverImgLink} 
-                          alt={book.title}
-                          className="h-full object-contain"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
-                          }}
-                        />
-                      </div>
-                      <h3 className="text-base font-medium text-center text-blue-500 uppercase tracking-wide mb-1">
-                        {book.title.split(' ').slice(0, 2).join(' ')}
-                      </h3>
-                      <p className="text-xs text-gray-600 line-clamp-2 w-full">
-                        {book.title.length > 40 ? book.title.substring(0, 40) + "..." : book.title}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {publisherBooks.length === 0 && (
-              <div className="flex justify-center h-full">
-                <div className="flex flex-col items-center justify-center">
-                  <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-2">
-                    <FaBook className="text-blue-500 text-2xl" />
-                  </div>
-                  <h3 className="text-base font-medium text-blue-500 mb-1">No Books Available</h3>
-                  <p className="text-xs text-gray-600 text-center max-w-md">
-                    Visit collections to find books
-                  </p>
-                  <button 
-                    onClick={() => navigate("/collections")}
-                    className="mt-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs"
-                  >
-                    Browse Collections
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex items-center">
-          {/* Container for notification elements - reorganized for mobile */}
-          <div className="hidden sm:flex items-center space-x-4">
-            {/* Notifications Button for desktop */}
-            <div className="relative" ref={notificationRef}>
-              <button 
-                className={`p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
-                onClick={() => setShowNotifications(!showNotifications)}
-                aria-label="Notifications"
-              >
-                <FaBell className="h-4 w-4 text-blue-500" />
-                {unreadCount > 0 && (
-                  <span className="notification-badge">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
-              
-              {/* Notifications Panel */}
-              {showNotifications && (
-                <div 
-                  className="notification-panel bg-white rounded-lg shadow-md border border-gray-100" 
-                  style={{ 
-                    width: '350px',
-                    maxWidth: 'calc(100vw - 40px)',
-                    position: 'absolute',
-                    top: '45px',
-                    right: '0',
-                    left: 'auto',
-                    zIndex: 1000,
-                    overflowY: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}
-                >
-                  <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center sticky top-0">
-                    <h3 className="font-medium text-gray-800">Notifications</h3>
-                    {unreadCount > 0 && (
-                      <button 
-                        onClick={markAllNotificationsAsSeen}
-                        className="text-xs text-blue-500 hover:text-blue-600"
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-                  
-                  {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">No notifications</div>
-                  ) : (
-                    <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
-                      {notifications.map((notification, index) => (
-                        <div 
-                          key={index}
-                          className={`p-3 border-b border-gray-100 flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-medium text-gray-800 truncate">{notification.title}</div>
-                            <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
-                            <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
-                          </div>
-                          {notification.seen_status === 'no' && (
-                            <button 
-                              onClick={() => markNotificationAsSeen(notification._id)}
-                              className="text-xs text-blue-500 hover:text-blue-600 ml-2 flex-shrink-0 self-start mt-1"
-                            >
-                              Mark as read
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {/* Test Notifications button for desktop */}
-            <button
-              onClick={seedTestNotifications}
-              className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-2 py-1 rounded-md shadow-sm transition-colors duration-200"
-              title="Add test notifications for this user"
-            >
-              Test Notifications
-            </button>
-          </div>
+    <>
+      <style>
+        {`
+          /* Toggle switch styles */
+          .toggle-checkbox {
+            transition: .3s;
+            z-index: 1;
+            right: 0;
+          }
           
-          {/* Mobile only notification components */}
-          <div className="sm:hidden flex flex-col items-end mr-4">
-            {/* Notification button for mobile */}
-            <div className="relative" ref={notificationRef}>
-              <button 
-                className={`p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
-                onClick={() => setShowNotifications(!showNotifications)}
-                aria-label="Notifications"
-              >
-                <FaBell className="h-4 w-4 text-blue-500" />
-                {unreadCount > 0 && (
-                  <span className="notification-badge">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
-              
-              {/* Notifications Panel for mobile */}
-              {showNotifications && (
-                <div 
-                  className="notification-panel bg-white rounded-lg shadow-md border border-gray-100" 
-                  style={{ 
-                    width: '300px',
-                    maxWidth: 'calc(100vw - 40px)',
-                    position: 'absolute',
-                    top: '75px',
-                    right: '0',
-                    left: 'auto',
-                    zIndex: 1000,
-                    overflowY: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}
-                >
-                  <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center sticky top-0">
-                    <h3 className="font-medium text-gray-800">Notifications</h3>
-                    {unreadCount > 0 && (
-                      <button 
-                        onClick={markAllNotificationsAsSeen}
-                        className="text-xs text-blue-500 hover:text-blue-600"
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-                  
-                  {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">No notifications</div>
-                  ) : (
-                    <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
-                      {notifications.map((notification, index) => (
-                        <div 
-                          key={index}
-                          className={`p-3 border-b border-gray-100 flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-medium text-gray-800 truncate">{notification.title}</div>
-                            <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
-                            <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
-                          </div>
-                          {notification.seen_status === 'no' && (
-                            <button 
-                              onClick={() => markNotificationAsSeen(notification._id)}
-                              className="text-xs text-blue-500 hover:text-blue-600 ml-2 flex-shrink-0 self-start mt-1"
-                            >
-                              Mark as read
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {/* Test Notifications button for mobile - below the notification bell */}
-            <button
-              onClick={seedTestNotifications}
-              className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-2 py-1 rounded-md shadow-sm transition-colors duration-200 mt-2"
-              title="Add test notifications for this user"
-            >
-              Test Notifications
-            </button>
-          </div>
+          .toggle-checkbox:checked {
+            right: 0;
+            transform: translateX(100%);
+            border-color: #3B82F6;
+          }
           
-          {/* Mobile menu toggle button */}
-          <button 
-            className="lg:hidden flex items-center justify-center p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors duration-200 focus:outline-none"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            aria-label="Toggle menu"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div className="flex flex-1 overflow-hidden relative w-full">
-        {/* Sidebar overlay for mobile - only shows when sidebar is open */}
-        {isSidebarOpen && (
-          <div 
-            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-10"
-            onClick={() => setIsSidebarOpen(false)}
-            aria-hidden="true"
-          ></div>
+          .toggle-label {
+            transition: .3s;
+          }
+        `}
+      </style>
+      <div className="flex h-screen flex-col bg-gray-50">
+        {/* Hidden image to preload and validate book cover */}
+        {currentBookCover && (
+          <img 
+            src={currentBookCover}
+            alt=""
+            className="hidden"
+            onError={handleBookCoverError}
+          />
         )}
-        
-        {/* Sidebar */}
-        <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-white text-gray-800 fixed lg:static z-20 h-full overflow-y-auto shadow-sm flex flex-col flex-shrink-0 border-r border-gray-100`}>
-          <div className="p-4 flex-1">
-            <div className="flex justify-between items-center lg:hidden mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">My Library</h2>
-              <button 
-                className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                onClick={() => setIsSidebarOpen(false)}
-                aria-label="Close menu"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      
+        <div className="w-full bg-white text-gray-800 p-2 sm:p-3 flex justify-between items-center shadow-sm border-b border-gray-100">
+          <div className="flex items-center space-x-4">
+            <div className="flex flex-col items-center bg-blue-50 px-3 py-3 rounded-lg">
+              <img 
+                src={bookLogo}
+                alt="Book Logo" 
+                className="h-12 w-auto object-contain rounded mb-1"
+                onError={(e) => {
+                  console.error("Failed to load book logo");
+                  e.target.onerror = null;
+                  e.target.src = `${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`;
+                }}
+              />
+              <span className="text-sm font-bold tracking-wide text-gray-800">TestYourLearning</span>
             </div>
-            
-            <h2 className="text-lg font-semibold mb-4 hidden lg:block text-gray-800">My Library</h2>
-            
-            {loading ? (
-              <div className="py-10 flex justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : subscribedBooks.length > 0 ? (
-              <div className="space-y-2 mb-6">
-                {subscribedBooks.map((sub) => (
-                  <div key={sub._id} className="bg-gray-50 rounded-lg overflow-hidden shadow-sm">
-                    <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200" onClick={() => toggleBookExpansion(sub.bookId)}>
-                      <span className="font-medium truncate flex-1 text-gray-700">{sub.bookTitle}</span>
-                      <div className="flex items-center">
-                        <button
-                          className="mr-2 text-gray-400 hover:text-red-500 focus:outline-none"
-                          onClick={(e) => handleUnsubscribe(sub.bookId, e)}
-                          title="Unsubscribe"
-                        >
-                          <FaTimes className="h-4 w-4" />
-                        </button>
-                        <span className="text-gray-400 transform transition-transform duration-200">
-                          {expandedBook === sub.bookId ? 
-                            <FaChevronDown className="h-4 w-4" /> : 
-                            <FaChevronRight className="h-4 w-4" />
-                          }
-                        </span>
+          </div>
+          
+          {/* Carousel of book covers - updated to match image style */}
+          <div className="hidden md:block flex-1 mx-8 overflow-hidden carousel-container">
+            <h2 className="text-xl font-bold text-center text-blue-500 mb-2">Your Educational Resources</h2>
+            <div className="h-48 overflow-hidden">
+              {publisherBooks.length > 0 && (
+                <div 
+                  ref={carouselRef}
+                  className="whitespace-nowrap animate-slider h-full"
+                  style={{
+                    animationDuration: `${Math.max(40, publisherBooks.length * 8)}s`,
+                    animationTimingFunction: 'linear',
+                    animationIterationCount: 'infinite',
+                    animationDelay: '-2s' // Start with content slightly moved in
+                  }}
+                >
+                  {/* Duplicate the books to create seamless looping */}
+                  {[...publisherBooks, ...publisherBooks].map((book, index) => (
+                    <div 
+                      key={`${book._id}-${index}`} 
+                      className="inline-block mx-8 rounded-xl overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top bg-white border border-gray-100"
+                      title={book.title}
+                      onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
+                      style={{ width: '160px' }}
+                    >
+                      <div className="flex flex-col items-center p-2">
+                        <div className="h-24 w-24 mb-2 bg-blue-50 rounded-lg p-2 flex items-center justify-center">
+                          <img 
+                            src={book.bookCoverImgLink} 
+                            alt={book.title}
+                            className="h-full object-contain"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
+                            }}
+                          />
+                        </div>
+                        <h3 className="text-base font-medium text-center text-blue-500 uppercase tracking-wide mb-1">
+                          {book.title.split(' ').slice(0, 2).join(' ')}
+                        </h3>
+                        <p className="text-xs text-gray-600 line-clamp-2 w-full">
+                          {book.title.length > 40 ? book.title.substring(0, 40) + "..." : book.title}
+                        </p>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {publisherBooks.length === 0 && (
+                <div className="flex justify-center h-full">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-2">
+                      <FaBook className="text-blue-500 text-2xl" />
+                    </div>
+                    <h3 className="text-base font-medium text-blue-500 mb-1">No Books Available</h3>
+                    <p className="text-xs text-gray-600 text-center max-w-md">
+                      Visit collections to find books
+                    </p>
+                    <button 
+                      onClick={() => navigate("/collections")}
+                      className="mt-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs"
+                    >
+                      Browse Collections
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center">
+            {/* Container for notification elements - reorganized for mobile */}
+            <div className="hidden sm:flex items-center space-x-4">
+              {/* Notifications Button for desktop */}
+              <div className="relative" ref={notificationRef}>
+                <button 
+                  className={`p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  aria-label="Notifications"
+                >
+                  <FaBell className="h-4 w-4 text-blue-500" />
+                  {unreadCount > 0 && (
+                    <span className="notification-badge">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Notifications Panel */}
+                {showNotifications && (
+                  <div 
+                    className="notification-panel bg-white rounded-lg shadow-md border border-gray-100" 
+                    style={{ 
+                      width: '350px',
+                      maxWidth: 'calc(100vw - 40px)',
+                      position: 'absolute',
+                      top: '45px',
+                      right: '0',
+                      left: 'auto',
+                      zIndex: 1000,
+                      overflowY: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}
+                  >
+                    <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center sticky top-0">
+                      <h3 className="font-medium text-gray-800">Notifications</h3>
+                      {unreadCount > 0 && (
+                        <button 
+                          onClick={markAllNotificationsAsSeen}
+                          className="text-xs text-blue-500 hover:text-blue-600"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
                     </div>
                     
-                    {expandedBook === sub.bookId && (
-                      <div className="border-t border-gray-200">
-                        {bookChapters[sub.bookId] ? (
-                          bookChapters[sub.bookId].length > 0 ? (
-                            <div className="max-h-64 overflow-y-auto">
-                              {bookChapters[sub.bookId].map((chapter) => (
-                                <div 
-                                  key={chapter._id} 
-                                  className={`p-2 pl-6 cursor-pointer transition-colors duration-200 text-sm ${
-                                    activeChapter && activeChapter.chapterId === chapter._id 
-                                      ? "bg-blue-500 text-white" 
-                                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                                  }`}
-                                  onClick={() => {
-                                    handleChapterSelect(sub.bookId, chapter._id, chapter.title);
-                                    setIsSidebarOpen(false);
-                                  }}
-                                >
-                                  {chapter.title}
-                                </div>
-                              ))}
+                    {notifications.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">No notifications</div>
+                    ) : (
+                      <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
+                        {notifications.map((notification, index) => (
+                          <div 
+                            key={index}
+                            className={`p-3 border-b border-gray-100 flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-gray-800 truncate">{notification.title}</div>
+                              <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
+                              <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
                             </div>
-                          ) : (
-                            <div className="p-3 text-sm text-gray-500">No chapters available</div>
-                          )
-                        ) : (
-                          <div className="p-3 flex justify-center">
-                            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                            {notification.seen_status === 'no' && (
+                              <button 
+                                onClick={() => markNotificationAsSeen(notification._id)}
+                                className="text-xs text-blue-500 hover:text-blue-600 ml-2 flex-shrink-0 self-start mt-1"
+                              >
+                                Mark as read
+                              </button>
+                            )}
                           </div>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>
-                ))}
+                )}
               </div>
-            ) : (
-              <div className="bg-gray-50 rounded-lg p-4 text-center shadow-sm">
-                <p className="text-gray-600 mb-4">No books in your library</p>
+              
+              {/* Test Notifications button for desktop */}
+              <button
+                onClick={seedTestNotifications}
+                className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-2 py-1 rounded-md shadow-sm transition-colors duration-200"
+                title="Add test notifications for this user"
+              >
+                Test Notifications
+              </button>
+            </div>
+            
+            {/* Mobile only notification components */}
+            <div className="sm:hidden flex flex-col items-end mr-4">
+              {/* Notification button for mobile */}
+              <div className="relative" ref={notificationRef}>
                 <button 
-                  className="inline-flex items-center px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white"
-                  onClick={() => {
-                    navigate("/collections");
-                    setIsSidebarOpen(false);
-                  }}
+                  className={`p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 transition-colors duration-200 focus:outline-none ${unreadCount > 0 ? 'notification-bell-blink' : ''}`}
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  aria-label="Notifications"
                 >
-                  <FaPlus className="mr-2 h-4 w-4" /> Add Books
+                  <FaBell className="h-4 w-4 text-blue-500" />
+                  {unreadCount > 0 && (
+                    <span className="notification-badge">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Notifications Panel for mobile */}
+                {showNotifications && (
+                  <div 
+                    className="notification-panel bg-white rounded-lg shadow-md border border-gray-100" 
+                    style={{ 
+                      width: '300px',
+                      maxWidth: 'calc(100vw - 40px)',
+                      position: 'absolute',
+                      top: '75px',
+                      right: '0',
+                      left: 'auto',
+                      zIndex: 1000,
+                      overflowY: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}
+                  >
+                    <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center sticky top-0">
+                      <h3 className="font-medium text-gray-800">Notifications</h3>
+                      {unreadCount > 0 && (
+                        <button 
+                          onClick={markAllNotificationsAsSeen}
+                          className="text-xs text-blue-500 hover:text-blue-600"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                    </div>
+                    
+                    {notifications.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">No notifications</div>
+                    ) : (
+                      <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
+                        {notifications.map((notification, index) => (
+                          <div 
+                            key={index}
+                            className={`p-3 border-b border-gray-100 flex ${notification.seen_status === 'yes' ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-gray-800 truncate">{notification.title}</div>
+                              <div className="text-sm text-gray-600 line-clamp-2">{notification.message}</div>
+                              <div className="text-xs text-gray-400 mt-1">{formatTimestamp(notification.createdAt)}</div>
+                            </div>
+                            {notification.seen_status === 'no' && (
+                              <button 
+                                onClick={() => markNotificationAsSeen(notification._id)}
+                                className="text-xs text-blue-500 hover:text-blue-600 ml-2 flex-shrink-0 self-start mt-1"
+                              >
+                                Mark as read
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {/* Test Notifications button for mobile - below the notification bell */}
+              <button
+                onClick={seedTestNotifications}
+                className="bg-blue-50 hover:bg-blue-100 text-blue-500 text-xs px-2 py-1 rounded-md shadow-sm transition-colors duration-200 mt-2"
+                title="Add test notifications for this user"
+              >
+                Test Notifications
+              </button>
+            </div>
+            
+            {/* Mobile menu toggle button */}
+            <button 
+              className="lg:hidden flex items-center justify-center p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors duration-200 focus:outline-none"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              aria-label="Toggle menu"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-1 overflow-hidden relative w-full">
+          {/* Sidebar overlay for mobile - only shows when sidebar is open */}
+          {isSidebarOpen && (
+            <div 
+              className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-10"
+              onClick={() => setIsSidebarOpen(false)}
+              aria-hidden="true"
+            ></div>
+          )}
+          
+          {/* Sidebar */}
+          <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transform transition-transform duration-300 ease-in-out lg:w-72 w-3/4 max-w-sm bg-white text-gray-800 fixed lg:static z-20 h-full overflow-y-auto shadow-sm flex flex-col flex-shrink-0 border-r border-gray-100`}>
+            <div className="p-4 flex-1">
+              <div className="flex justify-between items-center lg:hidden mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">My Library</h2>
+                <button 
+                  className="p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                  onClick={() => setIsSidebarOpen(false)}
+                  aria-label="Close menu"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
-            )}
+              
+              <h2 className="text-lg font-semibold mb-4 hidden lg:block text-gray-800">My Library</h2>
+              
+              {loading ? (
+                <div className="py-10 flex justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              ) : subscribedBooks.length > 0 ? (
+                <div className="space-y-2 mb-6">
+                  {subscribedBooks.map((sub) => (
+                    <div key={sub._id} className="bg-gray-50 rounded-lg overflow-hidden shadow-sm">
+                      <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-100 transition-colors duration-200" onClick={() => toggleBookExpansion(sub.bookId)}>
+                        <span className="font-medium truncate flex-1 text-gray-700">{sub.bookTitle}</span>
+                        <div className="flex items-center">
+                          <button
+                            className="mr-2 text-gray-400 hover:text-red-500 focus:outline-none"
+                            onClick={(e) => handleUnsubscribe(sub.bookId, e)}
+                            title="Unsubscribe"
+                          >
+                            <FaTimes className="h-4 w-4" />
+                          </button>
+                          <span className="text-gray-400 transform transition-transform duration-200">
+                            {expandedBook === sub.bookId ? 
+                              <FaChevronDown className="h-4 w-4" /> : 
+                              <FaChevronRight className="h-4 w-4" />
+                            }
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {expandedBook === sub.bookId && (
+                        <div className="border-t border-gray-200">
+                          {bookChapters[sub.bookId] ? (
+                            bookChapters[sub.bookId].length > 0 ? (
+                              <div className="max-h-64 overflow-y-auto">
+                                {bookChapters[sub.bookId].map((chapter) => (
+                                  <div 
+                                    key={chapter._id} 
+                                    className={`p-2 pl-6 cursor-pointer transition-colors duration-200 text-sm ${
+                                      activeChapter && activeChapter.chapterId === chapter._id 
+                                        ? "bg-blue-500 text-white" 
+                                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                    }`}
+                                    onClick={() => {
+                                      handleChapterSelect(sub.bookId, chapter._id, chapter.title);
+                                      setIsSidebarOpen(false);
+                                    }}
+                                  >
+                                    {chapter.title}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="p-3 text-sm text-gray-500">No chapters available</div>
+                            )
+                          ) : (
+                            <div className="p-3 flex justify-center">
+                              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-4 text-center shadow-sm">
+                  <p className="text-gray-600 mb-4">No books in your library</p>
+                  <button 
+                    className="inline-flex items-center px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white"
+                    onClick={() => {
+                      navigate("/collections");
+                      setIsSidebarOpen(false);
+                    }}
+                  >
+                    <FaPlus className="mr-2 h-4 w-4" /> Add Books
+                  </button>
+                </div>
+              )}
+              
+              {/* For mobile only - showing controls in the main sidebar area */}
+              <div className="pt-4 mt-6 border-t border-gray-200 lg:hidden">
+                <nav className="space-y-2">
+                  <button 
+                    className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onClick={() => {
+                      navigate("/profile");
+                      setIsSidebarOpen(false);
+                    }}
+                  >
+                    <FaUserEdit className="h-5 w-5 text-gray-500" /> 
+                    <span className="text-gray-700">Profile</span>
+                  </button>
+                  <button
+                    className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onClick={() => {
+                      navigate("/collections");
+                      setIsSidebarOpen(false);
+                    }}
+                  >
+                    <FaBook className="h-5 w-5 text-gray-500" /> 
+                    <span className="text-gray-700">Collections</span>
+                  </button>
+                  <button
+                    className="w-full flex items-center gap-2 p-3 rounded-lg bg-red-50 hover:bg-red-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 text-red-600"
+                    onClick={handleLogout}
+                  >
+                    <FaSignOutAlt className="h-5 w-5" /> 
+                    <span>Logout</span>
+                  </button>
+                </nav>
+              </div>
+            </div>
             
-            {/* For mobile only - showing controls in the main sidebar area */}
-            <div className="pt-4 mt-6 border-t border-gray-200 lg:hidden">
-              <nav className="space-y-2">
+            {/* For desktop only - controls fixed at the bottom */}
+            <div className="hidden lg:block border-t border-gray-200 mt-auto">
+              <nav className="p-4 space-y-2">
                 <button 
                   className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  onClick={() => {
-                    navigate("/profile");
-                    setIsSidebarOpen(false);
-                  }}
+                  onClick={() => navigate("/profile")}
                 >
                   <FaUserEdit className="h-5 w-5 text-gray-500" /> 
                   <span className="text-gray-700">Profile</span>
@@ -1653,387 +1740,389 @@ export default function ChatbotLayout({ children }) {
                 </button>
               </nav>
             </div>
-          </div>
+          </aside>
           
-          {/* For desktop only - controls fixed at the bottom */}
-          <div className="hidden lg:block border-t border-gray-200 mt-auto">
-            <nav className="p-4 space-y-2">
-              <button 
-                className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onClick={() => navigate("/profile")}
-              >
-                <FaUserEdit className="h-5 w-5 text-gray-500" /> 
-                <span className="text-gray-700">Profile</span>
-              </button>
-              <button
-                className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onClick={() => {
-                  navigate("/collections");
-                  setIsSidebarOpen(false);
-                }}
-              >
-                <FaBook className="h-5 w-5 text-gray-500" /> 
-                <span className="text-gray-700">Collections</span>
-              </button>
-              <button
-                className="w-full flex items-center gap-2 p-3 rounded-lg bg-red-50 hover:bg-red-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 text-red-600"
-                onClick={handleLogout}
-              >
-                <FaSignOutAlt className="h-5 w-5" /> 
-                <span>Logout</span>
-              </button>
-            </nav>
-          </div>
-        </aside>
-        
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden" style={chatBackgroundStyle}>
-          {/* No overlay - removed for full background visibility */}
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col overflow-hidden" style={chatBackgroundStyle}>
+            {/* No overlay - removed for full background visibility */}
 
-          {activeChapter ? (
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-              {/* Current chapter indicator */}
-              <div className="relative">
-                <div className="bg-white bg-opacity-95 text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
-                  <div>
-                    <span className="text-xs font-medium uppercase tracking-wider text-blue-500">Active Chapter</span>
-                    <h3 className="text-sm sm:text-base font-medium text-gray-800">{currentChapterTitle}</h3>
+            {activeChapter ? (
+              <div className="flex-1 flex flex-col overflow-hidden relative">
+                {/* Current chapter indicator */}
+                <div className="relative">
+                  <div className="bg-white bg-opacity-95 text-gray-800 px-4 py-3 shadow-sm flex justify-between items-center border-b border-gray-100">
+                    <div>
+                      <span className="text-xs font-medium uppercase tracking-wider text-blue-500">Active Chapter</span>
+                      <h3 className="text-sm sm:text-base font-medium text-gray-800">{currentChapterTitle}</h3>
+                    </div>
+                    <button 
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                      onClick={clearActiveChapter}
+                    >
+                      Exit Chapter
+                    </button>
                   </div>
-                  <button 
-                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
-                    onClick={clearActiveChapter}
-                  >
-                    Exit Chapter
-                  </button>
                 </div>
-              </div>
-              
-              {/* Chat Messages Area - Only shown when activeChapter is selected */}
-              <div 
-                className="flex-1 overflow-y-auto p-4 sm:p-6"
-                ref={chatContainerRef}
-              >
-                <div className="flex flex-col space-y-4">
-                  {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
-                    <>
-                      {chatHistory.map((msg, index) => (
-                        <div
-                          key={index}
-                          className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                        >
-                          <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl shadow-sm p-3 ${
-                            msg.role === "user" 
-                              ? "bg-blue-500 text-white rounded-tr-sm" 
-                              : msg.role === "system" 
-                                ? "bg-yellow-50 text-yellow-800 rounded-tl-sm border border-yellow-100" 
-                                : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
-                          } text-sm sm:text-base markdown-content`}
+                
+                {/* Chat Messages Area - Only shown when activeChapter is selected */}
+                <div 
+                  className="flex-1 overflow-y-auto p-4 sm:p-6"
+                  ref={chatContainerRef}
+                >
+                  <div className="flex flex-col space-y-4">
+                    {Array.isArray(chatHistory) && chatHistory.length > 0 ? (
+                      <>
+                        {chatHistory.map((msg, index) => (
+                          <div
+                            key={index}
+                            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                           >
-                            {msg.role === "user" ? (
-                              msg.content
-                            ) : (
-                              <ReactMarkdown 
-                                remarkPlugins={[remarkGfm]}
-                                className={msg.role === "system" ? "markdown-system" : "markdown-assistant"}
-                              >
-                                {msg.content}
-                              </ReactMarkdown>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {/* Show typing indicator when processing a message */}
-                      {isProcessing && (
-                        <div className="flex justify-start">
-                          <div className="bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100 p-3 shadow-sm max-w-[85%] sm:max-w-[75%]">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse delay-150"></div>
-                              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse delay-300"></div>
-                              <span className="text-xs text-gray-500 ml-2">AI is thinking...</span>
+                            <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl shadow-sm p-3 ${
+                              msg.role === "user" 
+                                ? "bg-blue-500 text-white rounded-tr-sm" 
+                                : msg.role === "system" 
+                                  ? "bg-yellow-50 text-yellow-800 rounded-tl-sm border border-yellow-100" 
+                                  : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
+                            } text-sm sm:text-base markdown-content`}
+                            >
+                              {msg.role === "user" ? (
+                                <>
+                                  {msg.content}
+                                  {msg.isAudio && msg.messageId && audioMessages[msg.messageId] && (
+                                    <div className="mt-2 flex items-center">
+                                      <audio 
+                                        src={audioMessages[msg.messageId]} 
+                                        controls 
+                                        className="h-8 w-full max-w-[200px] opacity-75" 
+                                      />
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <ReactMarkdown 
+                                  remarkPlugins={[remarkGfm]}
+                                  className={msg.role === "system" ? "markdown-system" : "markdown-assistant"}
+                                >
+                                  {msg.content}
+                                </ReactMarkdown>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      )}
-                      
-                      {/* Add Start Test button if there's only the system welcome message */}
-                      {chatHistory.length === 1 && chatHistory[0].role === 'system' && (
-                        <div className="flex justify-center mt-4">
-                          <button
-                            onClick={() => {
-                              // Send "Let's Start" message when button is clicked
-                              const newMessage = { role: "user", content: "Let's Start" };
-                              setChatHistory([...chatHistory, newMessage]);
-                              setIsProcessing(true);
-                              
-                              // Extract the chapterId string from the activeChapter object
-                              const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
-                                ? activeChapter.chapterId 
-                                : activeChapter;
-                              
-                              // Then call API directly with this content
-                              axios.post(API_ENDPOINTS.CHAT, {
-                                message: "Let's Start",
-                                userId: getUserId(),
-                                chapterId
-                              }, {
-                                headers: {
-                                  'Authorization': `Bearer ${getToken()}`
-                                }
-                              }).then(response => {
-                                processStartTestResponse(response);
+                        ))}
+                        
+                        {/* Show typing indicator when processing a message */}
+                        {isProcessing && (
+                          <div className="flex justify-start">
+                            <div className="bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100 p-3 shadow-sm max-w-[85%] sm:max-w-[75%]">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse delay-150"></div>
+                                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse delay-300"></div>
+                                <span className="text-xs text-gray-500 ml-2">AI is thinking...</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Add Start Test button if there's only the system welcome message */}
+                        {chatHistory.length === 1 && chatHistory[0].role === 'system' && (
+                          <div className="flex justify-center mt-4">
+                            <button
+                              onClick={() => {
+                                // Send "Let's Start" message when button is clicked
+                                const newMessage = { role: "user", content: "Let's Start" };
+                                setChatHistory([...chatHistory, newMessage]);
+                                setIsProcessing(true);
                                 
-                                // Scroll to bottom of chat
-                                setTimeout(() => {
-                                  if (chatEndRef && chatEndRef.current) {
-                                    chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                                // Extract the chapterId string from the activeChapter object
+                                const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
+                                  ? activeChapter.chapterId 
+                                  : activeChapter;
+                                
+                                // Then call API directly with this content
+                                axios.post(API_ENDPOINTS.CHAT, {
+                                  message: "Let's Start",
+                                  userId: getUserId(),
+                                  chapterId
+                                }, {
+                                  headers: {
+                                    'Authorization': `Bearer ${getToken()}`
                                   }
-                                }, 200);
-                              }).catch(error => {
-                                console.error("Error sending initial message:", error);
-                                setChatHistory(prev => [...prev, { 
-                                  role: "system", 
-                                  content: "Failed to start test. Please try again." 
-                                }]);
-                              }).finally(() => {
-                                setIsProcessing(false);
-                              });
-                            }}
-                            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 flex items-center"
+                                }).then(response => {
+                                  processStartTestResponse(response);
+                                  
+                                  // Scroll to bottom of chat
+                                  setTimeout(() => {
+                                    if (chatEndRef && chatEndRef.current) {
+                                      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                                    }
+                                  }, 200);
+                                }).catch(error => {
+                                  console.error("Error sending initial message:", error);
+                                  setChatHistory(prev => [...prev, { 
+                                    role: "system", 
+                                    content: "Failed to start test. Please try again." 
+                                  }]);
+                                }).finally(() => {
+                                  setIsProcessing(false);
+                                });
+                              }}
+                              className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 flex items-center"
+                              disabled={isProcessing}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3-2a1 1 0 000-1.664z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              {isProcessing ? "Starting..." : "Start Test"}
+                            </button>
+                          </div>
+                        )}
+                        
+                        <div ref={chatEndRef} />
+                      </>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-95 rounded-xl p-8 shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                        <p className="text-center text-xl font-medium">Start a conversation!</p>
+                        <p className="text-center text-base mt-3">
+                          Ask questions about this chapter
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Message Input - Only shown when activeChapter is selected */}
+                <div className="border-t border-gray-100 p-3 sm:p-4 bg-white bg-opacity-95">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Ask about this chapter..."
+                        className={`w-full pl-4 pr-10 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base font-sans ${isProcessing ? 'bg-gray-100 text-gray-500' : ''}`}
+                        style={{ fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" }}
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                        disabled={isRecording || isProcessing}
+                      />
+                      <button 
+                        className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${isProcessing || !message.trim() ? 'text-gray-300' : 'text-gray-400 hover:text-blue-500'} p-2 rounded-full focus:outline-none`}
+                        onClick={handleSendMessage}
+                        disabled={isRecording || isProcessing || !message.trim()}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    {/* Audio Mode Toggle */}
+                    <div className="flex items-center">
+                      <label htmlFor="audioMode" className="mr-2 text-sm text-gray-600 cursor-pointer">
+                        Audio Mode
+                      </label>
+                      <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                        <input 
+                          type="checkbox" 
+                          name="audioMode" 
+                          id="audioMode" 
+                          checked={audioModeEnabled}
+                          onChange={() => setAudioModeEnabled(!audioModeEnabled)}
+                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                        />
+                        <label 
+                          htmlFor="audioMode" 
+                          className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${audioModeEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}
+                        ></label>
+                      </div>
+                    </div>
+                    
+                    {/* Audio recording button - always visible regardless of audio mode */}
+                    {!isRecording ? (
+                      audioBlob ? (
+                        <div className="flex space-x-2">
+                          <button 
+                            className={`bg-green-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'} text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
+                            onClick={sendAudioMessage}
                             disabled={isProcessing}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3-2a1 1 0 000-1.664z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                             </svg>
-                            {isProcessing ? "Starting..." : "Start Test"}
+                            Send Audio
+                          </button>
+                          <button 
+                            className={`bg-gray-500 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-600'} text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500`}
+                            onClick={cancelRecording}
+                            disabled={isProcessing}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                            Cancel
                           </button>
                         </div>
-                      )}
-                      
-                      <div ref={chatEndRef} />
-                    </>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-700 bg-white bg-opacity-95 rounded-xl p-8 shadow-sm">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                      <p className="text-center text-xl font-medium">Start a conversation!</p>
-                      <p className="text-center text-base mt-3">
-                        Ask questions about this chapter
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Message Input - Only shown when activeChapter is selected */}
-              <div className="border-t border-gray-100 p-3 sm:p-4 bg-white bg-opacity-95">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      placeholder="Ask about this chapter..."
-                      className={`w-full pl-4 pr-10 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base font-sans ${isProcessing ? 'bg-gray-100 text-gray-500' : ''}`}
-                      style={{ fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" }}
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                      disabled={isRecording || isProcessing}
-                    />
-                    <button 
-                      className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${isProcessing || !message.trim() ? 'text-gray-300' : 'text-gray-400 hover:text-blue-500'} p-2 rounded-full focus:outline-none`}
-                      onClick={handleSendMessage}
-                      disabled={isRecording || isProcessing || !message.trim()}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  {/* Audio recording button */}
-                  {!isRecording ? (
-                    audioBlob ? (
-                      <div className="flex space-x-2">
+                      ) : (
                         <button 
-                          className={`bg-green-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'} text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
-                          onClick={sendAudioMessage}
+                          className={`bg-blue-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'} text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto`}
+                          onClick={startRecording}
                           disabled={isProcessing}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                          </svg>
-                          Send Audio
+                          <span className="flex items-center">
+                            <FaMicrophone className="mr-2" /> 
+                            Voice Message
+                          </span>
                         </button>
-                        <button 
-                          className={`bg-gray-500 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-600'} text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500`}
-                          onClick={cancelRecording}
-                          disabled={isProcessing}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                          </svg>
-                          Cancel
-                        </button>
-                      </div>
+                      )
                     ) : (
                       <button 
-                        className={`bg-blue-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'} text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto`}
-                        onClick={startRecording}
-                        disabled={isProcessing}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 animate-pulse"
+                        onClick={stopRecording}
                       >
-                        <span className="flex items-center">
-                          <FaMicrophone className="mr-2" /> 
-                          Voice
-                        </span>
+                        <FaStop className="mr-2" /> 
+                        Stop Recording
                       </button>
-                    )
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Display SubscribedBooksView when no chapter is selected */
+              <div className="flex-1 overflow-hidden relative">
+                <SubscribedBooksView 
+                  subscribedBooks={subscribedBooks}
+                  onSelectChapter={handleChapterSelect}
+                  fetchChapters={fetchBookChaptersData}
+                  loading={loading}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Logout Confirmation Dialog */}
+        {showLogoutPopup && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Logout</h3>
+              <p className="text-gray-600 mb-6">Are you sure you want to log out of your account?</p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
+                  onClick={() => setShowLogoutPopup(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                  onClick={confirmLogout}
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Notification popup */}
+        {notification.show && (
+          <div className="fixed top-5 right-5 z-50 max-w-sm w-full bg-white rounded-xl shadow-lg p-4 border border-gray-200">
+            <div className="flex items-start justify-between">
+              <div className="flex">
+                <div className={`flex-shrink-0 h-6 w-6 mr-3 ${
+                  notification.type === "success" ? "text-green-500" : 
+                  notification.type === "info" ? "text-blue-500" : "text-red-500"
+                }`}>
+                  {notification.type === "success" ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : notification.type === "info" ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   ) : (
-                    <button 
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                      onClick={stopRecording}
-                    >
-                      <FaStop className="mr-2" /> 
-                      Stop Recording
-                    </button>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   )}
                 </div>
-              </div>
-            </div>
-          ) : (
-            /* Display SubscribedBooksView when no chapter is selected */
-            <div className="flex-1 overflow-hidden relative">
-              <SubscribedBooksView 
-                subscribedBooks={subscribedBooks}
-                onSelectChapter={handleChapterSelect}
-                fetchChapters={fetchBookChaptersData}
-                loading={loading}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Logout Confirmation Dialog */}
-      {showLogoutPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Logout</h3>
-            <p className="text-gray-600 mb-6">Are you sure you want to log out of your account?</p>
-            <div className="flex justify-end space-x-3">
-              <button
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
-                onClick={() => setShowLogoutPopup(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
-                onClick={confirmLogout}
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Notification popup */}
-      {notification.show && (
-        <div className="fixed top-5 right-5 z-50 max-w-sm w-full bg-white rounded-xl shadow-lg p-4 border border-gray-200">
-          <div className="flex items-start justify-between">
-            <div className="flex">
-              <div className={`flex-shrink-0 h-6 w-6 mr-3 ${
-                notification.type === "success" ? "text-green-500" : 
-                notification.type === "info" ? "text-blue-500" : "text-red-500"
-              }`}>
-                {notification.type === "success" ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : notification.type === "info" ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">
-                  {notification.type === "success" ? "Success" : 
-                   notification.type === "info" ? "Information" : "Error"}
-                </p>
-                <p className="mt-1 text-gray-600">{notification.message}</p>
-              </div>
-            </div>
-            <button 
-              className="text-gray-400 hover:text-gray-600 focus:outline-none"
-              onClick={() => setNotification({ ...notification, show: false })}
-            >
-              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Notification Popup */}
-      {showNotificationPopup && currentNotification && (
-        <div 
-          className="fixed inset-0 flex items-center justify-center z-[9999]"
-          style={{pointerEvents: 'none'}}
-        >
-          <div className="notification-popup-container mx-auto" 
-               style={{
-                 maxWidth: '320px',
-                 width: '90%',
-                 pointerEvents: 'auto',
-                 margin: '0 auto'
-               }}>
-            <div className="bg-white rounded-lg shadow-lg p-4 notification-popup relative border border-blue-200 w-full">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 mr-3">
-                  <FaBell className="h-5 w-5 text-blue-500" />
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {notification.type === "success" ? "Success" : 
+                     notification.type === "info" ? "Information" : "Error"}
+                  </p>
+                  <p className="mt-1 text-gray-600">{notification.message}</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-gray-800 mb-1 break-words">{currentNotification.title}</h3>
-                  <p className="text-xs text-gray-600 mb-3 break-words">{currentNotification.message}</p>
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleNotificationConfirm}
-                      className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors font-medium"
-                    >
-                      OK
-                    </button>
+              </div>
+              <button 
+                className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                onClick={() => setNotification({ ...notification, show: false })}
+              >
+                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Notification Popup */}
+        {showNotificationPopup && currentNotification && (
+          <div 
+            className="fixed inset-0 flex items-center justify-center z-[9999]"
+            style={{pointerEvents: 'none'}}
+          >
+            <div className="notification-popup-container mx-auto" 
+                 style={{
+                   maxWidth: '320px',
+                   width: '90%',
+                   pointerEvents: 'auto',
+                   margin: '0 auto'
+                 }}>
+              <div className="bg-white rounded-lg shadow-lg p-4 notification-popup relative border border-blue-200 w-full">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0 mr-3">
+                    <FaBell className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-gray-800 mb-1 break-words">{currentNotification.title}</h3>
+                    <p className="text-xs text-gray-600 mb-3 break-words">{currentNotification.message}</p>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleNotificationConfirm}
+                        className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors font-medium"
+                      >
+                        OK
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-      
-      {/* Add Score Popup */}
-      {showScorePopup && chapterScore && (
-        <div className="fixed bottom-24 right-5 z-50 animate-pulse">
-          <div className="bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg flex flex-col items-center">
-            <h3 className="font-bold text-lg mb-1">Current Score</h3>
-            <div className="flex items-center justify-center space-x-2">
-              <span className="text-xl font-bold">{chapterScore.earnedMarks}/{chapterScore.totalMarks}</span>
-              <span className="text-lg">({Math.round(chapterScore.percentage)}%)</span>
+        )}
+        
+        {/* Add Score Popup */}
+        {showScorePopup && chapterScore && (
+          <div className="fixed bottom-24 right-5 z-50 animate-pulse">
+            <div className="bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg flex flex-col items-center">
+              <h3 className="font-bold text-lg mb-1">Current Score</h3>
+              <div className="flex items-center justify-center space-x-2">
+                <span className="text-xl font-bold">{chapterScore.earnedMarks}/{chapterScore.totalMarks}</span>
+                <span className="text-lg">({Math.round(chapterScore.percentage)}%)</span>
+              </div>
+              <p className="text-sm mt-1">
+                Questions: {chapterScore.answeredQuestions}/{chapterScore.totalQuestions}
+              </p>
             </div>
-            <p className="text-sm mt-1">
-              Questions: {chapterScore.answeredQuestions}/{chapterScore.totalQuestions}
-            </p>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
