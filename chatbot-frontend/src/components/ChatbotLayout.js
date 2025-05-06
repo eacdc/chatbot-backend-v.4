@@ -683,12 +683,7 @@ export default function ChatbotLayout({ children }) {
         }
       };
       
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(audioBlob);
-        // Release the microphone
-        stream.getTracks().forEach(track => track.stop());
-      };
+      mediaRecorder.onstop = () => {\n        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });\n        setAudioBlob(audioBlob);\n        \n        // Release the microphone\n        stream.getTracks().forEach(track => track.stop());\n        \n        // Automatically send the audio message when recording stops\n        setTimeout(() => sendAudioMessage(), 100);\n      };
       
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
@@ -1276,11 +1271,11 @@ export default function ChatbotLayout({ children }) {
           .toggle-checkbox {
             transition: .3s;
             z-index: 1;
-            right: 0;
+            position: absolute; left: 0;
           }
           
           .toggle-checkbox:checked {
-            right: 0;
+            position: absolute; left: 0;
             transform: translateX(100%);
             border-color: #3B82F6;
           }
@@ -1788,15 +1783,7 @@ export default function ChatbotLayout({ children }) {
                               {msg.role === "user" ? (
                                 <>
                                   {msg.content}
-                                  {msg.isAudio && msg.messageId && audioMessages[msg.messageId] && (
-                                    <div className="mt-2 flex items-center">
-                                      <audio 
-                                        src={audioMessages[msg.messageId]} 
-                                        controls 
-                                        className="h-8 w-full max-w-[200px] opacity-75" 
-                                      />
-                                    </div>
-                                  )}
+                                  {msg.isAudio && msg.messageId && (\n                                  <div className="mt-2 flex items-center">\n                                    {audioMessages[msg.messageId] ? (\n                                      <audio \n                                        src={audioMessages[msg.messageId]} \n                                        controls \n                                        className="h-8 w-full max-w-[200px] opacity-75" \n                                      />\n                                    ) : (\n                                      <div className="text-xs text-blue-300">\n                                        [Audio message - Playback unavailable after page reload]\n                                      </div>\n                                    )}\n                                  </div>\n                                )}
                                 </>
                               ) : (
                                 <ReactMarkdown 
@@ -2126,3 +2113,6 @@ export default function ChatbotLayout({ children }) {
     </>
   );
 }
+
+
+
