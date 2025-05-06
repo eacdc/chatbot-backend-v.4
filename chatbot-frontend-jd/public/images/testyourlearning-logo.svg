@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300">
+  <!-- Graduation cap -->
+  <path d="M400 80 L250 170 L400 260 L550 170 Z" fill="#001a57"/>
+  <path d="M410 90 L405 80 L255 170 L400 260 L545 170 L395 80 Z" fill="#001a57"/>
+  <path d="M400 80 L405 85 L550 175 L550 170 L400 80 Z" fill="#001a57"/>
+  <path d="M400 80 L395 85 L250 175 L250 170 L400 80 Z" fill="#001a57"/>
+  <!-- Tassel -->
+  <path d="M400 94 L410 160 L390 160 Z" fill="#001a57"/>
+  <circle cx="400" cy="175" r="10" fill="#001a57"/>
+  
+  <!-- Question mark -->
+  <path d="M400 270 C350 270 320 230 350 200 C380 170 450 170 480 200 C510 230 480 270 430 270" stroke="#3182CE" stroke-width="40" fill="none" stroke-linecap="round"/>
+  <path d="M400 270 C450 270 480 230 450 200 C420 170 350 170 320 200 C290 230 320 270 370 270" stroke="#4FD1C5" stroke-width="40" fill="none" stroke-linecap="round"/>
+  <circle cx="400" cy="340" r="25" fill="#4FD1C5"/>
+</svg> 
