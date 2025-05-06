@@ -270,12 +270,20 @@ export default function ChatbotLayout({ children }) {
       if (activeChapter) return;
       
       const userId = getUserId();
-      if (!userId) {
+      const token = getToken();
+      
+      if (!userId || !token) {
         navigate("/login");
         return;
       }
+      
       try {
-        const response = await axios.get(API_ENDPOINTS.GET_CHAT_HISTORY.replace(':userId', userId));
+        const response = await axios.get(API_ENDPOINTS.GET_CHAT_HISTORY.replace(':userId', userId), {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'user-id': userId
+          }
+        });
         console.log("General Chat History Response:", response.data);
         setChatHistory(Array.isArray(response.data) ? response.data : []);
       } catch (error) {
