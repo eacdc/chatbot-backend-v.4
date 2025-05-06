@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom"; // For navigation
+import { useNavigate, Link } from "react-router-dom"; // For navigation
 import { API_ENDPOINTS } from "../config";
 import { useAuth } from '../contexts/AuthContext';
 import { config } from '../config';
@@ -149,7 +149,7 @@ const Signup = () => {
                     </button>
                 </form>
                 <p className="signup-link">
-                    Already have an account? <a href="/login">Log in</a>
+                    Already have an account? <Link to="/login">Log in</Link>
                 </p>
             </div>
         </div>

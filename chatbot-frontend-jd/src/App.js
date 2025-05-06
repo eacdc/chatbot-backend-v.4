@@ -20,7 +20,7 @@ import AuthRedirectHandler from './components/AuthRedirectHandler';
 // Custom component for admin routes protection
 const ProtectedAdminRoute = ({ element }) => {
   const adminToken = localStorage.getItem("adminToken");
-  return adminToken ? element : <Navigate to="/jd/admin-login" />;
+  return adminToken ? element : <Navigate to="/admin-login" />;
 };
 
 function App() {
@@ -51,8 +51,12 @@ function App() {
       <Router basename="/jd">
         <div className="App">
           <Routes>
+            {/* Root path - redirect based on auth status */}
+            <Route path="/" element={
+              userIsAuthenticated ? <Navigate to="/chat" /> : <Navigate to="/login" />
+            } />
+
             {/* Public Routes */}
-            <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/admin-login" element={<AdminLogin />} />
@@ -85,9 +89,6 @@ function App() {
                 )
               }
             />
-
-            {/* Redirect '/' to Chat if logged in, otherwise go to Login */}
-            <Route path="/" element={<Navigate to={userIsAuthenticated ? "/chat" : "/login"} />} />
 
             {/* Catch-all route for 404s */}
             <Route path="*" element={<Navigate to="/" />} />

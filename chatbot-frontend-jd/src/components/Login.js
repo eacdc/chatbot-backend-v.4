@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { config } from '../config';
 import './Login.css';
@@ -65,10 +65,10 @@ const Login = () => {
           </button>
         </form>
         <p className="signup-link">
-          Don't have an account? <a href="/signup">Sign up</a>
+          Don't have an account? <Link to="/signup">Sign up</Link>
         </p>
         <p className="admin-link">
-          <a href="/admin-login">Admin Login</a>
+          <Link to="/admin-login">Admin Login</Link>
         </p>
       </div>
     </div>
