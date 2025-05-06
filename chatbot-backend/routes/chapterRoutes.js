@@ -175,30 +175,6 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
     }
 });
 
-// Process raw text through OpenAI
-router.post("/process-text", authenticateAdmin, async (req, res) => {
-  try {
-    const { rawText } = req.body;
-
-    if (!rawText) {
-      return res.status(400).json({ error: "Raw text is required" });
-    }
-    
-    // Log processing attempt
-    console.log(`Redirecting to batch processing. Text length: ${rawText.length} characters`);
-    
-    // Redirect to batch processing route
-    // Forward the request to the batch processing handler
-    return await processBatchText(req, res);
-  } catch (error) {
-    console.error("Error redirecting to batch processing:", error);
-    res.status(500).json({ 
-      error: "Failed to process text", 
-      message: error.message || "Unknown error"
-    });
-  }
-});
-
 // Process raw text through OpenAI with text splitting (batched processing)
 router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
   return await processBatchText(req, res);
@@ -229,13 +205,13 @@ async function processBatchText(req, res) {
         console.log("Successfully loaded Batch Processing prompt from database");
       } else {
         // Fallback to default prompt
-        systemPrompt = "You are a helpful assistant helping to understand and process educational content. Provide a comprehensive and detailed response to the text I will share with you. Focus on explaining the key concepts, identifying important information, and organizing the content in a structured way.";
+        systemPrompt = "";
         console.warn("Warning: Batch Processing system prompt not found in database, using default");
       }
     } catch (error) {
       console.error("Error fetching Batch Processing system prompt:", error);
       // Fallback to default prompt
-      systemPrompt = "You are a helpful assistant helping to understand and process educational content. Provide a comprehensive and detailed response to the text I will share with you.";
+      systemPrompt = "";
     }
 
     // Process each part with OpenAI and collect responses
@@ -375,16 +351,12 @@ async function processBatchText(req, res) {
         }
       }
       
-      // For process-text requests, return in the expected format
-      if (req.path === '/chapters/process-text') {
-        return res.json({ processedText: combinedPrompt });
-      }
-      
-      // Standard response if not detected as question format
+      // Standard response format
       return res.json({ 
         success: true, 
         message: "Text processed successfully",
-        combinedPrompt: combinedPrompt
+        combinedPrompt: combinedPrompt,
+        processedText: combinedPrompt // Include for backward compatibility
       });
     } catch (error) {
       console.error("Error processing responses:", error);
