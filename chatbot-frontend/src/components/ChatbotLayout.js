@@ -685,13 +685,39 @@ export default function ChatbotLayout({ children }) {
       
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(audioBlob);
+        
+        // Save a reference to the audioBlob before resetting
+        const audioBlobCopy = audioBlob;
+        
+        // Reset the audioBlob state immediately
+        setAudioBlob(null);
         
         // Release the microphone
         stream.getTracks().forEach(track => track.stop());
         
-        // Automatically send the audio message when recording stops
-        setTimeout(() => sendAudioMessage(), 100);
+        // Automatically send the audio message with the copied blob
+        setTimeout(() => {
+          // Create a unique message ID for this audio message
+          const messageId = `audio-${Date.now()}`;
+          
+          // Store audio blob for later playback
+          setAudioMessages(prev => ({
+            ...prev,
+            [messageId]: URL.createObjectURL(audioBlobCopy)
+          }));
+          
+          // Create message indicating audio is being processed
+          const newChat = [...chatHistory, { 
+            role: "user", 
+            content: "🎤 Processing audio message...",
+            messageId: messageId,
+            isAudio: true
+          }];
+          setChatHistory(newChat);
+          
+          // Start processing the audio
+          processAudioMessage(audioBlobCopy, messageId, newChat);
+        }, 100);
       };
       
       mediaRecorderRef.current = mediaRecorder;
@@ -733,131 +759,6 @@ export default function ChatbotLayout({ children }) {
     }
   };
   
-  const cancelRecording = () => {
-    setAudioBlob(null);
-  };
-  
-  const sendAudioMessage = async () => {
-    if (!audioBlob) return;
-    
-    const userId = getUserId();
-    const token = getToken();
-    if (!userId || !token) return;
-    
-    // Set processing state to true
-    setIsProcessing(true);
-    
-    // Create a unique message ID for this audio message
-    const messageId = `audio-${Date.now()}`;
-    
-    // Store audio blob for later playback
-    setAudioMessages(prev => ({
-      ...prev,
-      [messageId]: URL.createObjectURL(audioBlob)
-    }));
-    
-    // Reset audio state immediately to restore normal UI
-    const audioBlobCopy = audioBlob;
-    setAudioBlob(null);
-    
-    // Create message indicating audio is being processed
-    const newChat = [...chatHistory, { 
-      role: "user", 
-      content: "🎤 Processing audio message...",
-      messageId: messageId,
-      isAudio: true
-    }];
-    setChatHistory(newChat);
-    
-    try {
-      // Create form data to send the audio file for transcription
-      const formData = new FormData();
-      formData.append('audio', audioBlobCopy, 'recording.webm');
-      
-      // Extract the chapterId string from the activeChapter object
-      const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
-        ? activeChapter.chapterId 
-        : activeChapter;
-      
-      formData.append('userId', userId);
-      formData.append('chapterId', chapterId || '');
-      
-      // Use our secure backend endpoint for transcription
-      const transcriptionResponse = await axios.post(
-        API_ENDPOINTS.TRANSCRIBE_AUDIO,
-        formData,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          }
-        }
-      );
-      
-      // Handle audio transcription redirecting to chat
-      if (transcriptionResponse.data.redirect) {
-        console.log("Audio transcribed, sending to chat API:", transcriptionResponse.data.transcription);
-        
-        // Update chat with transcription
-        const updatedUserMessage = { 
-          role: "user", 
-          content: transcriptionResponse.data.transcription,
-          messageId: messageId,
-          isAudio: true
-        };
-        
-        setChatHistory(prev => {
-          // Remove the last "[Audio Message]" and replace with actual transcript
-          const newHistory = [...prev];
-          newHistory.pop();
-          return [...newHistory, updatedUserMessage];
-        });
-        
-        // Now send the transcribed message to chat
-        const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
-          userId,
-          message: transcriptionResponse.data.transcription,
-          chapterId
-        }, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        // Check if there's score information and append it to the message
-        let botContent = chatResponse.data.message;
-        
-        // Add score information if present
-        if (chatResponse.data.score && chatResponse.data.score.marksAwarded !== null) {
-          const scoreInfo = `\n\n**Score: ${chatResponse.data.score.marksAwarded}/${chatResponse.data.score.maxMarks}**`;
-          botContent += scoreInfo;
-        }
-        
-        // Handle the chat response
-        const botResponse = { role: "assistant", content: botContent };
-        setChatHistory(prev => [...prev, botResponse]);
-      }
-    } catch (error) {
-      console.error("Error processing audio message:", error);
-      
-      // Check if it's a transcription error or a chat API error
-      const errorMessage = error.response?.data?.error || "Failed to process audio message. Please try again.";
-      setChatHistory([...newChat.slice(0, -1), { 
-        role: "user", 
-        content: "🎤 Audio message (Transcription failed)",
-        messageId: messageId,
-        isAudio: true
-      }, {
-        role: "system", 
-        content: errorMessage
-      }]);
-    } finally {
-      // Set processing state back to false
-      setIsProcessing(false);
-    }
-  };
-
   // Clear active chapter
   const clearActiveChapter = async () => {
     setActiveChapter(null);
@@ -1300,6 +1201,104 @@ export default function ChatbotLayout({ children }) {
       }
     }
   }, []);
+
+  // Process audio message and send for transcription
+  const processAudioMessage = async (audioBlobCopy, messageId, newChat) => {
+    try {
+      const userId = getUserId();
+      const token = getToken();
+      if (!userId || !token) return;
+      
+      // Set processing state to true
+      setIsProcessing(true);
+      
+      // Create form data to send the audio file for transcription
+      const formData = new FormData();
+      formData.append('audio', audioBlobCopy, 'recording.webm');
+      
+      // Extract the chapterId string from the activeChapter object
+      const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
+        ? activeChapter.chapterId 
+        : activeChapter;
+      
+      formData.append('userId', userId);
+      formData.append('chapterId', chapterId || '');
+      
+      // Use our secure backend endpoint for transcription
+      const transcriptionResponse = await axios.post(
+        API_ENDPOINTS.TRANSCRIBE_AUDIO,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      
+      // Handle audio transcription redirecting to chat
+      if (transcriptionResponse.data.redirect) {
+        console.log("Audio transcribed, sending to chat API:", transcriptionResponse.data.transcription);
+        
+        // Update chat with transcription
+        const updatedUserMessage = { 
+          role: "user", 
+          content: transcriptionResponse.data.transcription,
+          messageId: messageId,
+          isAudio: true
+        };
+        
+        setChatHistory(prev => {
+          // Remove the last "[Audio Message]" and replace with actual transcript
+          const newHistory = [...prev];
+          newHistory.pop();
+          return [...newHistory, updatedUserMessage];
+        });
+        
+        // Now send the transcribed message to chat
+        const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
+          userId,
+          message: transcriptionResponse.data.transcription,
+          chapterId
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        // Check if there's score information and append it to the message
+        let botContent = chatResponse.data.message;
+        
+        // Add score information if present
+        if (chatResponse.data.score && chatResponse.data.score.marksAwarded !== null) {
+          const scoreInfo = `\n\n**Score: ${chatResponse.data.score.marksAwarded}/${chatResponse.data.score.maxMarks}**`;
+          botContent += scoreInfo;
+        }
+        
+        // Handle the chat response
+        const botResponse = { role: "assistant", content: botContent };
+        setChatHistory(prev => [...prev, botResponse]);
+      }
+    } catch (error) {
+      console.error("Error processing audio message:", error);
+      
+      // Check if it's a transcription error or a chat API error
+      const errorMessage = error.response?.data?.error || "Failed to process audio message. Please try again.";
+      setChatHistory([...newChat.slice(0, -1), { 
+        role: "user", 
+        content: "🎤 Audio message (Transcription failed)",
+        messageId: messageId,
+        isAudio: true
+      }, {
+        role: "system", 
+        content: errorMessage
+      }]);
+    } finally {
+      // Set processing state back to false
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <>
@@ -1982,41 +1981,16 @@ export default function ChatbotLayout({ children }) {
                     
                     {/* Audio recording button - always visible regardless of audio mode */}
                     {!isRecording ? (
-                      audioBlob ? (
-                        <div className="flex space-x-2">
-                          <button 
-                            className={`bg-green-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'} text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
-                            onClick={sendAudioMessage}
-                            disabled={isProcessing}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                            </svg>
-                            Send Audio
-                          </button>
-                          <button 
-                            className={`bg-gray-500 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-600'} text-white px-3 py-2 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500`}
-                            onClick={cancelRecording}
-                            disabled={isProcessing}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button 
-                          className={`bg-blue-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'} text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto`}
-                          onClick={startRecording}
-                          disabled={isProcessing}
-                        >
-                          <span className="flex items-center">
-                            <FaMicrophone className="mr-2" /> 
-                            Voice Message
-                          </span>
-                        </button>
-                      )
+                      <button 
+                        className={`bg-blue-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'} text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto`}
+                        onClick={startRecording}
+                        disabled={isProcessing}
+                      >
+                        <span className="flex items-center">
+                          <FaMicrophone className="mr-2" /> 
+                          Voice Message
+                        </span>
+                      </button>
                     ) : (
                       <button 
                         className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 animate-pulse"
