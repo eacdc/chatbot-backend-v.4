@@ -20,7 +20,7 @@ import AuthRedirectHandler from './components/AuthRedirectHandler';
 // Custom component for admin routes protection
 const ProtectedAdminRoute = ({ element }) => {
   const adminToken = localStorage.getItem("adminToken");
-  return adminToken ? element : <Navigate to="/admin-login" />;
+  return adminToken ? element : <Navigate to="/jd/admin-login" />;
 };
 
 function App() {
@@ -48,11 +48,12 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router>
+      <Router basename="/jd">
         <div className="App">
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Login />} />
+            <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/admin-register" element={<AdminRegister />} />

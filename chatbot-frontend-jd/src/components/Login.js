@@ -4,20 +4,32 @@ import { useAuth } from '../contexts/AuthContext';
 import { config } from '../config';
 import './Login.css';
 
-function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError(''); // Clear error when user types
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await login(email, password);
+      setLoading(true);
+      await login(formData.email, formData.password);
       navigate('/chat');
     } catch (err) {
-      setError('Failed to log in. Please check your credentials.');
+      console.error('Login error:', err);
+      setError(err.response?.data?.error || 'Failed to log in. Please check your credentials.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -25,15 +37,16 @@ function Login() {
     <div className="login-container">
       <div className="login-box">
         <h1>{config.appName}</h1>
-        <h2>Welcome Back</h2>
+        <h2>Login</h2>
         {error && <div className="error-message">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Email</label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={formData.email}
+              onChange={handleChange}
+              name="email"
               required
             />
           </div>
@@ -41,19 +54,25 @@ function Login() {
             <label>Password</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formData.password}
+              onChange={handleChange}
+              name="password"
               required
             />
           </div>
-          <button type="submit" className="login-button">Log In</button>
+          <button type="submit" className="login-button" disabled={loading}>
+            {loading ? 'Logging in...' : 'Log In'}
+          </button>
         </form>
         <p className="signup-link">
           Don't have an account? <a href="/signup">Sign up</a>
         </p>
+        <p className="admin-link">
+          <a href="/admin-login">Admin Login</a>
+        </p>
       </div>
     </div>
   );
-}
+};
 
 export default Login;

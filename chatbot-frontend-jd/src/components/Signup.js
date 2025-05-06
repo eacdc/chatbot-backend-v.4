@@ -45,7 +45,7 @@ const Signup = () => {
             // Add JD Editions as the default publisher
             const signupData = {
                 ...formData,
-                publisher: "JD Editions"
+                publisher: "JD Editions" // Always set JD Editions as publisher
             };
             
             // First create the user account
@@ -149,7 +149,7 @@ const Signup = () => {
                     </button>
                 </form>
                 <p className="signup-link">
-                    Already have an account? <a href="/">Log in</a>
+                    Already have an account? <a href="/login">Log in</a>
                 </p>
             </div>
         </div>
