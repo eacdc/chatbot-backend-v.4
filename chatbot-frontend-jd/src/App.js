@@ -16,6 +16,7 @@ import { setupActivityTracking } from "./utils/auth"; // Import auth utilities
 import "./App.css";
 import { AuthProvider } from './contexts/AuthContext';
 import AuthRedirectHandler from './components/AuthRedirectHandler';
+import ThemeProvider from './ThemeContext';
 
 // Custom component for admin routes protection
 const ProtectedAdminRoute = ({ element }) => {
@@ -48,55 +49,57 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router basename="/jd">
-        <div className="App">
-          <Routes>
-            {/* Root path - redirect based on auth status */}
-            <Route path="/" element={
-              userIsAuthenticated ? <Navigate to="/chat" /> : <Navigate to="/login" />
-            } />
+      <ThemeProvider>
+        <Router basename="/jd">
+          <div className="App">
+            <Routes>
+              {/* Root path - redirect based on auth status */}
+              <Route path="/" element={
+                userIsAuthenticated ? <Navigate to="/chat" /> : <Navigate to="/login" />
+              } />
 
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/admin-login" element={<AdminLogin />} />
-            <Route path="/admin-register" element={<AdminRegister />} />
-            
-            {/* Protected Admin Routes */}
-            <Route path="/admin/dashboard" element={<ProtectedAdminRoute element={<AdminDashboard />} />} />
-            <Route path="/admin/add-book" element={<ProtectedAdminRoute element={<AddBook />} />} />
-            <Route path="/admin/add-chapter" element={<ProtectedAdminRoute element={<AddChapter />} />} />
-            <Route path="/admin/collections" element={<ProtectedAdminRoute element={<AdminCollections />} />} />
-            
-            {/* Protected User Routes */}
-            <Route path="/collections" element={
-              userIsAuthenticated ? <Collections /> : <Navigate to="/login" />
-            } />
-            <Route path="/profile" element={
-              userIsAuthenticated ? <Profile /> : <Navigate to="/login" />
-            } />
+              {/* Public Routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/admin-login" element={<AdminLogin />} />
+              <Route path="/admin-register" element={<AdminRegister />} />
+              
+              {/* Protected Admin Routes */}
+              <Route path="/admin/dashboard" element={<ProtectedAdminRoute element={<AdminDashboard />} />} />
+              <Route path="/admin/add-book" element={<ProtectedAdminRoute element={<AddBook />} />} />
+              <Route path="/admin/add-chapter" element={<ProtectedAdminRoute element={<AddChapter />} />} />
+              <Route path="/admin/collections" element={<ProtectedAdminRoute element={<AdminCollections />} />} />
+              
+              {/* Protected User Routes */}
+              <Route path="/collections" element={
+                userIsAuthenticated ? <Collections /> : <Navigate to="/login" />
+              } />
+              <Route path="/profile" element={
+                userIsAuthenticated ? <Profile /> : <Navigate to="/login" />
+              } />
 
-            {/* Protected Chat Route with ChatbotLayout */}
-            <Route
-              path="/chat"
-              element={
-                userIsAuthenticated ? (
-                  <ChatbotLayout>
-                    <Chat />
-                  </ChatbotLayout>
-                ) : (
-                  <Navigate to="/login" />
-                )
-              }
-            />
+              {/* Protected Chat Route with ChatbotLayout */}
+              <Route
+                path="/chat"
+                element={
+                  userIsAuthenticated ? (
+                    <ChatbotLayout>
+                      <Chat />
+                    </ChatbotLayout>
+                  ) : (
+                    <Navigate to="/login" />
+                  )
+                }
+              />
 
-            {/* Catch-all route for 404s */}
-            <Route path="*" element={<Navigate to="/" />} />
+              {/* Catch-all route for 404s */}
+              <Route path="*" element={<Navigate to="/" />} />
 
-            <Route path="/auth-redirect" element={<AuthRedirectHandler />} />
-          </Routes>
-        </div>
-      </Router>
+              <Route path="/auth-redirect" element={<AuthRedirectHandler />} />
+            </Routes>
+          </div>
+        </Router>
+      </ThemeProvider>
     </AuthProvider>
   );
 }
