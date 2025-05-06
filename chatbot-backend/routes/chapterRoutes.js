@@ -303,7 +303,36 @@ async function processBatchText(req, res) {
             const structuredQuestions = [];
             let successCount = 0;
             let errorCount = 0;
+            let pendingValidations = 0;
             
+            // Function to handle response once all questions are processed
+            function finishProcessing() {
+              if (successCount + errorCount === questionJsonObjects.length && pendingValidations === 0) {
+                if (structuredQuestions.length > 0) {
+                  console.log(`Successfully structured ${successCount} questions with ${errorCount} errors`);
+                  
+                  // If we have successfully parsed questions, return them as a proper array
+                  return res.json({ 
+                    success: true, 
+                    message: `Text processed and structured into ${structuredQuestions.length} questions`,
+                    combinedPrompt: JSON.stringify(structuredQuestions),
+                    isQuestionFormat: true,
+                    questionArray: structuredQuestions,
+                    totalQuestions: structuredQuestions.length
+                  });
+                } else {
+                  // If no questions were kept after validation, return standard format
+                  return res.json({ 
+                    success: true, 
+                    message: "Text processed successfully but no valid questions found",
+                    combinedPrompt: combinedPrompt,
+                    processedText: combinedPrompt // Include for backward compatibility
+                  });
+                }
+              }
+            }
+            
+            // Process each question json object
             questionJsonObjects.forEach((jsonStr, index) => {
               try {
                 // Clean up the JSON string - ensure it's properly formatted
@@ -312,15 +341,38 @@ async function processBatchText(req, res) {
                 
                 // Validate the required fields
                 if (questionObj.Q !== undefined && questionObj.question) {
-                  // Add default values for missing fields
-                  structuredQuestions.push({
-                    Q: questionObj.Q,
-                    question: questionObj.question,
-                    question_answered: questionObj.question_answered || false,
-                    question_marks: questionObj.question_marks || 1,
-                    marks_gained: questionObj.marks_gained || 0
-                  });
-                  successCount++;
+                  // Run the validation asynchronously
+                  (async () => {
+                    try {
+                      // Check if the question should be kept
+                      const validationResult = await validateQuestionWithOpenAI(questionObj.question);
+                      if (validationResult === "keep") {
+                        // Add default values for missing fields
+                        structuredQuestions.push({
+                          Q: questionObj.Q,
+                          question: questionObj.question,
+                          question_answered: questionObj.question_answered || false,
+                          question_marks: questionObj.question_marks || 1,
+                          marks_gained: questionObj.marks_gained || 0
+                        });
+                        successCount++;
+                      } else {
+                        console.log(`Skipping question at index ${index} based on validation`);
+                        errorCount++;
+                      }
+                    } catch (error) {
+                      console.error(`Error validating question at index ${index}:`, error);
+                      // Default to keeping the question if validation fails
+                      structuredQuestions.push({
+                        Q: questionObj.Q,
+                        question: questionObj.question,
+                        question_answered: questionObj.question_answered || false,
+                        question_marks: questionObj.question_marks || 1,
+                        marks_gained: questionObj.marks_gained || 0
+                      });
+                      successCount++;
+                    }
+                  })();
                 } else {
                   console.log(`Question object at index ${index} is missing required fields`);
                   errorCount++;
@@ -328,22 +380,25 @@ async function processBatchText(req, res) {
               } catch (parseError) {
                 console.error(`Error parsing question JSON at index ${index}:`, parseError.message);
                 errorCount++;
+                
+                // Check if all questions have been processed
+                finishProcessing();
               }
             });
             
-            if (structuredQuestions.length > 0) {
-              console.log(`Successfully structured ${successCount} questions with ${errorCount} errors`);
-              
-              // If we have successfully parsed questions, return them as a proper array
+            // If there were no questions to validate, finish immediately
+            if (questionJsonObjects.length === 0) {
               return res.json({ 
                 success: true, 
-                message: `Text processed and structured into ${structuredQuestions.length} questions`,
-                combinedPrompt: JSON.stringify(structuredQuestions),
-                isQuestionFormat: true,
-                questionArray: structuredQuestions,
-                totalQuestions: structuredQuestions.length
+                message: "Text processed successfully but no valid questions found",
+                combinedPrompt: combinedPrompt,
+                processedText: combinedPrompt // Include for backward compatibility
               });
             }
+            
+            // IMPORTANT: Don't continue here, we'll handle the response in finishProcessing
+            // after all async validations are complete
+            return;
           }
         } catch (formatError) {
           console.error("Error attempting to format as questions:", formatError);
@@ -351,7 +406,7 @@ async function processBatchText(req, res) {
         }
       }
       
-      // Standard response format
+      // Standard response format - only reaches here if we didn't return from question processing
       return res.json({ 
         success: true, 
         message: "Text processed successfully",
@@ -468,6 +523,65 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
   console.log(`Split text into ${parts.length} parts`);
   
   return parts;
+}
+
+async function validateQuestionWithOpenAI(questionText) {
+  try {
+    if (!questionText || questionText.trim() === '') {
+      console.log("Empty question, skipping validation");
+      return "skip";
+    }
+
+    // System prompt to check if question is suitable
+    const systemPrompt = `You are an AI that evaluates questions for completeness and self-containment.
+Your job is to determine if a question can be answered without external references or visual elements.
+
+Analyze the question and respond with ONLY "keep" or "skip" based on these criteria:
+
+Return "skip" if ANY of these conditions are true:
+- The question is incomplete or lacks sufficient context
+- The question refers to an image, picture, diagram, chart, or table that is not described in the question itself
+- The question uses phrases like "according to the diagram", "refer to the image", "as shown in the figure", etc.
+- The question contains references to external examples, exhibits, or visual elements
+- The question or its options are incomplete
+- The question has ellipses (...) indicating missing content
+- The question includes "See example/image/figure/chart number X"
+- The question cannot be understood without seeing something not in the text
+
+Return "keep" if:
+- The question is self-contained
+- The question provides all necessary context within its text
+- The question can be answered without referring to external elements
+- The question is complete and well-formed
+
+Respond ONLY with the word "keep" or "skip" - no explanation or additional text.`;
+
+    // Make the API call
+    const response = await openai.chat.completions.create({
+      model: "gpt-4.1",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: questionText }
+      ],
+      temperature: 0, // Use 0 for consistent outputs
+      max_tokens: 10,  // Keep response short
+    });
+
+    // Extract response
+    const result = response.choices[0].message.content.trim().toLowerCase();
+    
+    // Validate response format
+    if (result === "keep" || result === "skip") {
+      return result;
+    } else {
+      console.warn(`Unexpected validation response: ${result}, defaulting to "keep"`);
+      return "keep";
+    }
+  } catch (error) {
+    console.error("Error validating question:", error.message);
+    // Default to keep if there's an error
+    return "keep";
+  }
 }
 
 module.exports = router;
