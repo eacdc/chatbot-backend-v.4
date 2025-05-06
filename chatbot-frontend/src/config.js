@@ -27,7 +27,6 @@ export const API_ENDPOINTS = {
   GET_CHAPTER_STATS: `${API_URL}/api/chat/chapter-stats/:chapterId`,
   
   // Chapter preparation endpoints
-  PROCESS_TEXT: `${API_URL}/api/chapters/process-text`,
   PROCESS_TEXT_BATCH: `${API_URL}/api/chapters/process-text-batch`,
   
   // Notification endpoints
