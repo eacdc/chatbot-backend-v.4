@@ -572,10 +572,9 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
         });
 
         // Transcribe the audio using OpenAI's API
-        const transcriptionPromise = openai.audio.transcriptions.create({
+        const transcriptionPromise = openaiTranscription.audio.transcriptions.create({
             file: fs.createReadStream(audioFilePath),
-            model: "gpt-4o-transcribe",
-            response_format: "text"
+            model: "whisper-1"
         });
 
         // Use Promise.race to implement the timeout
