@@ -12,7 +12,7 @@ const Config = require("../models/Config");
 const Book = require("../models/Book");
 const QnALists = require("../models/QnALists");
 const { storeAudio, getAudioStream, getAudioUrl } = require('../utils/gridfs');
-const ffmpeg = require('fluent-ffmpeg');
+const ffmpeg = require("fluent-ffmpeg");
 
 // Initialize default configs if needed
 (async () => {
@@ -561,6 +561,45 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
         });
 
         const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
+        let filePathToTranscribe = audioFilePath;
+        
+        // Check if we need to convert the file (for Safari/MacOS webm files)
+        if (req.file.mimetype === "audio/webm" && 
+            req.headers['user-agent'] && 
+            req.headers['user-agent'].includes("Safari") && 
+            !req.headers['user-agent'].includes("Chrome")) {
+            
+            try {
+                console.log("Converting Safari webm file to mp3 format");
+                const mp3FilePath = audioFilePath.replace(".webm", ".mp3");
+                
+                // Convert webm to mp3 using fluent-ffmpeg
+                await new Promise((resolve, reject) => {
+                    ffmpeg(audioFilePath)
+                        .outputOptions([
+                            '-vn',
+                            '-ar 44100',
+                            '-ac 2',
+                            '-b:a 192k'
+                        ])
+                        .save(mp3FilePath)
+                        .on('end', () => {
+                            console.log("Conversion successful");
+                            resolve();
+                        })
+                        .on('error', (err) => {
+                            console.error("Error during conversion", err);
+                            reject(err);
+                        });
+                });
+                
+                console.log("Using converted file for transcription");
+                filePathToTranscribe = mp3FilePath;
+            } catch (conversionError) {
+                console.error("Error converting audio file:", conversionError);
+                // Continue with original file if conversion fails
+            }
+        }
         
         // Add timeout for the OpenAI transcription request
         const timeoutPromise = new Promise((_, reject) => {
@@ -569,15 +608,18 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
 
         // Transcribe the audio using OpenAI's API
         const transcriptionPromise = openaiTranscription.audio.transcriptions.create({
-            file: fs.createReadStream(audioFilePath),
+            file: fs.createReadStream(filePathToTranscribe),
             model: "whisper-1"
         });
 
         // Use Promise.race to implement the timeout
         const transcription = await Promise.race([transcriptionPromise, timeoutPromise]);
         
-        // Clean up temporary file
+        // Clean up temporary files
         fs.unlinkSync(audioFilePath);
+        if (filePathToTranscribe !== audioFilePath && fs.existsSync(filePathToTranscribe)) {
+            fs.unlinkSync(filePathToTranscribe);
+        }
         
         // Check for empty transcription
         if (!transcription.text || transcription.text.trim() === "") {
