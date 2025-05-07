@@ -111,7 +111,7 @@ router.post("/send", authenticateUser, async (req, res) => {
             console.log(`Found previous question for ${userChapterKey}: ${previousQuestion.question ? previousQuestion.question.substring(0, 30) + '...' : 'No question text'}`);
         }
         
-        chat = await Chat.findOne({ userId, chapterId });
+            chat = await Chat.findOne({ userId, chapterId });
         
         // Get previous messages for context
         if (chat && chat.messages && chat.messages.length > 0) {
@@ -135,9 +135,9 @@ router.post("/send", authenticateUser, async (req, res) => {
             });
         }
             
-        // Fetch chapter details
-        try {
-            const chapter = await Chapter.findById(chapterId);
+            // Fetch chapter details
+            try {
+                const chapter = await Chapter.findById(chapterId);
             
             if (!chapter) {
                 return res.status(404).json({ error: "Chapter not found" });
@@ -401,44 +401,44 @@ Return only the JSON object. Do not include anything else.`,
                         max_tokens: 1000
                       
                     });
-                    
-                    return response;
-                } catch (error) {
-                    // If we've reached max retries, throw the error
-                    if (retryCount >= maxRetries) {
-                        throw error;
-                    }
-                    
+            
+            return response;
+          } catch (error) {
+            // If we've reached max retries, throw the error
+            if (retryCount >= maxRetries) {
+              throw error;
+            }
+            
                     // Exponential backoff: wait longer between each retry
                     const delay = Math.pow(2, retryCount) * 1000;
                     await new Promise(resolve => setTimeout(resolve, delay));
-                    
-                    // Try again
-                    return makeOpenAIRequest(retryCount + 1, maxRetries);
-                }
-            };
             
+                    // Try again
+            return makeOpenAIRequest(retryCount + 1, maxRetries);
+          }
+        };
+        
             // Call OpenAI with retries
             const openaiResponse = await makeOpenAIRequest();
-            
+
             if (!openaiResponse || !openaiResponse.choices || !openaiResponse.choices[0]) {
                 return res.status(500).json({ error: "Invalid response from OpenAI" });
-            }
-            
+        }
+
             // Extract the bot message
             const botMessage = openaiResponse.choices[0].message.content;
             console.log(`Bot reply ${botMessage}`);
-            
+
             // Save the message to chat history, managing history based on agent type
-            chat.messages.push({ role: "user", content: message });
+        chat.messages.push({ role: "user", content: message });
             
             // Always save the full message history for all agent types
-                chat.messages.push({ role: "assistant", content: botMessage });
-            
+        chat.messages.push({ role: "assistant", content: botMessage });
+        
             // Update the lastActive timestamp
             chat.lastActive = Date.now();
             
-            await chat.save();
+        await chat.save();
             
             // If in question mode and classification is oldchat_ai, process scores and update questions
             if (questionModeEnabled && (classification === "oldchat_ai")) {
@@ -734,20 +734,20 @@ router.get("/general-history", authenticateUser, async (req, res) => {
 router.get("/history/:userId", authenticateUser, async (req, res) => {
     try {
         const { userId } = req.params;
-        
+
         // Verify the requesting user is the same as the userId parameter
         if (req.user.userId !== userId) {
             return res.status(403).json({ error: "Unauthorized to access this user's chat history" });
         }
-        
+
         const chat = await Chat.findOne({ userId, chapterId: null });
-        
+
         if (!chat || !Array.isArray(chat.messages)) {
             return res.json([]);
         }
-        
+
         res.json(chat.messages);
-        
+
     } catch (error) {
         console.error("Error fetching user chat history:", error);
         res.status(500).json({ error: "Failed to fetch user chat history" });

@@ -172,7 +172,7 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
     } catch (error) {
         console.error("Error fetching chapter chat history:", error);
         res.status(500).json({ error: "Failed to fetch chapter chat history" });
-    }
+  }
 });
 
 // Process raw text through OpenAI with text splitting (batched processing)

@@ -4,10 +4,13 @@ import axios from "axios";
 import { API_ENDPOINTS } from "../config";
 import { ThemeContext } from "../ThemeContext";
 import successmark from "../book-logo1.jpeg"; // Use an existing image
-import { FaBook, FaSignOutAlt, FaShareAlt, FaChevronUp, FaChevronDown, FaBell, FaCheck, FaTimes, FaMicrophone, FaCircle, FaPaperPlane, FaVolumeUp } from "react-icons/fa";
+import { FaBook, FaSignOutAlt, FaShareAlt, FaChevronUp, FaChevronDown, FaBell, FaCheck, FaTimes, FaMicrophone, FaCircle, FaPaperPlane, FaVolumeUp, FaPlus, FaStop, FaUserEdit } from "react-icons/fa";
 import "./ChatbotLayout.css";
 import { BsBook } from "react-icons/bs";
 import { io } from "socket.io-client";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import SubscribedBooksView from './SubscribedBooksView';
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -1150,63 +1153,6 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
-  // Add cleanup function for audio URLs on component unmount
-  useEffect(() => {
-    return () => {
-      // Revoke all object URLs to prevent memory leaks
-      Object.values(audioMessages).forEach(url => {
-        URL.revokeObjectURL(url);
-      });
-    };
-  }, [audioMessages]);
-
-  // Save audio messages to localStorage when they're created or updated
-  useEffect(() => {
-    // Create a serializable version of the audio messages
-    const serializedAudioMessages = {};
-    Object.entries(audioMessages).forEach(([id, url]) => {
-      // We can't store blob URLs, so just store a flag that audio exists
-      serializedAudioMessages[id] = true;
-    });
-    
-    // Save to localStorage if we have any audio messages
-    if (Object.keys(serializedAudioMessages).length > 0) {
-      localStorage.setItem('audioMessagesInfo', JSON.stringify(serializedAudioMessages));
-    }
-  }, [audioMessages]);
-
-  // Load audio message info from localStorage on component mount
-  useEffect(() => {
-    const savedAudioInfo = localStorage.getItem('audioMessagesInfo');
-    if (savedAudioInfo) {
-      try {
-        const audioInfo = JSON.parse(savedAudioInfo);
-        console.log("Found saved audio message info:", audioInfo);
-        
-        // Update chat history to mark messages as audio messages
-        setChatHistory(prev => 
-          prev.map(msg => {
-            // If this message ID is in the saved audio info, mark it as an audio message
-            if (msg.messageId && audioInfo[msg.messageId]) {
-              // If the message has an audioFileId, construct the audio URL
-              if (msg.audioFileId) {
-                const audioUrl = `${process.env.REACT_APP_API_URL}/api/chat/audio/${msg.audioFileId}`;
-                setAudioMessages(prev => ({
-                  ...prev,
-                  [msg.messageId]: audioUrl
-                }));
-              }
-              return { ...msg, isAudio: true };
-            }
-            return msg;
-          })
-        );
-      } catch (e) {
-        console.error("Error parsing saved audio info:", e);
-      }
-    }
-  }, []);
-
   // Process audio message and send for transcription
   const processAudioMessage = async (audioBlobCopy, messageId, newChat) => {
     try {
@@ -1259,17 +1205,6 @@ export default function ChatbotLayout({ children }) {
           setAudioMessages(prev => ({
             ...prev,
             [messageId]: audioUrl
-          }));
-          
-          // Save this audio message ID to localStorage for persistence
-          const savedAudioMessages = JSON.parse(localStorage.getItem('audioMessages') || '{}');
-          localStorage.setItem('audioMessages', JSON.stringify({
-            ...savedAudioMessages,
-            [messageId]: {
-              url: audioUrl,
-              audioFileId: audioFileId,
-              timestamp: new Date().toISOString()
-            }
           }));
         }
         
@@ -1334,38 +1269,6 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
-  // Add an effect to load audio messages from localStorage
-  useEffect(() => {
-    try {
-      // Load saved audio messages from localStorage
-      const savedAudioMessages = JSON.parse(localStorage.getItem('audioMessages') || '{}');
-      
-      if (Object.keys(savedAudioMessages).length > 0) {
-        console.log(`Loading ${Object.keys(savedAudioMessages).length} audio messages from localStorage`);
-        
-        // Create a new object with the saved audio URLs
-        const loadedAudioMessages = {};
-        
-        // Add each saved audio message to the state
-        Object.entries(savedAudioMessages).forEach(([messageId, audioData]) => {
-          if (audioData.url) {
-            loadedAudioMessages[messageId] = audioData.url;
-          }
-        });
-        
-        // Update audio messages state
-        if (Object.keys(loadedAudioMessages).length > 0) {
-          setAudioMessages(prev => ({
-            ...prev,
-            ...loadedAudioMessages
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Error loading audio messages from localStorage:', error);
-    }
-  }, []);
-
   return (
     <>
       <style>
@@ -1421,7 +1324,7 @@ export default function ChatbotLayout({ children }) {
         <div className="flex items-center space-x-4">
           <div className="flex flex-col items-center bg-blue-50 px-3 py-3 rounded-lg">
             <img 
-              src={bookLogo}
+              src={successmark}
               alt="Book Logo" 
               className="h-12 w-auto object-contain rounded mb-1"
               onError={(e) => {
