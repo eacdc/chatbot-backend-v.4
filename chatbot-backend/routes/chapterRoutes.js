@@ -1,3 +1,4 @@
+// Updated chapterRoutes.js - May 2025
 const express = require("express");
 const router = express.Router();
 const Chat = require("../models/Chat");
@@ -567,6 +568,10 @@ Return "keep" if:
 
 Respond ONLY with the word "keep" or "skip" - no explanation or additional text.`;
 
+const systemPrompt_manu = `You are an AI that evaluates questions for completeness and self-containment.
+If you find that some parts of the question is missing or it is referencing some portion of the text which is not 
+given to you, then you can rephrase the question to make it complete. Keep the tone and context of the questions exactly the same`;
+
     // Make the API call
     const response = await openai.chat.completions.create({
       model: "gpt-4.1",
@@ -575,7 +580,7 @@ Respond ONLY with the word "keep" or "skip" - no explanation or additional text.
         { role: "user", content: questionText }
       ],
       temperature: 0, // Use 0 for consistent outputs
-      max_tokens: 10,  // Keep response short
+      max_tokens: 1000,  // Keep response short
     });
 
     // Extract response
