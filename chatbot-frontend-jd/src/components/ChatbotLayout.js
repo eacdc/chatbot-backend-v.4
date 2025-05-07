@@ -1166,7 +1166,7 @@ export default function ChatbotLayout({ children }) {
       // Create form data to send the audio file for transcription
       const formData = new FormData();
       
-      // Convert audio to MP3 format if it's from iPhone
+      // Convert audio to a supported format
       let audioToSend = audioBlobCopy;
       
       // Check for iPhone audio formats
@@ -1178,53 +1178,61 @@ export default function ChatbotLayout({ children }) {
         
         console.log('Converting iPhone audio format:', audioBlobCopy.type);
         
-        // Create an audio context
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const arrayBuffer = await audioBlobCopy.arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        
-        // Create a new audio buffer with the same data
-        const newAudioBuffer = audioContext.createBuffer(
-          audioBuffer.numberOfChannels,
-          audioBuffer.length,
-          audioBuffer.sampleRate
-        );
-        
-        // Copy the audio data
-        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-          newAudioBuffer.copyToChannel(audioBuffer.getChannelData(channel), channel);
-        }
-        
-        // Convert to MP3 using MediaRecorder
-        const mp3Blob = await new Promise((resolve) => {
-          const mediaStreamDestination = audioContext.createMediaStreamDestination();
-          const source = audioContext.createBufferSource();
-          source.buffer = newAudioBuffer;
-          source.connect(mediaStreamDestination);
-          source.start();
+        try {
+          // Create an audio context
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const arrayBuffer = await audioBlobCopy.arrayBuffer();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
           
-          const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream, {
-            mimeType: 'audio/webm;codecs=opus'
+          // Create a new audio buffer with the same data
+          const newAudioBuffer = audioContext.createBuffer(
+            audioBuffer.numberOfChannels,
+            audioBuffer.length,
+            audioBuffer.sampleRate
+          );
+          
+          // Copy the audio data
+          for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            newAudioBuffer.copyToChannel(audioBuffer.getChannelData(channel), channel);
+          }
+          
+          // Convert to WAV format (which is well-supported)
+          const wavBlob = await new Promise((resolve) => {
+            const mediaStreamDestination = audioContext.createMediaStreamDestination();
+            const source = audioContext.createBufferSource();
+            source.buffer = newAudioBuffer;
+            source.connect(mediaStreamDestination);
+            source.start();
+            
+            // Use WAV format instead of WebM
+            const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream, {
+              mimeType: 'audio/wav'
+            });
+            
+            const chunks = [];
+            
+            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+            mediaRecorder.onstop = () => {
+              const blob = new Blob(chunks, { type: 'audio/wav' });
+              resolve(blob);
+            };
+            
+            mediaRecorder.start();
+            setTimeout(() => mediaRecorder.stop(), audioBuffer.duration * 1000);
           });
           
-          const chunks = [];
-          
-          mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-          mediaRecorder.onstop = () => {
-            const blob = new Blob(chunks, { type: 'audio/mp3' });
-            resolve(blob);
-          };
-          
-          mediaRecorder.start();
-          setTimeout(() => mediaRecorder.stop(), audioBuffer.duration * 1000);
-        });
-        
-        audioToSend = mp3Blob;
-        console.log('Converted audio format:', audioToSend.type);
+          audioToSend = wavBlob;
+          console.log('Converted audio format:', audioToSend.type);
+        } catch (error) {
+          console.error('Error converting audio:', error);
+          // If conversion fails, try sending the original audio
+          audioToSend = audioBlobCopy;
+        }
       }
       
       // Ensure we're sending with the correct filename and type
-      formData.append('audio', audioToSend, 'recording.mp3');
+      const fileExtension = audioToSend.type.split('/')[1] || 'wav';
+      formData.append('audio', audioToSend, `recording.${fileExtension}`);
       
       // Extract the chapterId string from the activeChapter object
       const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
@@ -1233,6 +1241,9 @@ export default function ChatbotLayout({ children }) {
       
       formData.append('userId', userId);
       formData.append('chapterId', chapterId || '');
+      
+      // Log the audio format being sent
+      console.log('Sending audio with format:', audioToSend.type);
       
       // Use our secure backend endpoint for transcription
       const transcriptionResponse = await axios.post(
