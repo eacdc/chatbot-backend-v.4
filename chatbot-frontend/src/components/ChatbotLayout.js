@@ -765,6 +765,16 @@ export default function ChatbotLayout({ children }) {
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         
+        // Log detailed audio format information
+        console.log('Original audio format details:', {
+          type: audioBlob.type,
+          size: audioBlob.size,
+          lastModified: new Date().toISOString(),
+          mimeType: audioBlob.type,
+          isAudio: audioBlob.type.startsWith('audio/'),
+          supportedFormats: ['audio/mp4', 'audio/aac', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/webm']
+        });
+        
         // Save a reference to the audioBlob before resetting
         const audioBlobCopy = audioBlob;
         
@@ -1252,6 +1262,15 @@ export default function ChatbotLayout({ children }) {
       
       // Set processing state to true
       setIsProcessing(true);
+      
+      // Log the incoming audio format
+      console.log('Processing audio message:', {
+        originalFormat: audioBlobCopy.type,
+        size: audioBlobCopy.size,
+        timestamp: new Date().toISOString(),
+        isAudio: audioBlobCopy.type.startsWith('audio/'),
+        supportedFormats: ['audio/mp4', 'audio/aac', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/webm']
+      });
       
       // Create form data to send the audio file for transcription
       const formData = new FormData();
