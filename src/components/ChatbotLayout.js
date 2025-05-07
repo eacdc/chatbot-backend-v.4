@@ -73,44 +73,6 @@ const cleanMessageContent = (content) => {
   return cleanedContent;
 }; 
 
-/* Toggle switch styles */
-.toggle-checkbox {
-  transition: .3s;
-  z-index: 1;
-  position: absolute;
-  left: 0;
-}
-
-.toggle-checkbox:checked {
-  transform: translateX(100%);
-  border-color: #3B82F6;
-}
-
-.toggle-label {
-  transition: .3s;
-}
-
-<style>
-  {`
-    /* Toggle switch styles */
-    .toggle-checkbox {
-      transition: .3s;
-      z-index: 1;
-      position: absolute;
-      left: 0;
-    }
-    
-    .toggle-checkbox:checked {
-      transform: translateX(100%);
-      border-color: #3B82F6;
-    }
-    
-    .toggle-label {
-      transition: .3s;
-    }
-  `}
-</style> 
-
 mediaRecorder.ondataavailable = (event) => {
   if (event.data.size > 0) {
     audioChunksRef.current.push(event.data);
