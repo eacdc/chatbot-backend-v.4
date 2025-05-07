@@ -541,14 +541,84 @@ export default function ChatbotLayout({ children }) {
       if (audioBlob) {
         // For audio, we need to use FormData
         const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');
+        
+        // Convert audio to a supported format
+        let audioToSend = audioBlob;
+        
+        // Check for iPhone audio formats
+        if (audioBlob.type === 'audio/mp4' || 
+            audioBlob.type === 'audio/aac' || 
+            audioBlob.type === 'audio/x-m4a' ||
+            audioBlob.type === 'audio/mpeg' ||
+            audioBlob.type === 'audio/mp3') {
+          
+          console.log('Converting iPhone audio format:', audioBlob.type);
+          
+          try {
+            // Create an audio context
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            // Create a new audio buffer with the same data
+            const newAudioBuffer = audioContext.createBuffer(
+              audioBuffer.numberOfChannels,
+              audioBuffer.length,
+              audioBuffer.sampleRate
+            );
+            
+            // Copy the audio data
+            for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+              newAudioBuffer.copyToChannel(audioBuffer.getChannelData(channel), channel);
+            }
+            
+            // Convert to WAV format (which is well-supported)
+            const wavBlob = await new Promise((resolve) => {
+              const mediaStreamDestination = audioContext.createMediaStreamDestination();
+              const source = audioContext.createBufferSource();
+              source.buffer = newAudioBuffer;
+              source.connect(mediaStreamDestination);
+              source.start();
+              
+              // Use WAV format instead of WebM
+              const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream, {
+                mimeType: 'audio/wav'
+              });
+              
+              const chunks = [];
+              
+              mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+              mediaRecorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/wav' });
+                resolve(blob);
+              };
+              
+              mediaRecorder.start();
+              setTimeout(() => mediaRecorder.stop(), audioBuffer.duration * 1000);
+            });
+            
+            audioToSend = wavBlob;
+            console.log('Converted audio format:', audioToSend.type);
+          } catch (error) {
+            console.error('Error converting audio:', error);
+            // If conversion fails, try sending the original audio
+            audioToSend = audioBlob;
+          }
+        }
+        
+        // Ensure we're sending with the correct filename and type
+        const fileExtension = audioToSend.type.split('/')[1] || 'wav';
+        formData.append('audio', audioToSend, `recording.${fileExtension}`);
         formData.append('userId', userId);
         formData.append('chapterId', chapterId);
         
+        // Log the audio format being sent
+        console.log('Sending audio with format:', audioToSend.type);
+        
         requestData = formData;
         requestConfig = {
-        headers: {
-          'Authorization': `Bearer ${token}`
+          headers: {
+            'Authorization': `Bearer ${token}`
             // Content-Type is automatically set by browser for FormData
           }
         };
