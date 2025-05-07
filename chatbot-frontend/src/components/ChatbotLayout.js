@@ -1185,7 +1185,49 @@ export default function ChatbotLayout({ children }) {
       
       // Create form data to send the audio file for transcription
       const formData = new FormData();
-      formData.append('audio', audioBlobCopy, 'recording.webm');
+      
+      // Convert audio to MP3 format if it's from iPhone
+      let audioToSend = audioBlobCopy;
+      if (audioBlobCopy.type === 'audio/mp4' || audioBlobCopy.type === 'audio/aac') {
+        // Create an audio context
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const arrayBuffer = await audioBlobCopy.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        // Create a new audio buffer with the same data
+        const newAudioBuffer = audioContext.createBuffer(
+          audioBuffer.numberOfChannels,
+          audioBuffer.length,
+          audioBuffer.sampleRate
+        );
+        
+        // Copy the audio data
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+          newAudioBuffer.copyToChannel(audioBuffer.getChannelData(channel), channel);
+        }
+        
+        // Convert to MP3
+        const mp3Blob = await new Promise((resolve) => {
+          const mediaStreamDestination = audioContext.createMediaStreamDestination();
+          const source = audioContext.createBufferSource();
+          source.buffer = newAudioBuffer;
+          source.connect(mediaStreamDestination);
+          source.start();
+          
+          const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
+          const chunks = [];
+          
+          mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+          mediaRecorder.onstop = () => resolve(new Blob(chunks, { type: 'audio/mp3' }));
+          
+          mediaRecorder.start();
+          setTimeout(() => mediaRecorder.stop(), audioBuffer.duration * 1000);
+        });
+        
+        audioToSend = mp3Blob;
+      }
+      
+      formData.append('audio', audioToSend, 'recording.mp3');
       
       // Extract the chapterId string from the activeChapter object
       const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
@@ -1234,7 +1276,8 @@ export default function ChatbotLayout({ children }) {
           content: transcriptionResponse.data.transcription,
           messageId: messageId,
           isAudio: true,
-          audioFileId: audioFileId
+          audioFileId: audioFileId,
+          transcription: transcriptionResponse.data.transcription // Add transcription field
         };
         
         setChatHistory(prev => {
@@ -1248,7 +1291,9 @@ export default function ChatbotLayout({ children }) {
         const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
           userId,
           message: transcriptionResponse.data.transcription,
-          chapterId
+          chapterId,
+          isAudio: true,
+          audioFileId: audioFileId
         }, {
           headers: {
             'Authorization': `Bearer ${token}`,
