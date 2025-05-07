@@ -1550,11 +1550,11 @@ export default function ChatbotLayout({ children }) {
                     style={{ width: '160px' }}
                   >
                     <div className="flex flex-col items-center p-2">
-                      <div className="h-24 w-24 mb-2 bg-blue-50 rounded-lg p-2 flex items-center justify-center">
+                      <div className="h-32 w-20 mb-2 bg-blue-50 rounded-lg p-2 flex items-center justify-center">
                         <img 
                           src={book.bookCoverImgLink} 
                           alt={book.title}
-                          className="h-full object-contain"
+                          className="h-full w-auto object-contain"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
