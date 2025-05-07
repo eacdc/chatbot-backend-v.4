@@ -12,6 +12,7 @@ const Config = require("../models/Config");
 const Book = require("../models/Book");
 const QnALists = require("../models/QnALists");
 const { storeAudio, getAudioStream, getAudioUrl } = require('../utils/gridfs');
+const ffmpeg = require('fluent-ffmpeg');
 
 // Initialize default configs if needed
 (async () => {
@@ -580,12 +581,29 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             supportedFormats: Object.values(signatures)
         });
 
+        // Convert audio to WAV format if needed
         const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
+        const convertedFilePath = path.join(__dirname, "../uploads", `converted-${req.file.filename}.wav`);
         
         // Create unique message ID for this audio message
         const messageId = `audio-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         
-        // Store audio file in GridFS
+        // Convert audio to WAV format
+        await new Promise((resolve, reject) => {
+            ffmpeg(audioFilePath)
+                .toFormat('wav')
+                .on('end', () => {
+                    console.log('Audio conversion completed');
+                    resolve();
+                })
+                .on('error', (err) => {
+                    console.error('Error converting audio:', err);
+                    reject(err);
+                })
+                .save(convertedFilePath);
+        });
+
+        // Store original audio file in GridFS
         const audioFileId = await storeAudio(
             fileBuffer, 
             req.file.originalname || `audio-${Date.now()}.webm`, 
@@ -602,17 +620,18 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             setTimeout(() => reject(new Error('Transcription request timed out')), 45000);
         });
 
-        // Transcribe the audio using OpenAI's API
+        // Transcribe the converted audio using OpenAI's API
         const transcriptionPromise = openaiTranscription.audio.transcriptions.create({
-                    file: fs.createReadStream(audioFilePath),
+            file: fs.createReadStream(convertedFilePath),
             model: "whisper-1"
         });
 
         // Use Promise.race to implement the timeout
         const transcription = await Promise.race([transcriptionPromise, timeoutPromise]);
         
-        // Delete the temporary file from the uploads directory
+        // Clean up temporary files
         fs.unlinkSync(audioFilePath);
+        fs.unlinkSync(convertedFilePath);
         
         // Check for empty transcription
         if (!transcription.text || transcription.text.trim() === "") {
@@ -651,9 +670,6 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             });
         }
 
-        // we'll call the /send endpoint with the transcribed text
-        console.log(`Transcribed text: ${transcription.text}`);
-        
         // Return both the transcribed text and redirect to text processing
         return res.status(200).json({
             transcription: transcription.text,
@@ -665,11 +681,16 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
     } catch (error) {
         console.error("Transcription error:", error);
         
-        // Clean up temporary file if it exists
+        // Clean up temporary files if they exist
         if (req.file) {
             const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
+            const convertedFilePath = path.join(__dirname, "../uploads", `converted-${req.file.filename}.wav`);
+            
             if (fs.existsSync(audioFilePath)) {
                 fs.unlinkSync(audioFilePath);
+            }
+            if (fs.existsSync(convertedFilePath)) {
+                fs.unlinkSync(convertedFilePath);
             }
         }
         
