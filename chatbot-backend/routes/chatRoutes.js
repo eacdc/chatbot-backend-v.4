@@ -547,9 +547,40 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             return res.status(400).json({ error: "No audio file uploaded" });
         }
 
-        // Read the audio file
+        // Log detailed information about the uploaded file
+        console.log('Audio file details:', {
+            filename: req.file.filename,
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+            encoding: req.file.encoding,
+            fieldname: req.file.fieldname,
+            destination: req.file.destination,
+            path: req.file.path
+        });
+
+        // Read the first few bytes to check file signature
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const header = fileBuffer.slice(0, 4);
+        const headerHex = Array.from(header).map(b => b.toString(16).padStart(2, '0')).join(' ');
+        
+        // Common file signatures
+        const signatures = {
+            '66 74 79 70': 'MP4/M4A',
+            '49 44 33': 'MP3',
+            '52 49 46 46': 'WAV',
+            '4F 67 67 53': 'OGG',
+            '66 4C 61 43': 'FLAC'
+        };
+        
+        const detectedFormat = signatures[headerHex] || 'Unknown';
+        console.log('File signature analysis:', {
+            headerHex,
+            detectedFormat,
+            supportedFormats: Object.values(signatures)
+        });
+
         const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
-        const fileBuffer = fs.readFileSync(audioFilePath);
         
         // Create unique message ID for this audio message
         const messageId = `audio-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
