@@ -1188,7 +1188,16 @@ export default function ChatbotLayout({ children }) {
       
       // Convert audio to MP3 format if it's from iPhone
       let audioToSend = audioBlobCopy;
-      if (audioBlobCopy.type === 'audio/mp4' || audioBlobCopy.type === 'audio/aac') {
+      
+      // Check for iPhone audio formats
+      if (audioBlobCopy.type === 'audio/mp4' || 
+          audioBlobCopy.type === 'audio/aac' || 
+          audioBlobCopy.type === 'audio/x-m4a' ||
+          audioBlobCopy.type === 'audio/mpeg' ||
+          audioBlobCopy.type === 'audio/mp3') {
+        
+        console.log('Converting iPhone audio format:', audioBlobCopy.type);
+        
         // Create an audio context
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const arrayBuffer = await audioBlobCopy.arrayBuffer();
@@ -1206,7 +1215,7 @@ export default function ChatbotLayout({ children }) {
           newAudioBuffer.copyToChannel(audioBuffer.getChannelData(channel), channel);
         }
         
-        // Convert to MP3
+        // Convert to MP3 using MediaRecorder
         const mp3Blob = await new Promise((resolve) => {
           const mediaStreamDestination = audioContext.createMediaStreamDestination();
           const source = audioContext.createBufferSource();
@@ -1214,19 +1223,27 @@ export default function ChatbotLayout({ children }) {
           source.connect(mediaStreamDestination);
           source.start();
           
-          const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
+          const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream, {
+            mimeType: 'audio/webm;codecs=opus'
+          });
+          
           const chunks = [];
           
           mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-          mediaRecorder.onstop = () => resolve(new Blob(chunks, { type: 'audio/mp3' }));
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'audio/mp3' });
+            resolve(blob);
+          };
           
           mediaRecorder.start();
           setTimeout(() => mediaRecorder.stop(), audioBuffer.duration * 1000);
         });
         
         audioToSend = mp3Blob;
+        console.log('Converted audio format:', audioToSend.type);
       }
       
+      // Ensure we're sending with the correct filename and type
       formData.append('audio', audioToSend, 'recording.mp3');
       
       // Extract the chapterId string from the activeChapter object
