@@ -560,78 +560,24 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             path: req.file.path
         });
 
-        // Read the first few bytes to check file signature
-        const fileBuffer = fs.readFileSync(req.file.path);
-        const header = fileBuffer.slice(0, 4);
-        const headerHex = Array.from(header).map(b => b.toString(16).padStart(2, '0')).join(' ');
-        
-        // Common file signatures
-        const signatures = {
-            '66 74 79 70': 'MP4/M4A',
-            '49 44 33': 'MP3',
-            '52 49 46 46': 'WAV',
-            '4F 67 67 53': 'OGG',
-            '66 4C 61 43': 'FLAC'
-        };
-        
-        const detectedFormat = signatures[headerHex] || 'Unknown';
-        console.log('File signature analysis:', {
-            headerHex,
-            detectedFormat,
-            supportedFormats: Object.values(signatures)
-        });
-
-        // Convert audio to WAV format if needed
         const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
-        const convertedFilePath = path.join(__dirname, "../uploads", `converted-${req.file.filename}.wav`);
         
-        // Create unique message ID for this audio message
-        const messageId = `audio-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        
-        // Convert audio to WAV format
-        await new Promise((resolve, reject) => {
-            ffmpeg(audioFilePath)
-                .toFormat('wav')
-                .on('end', () => {
-                    console.log('Audio conversion completed');
-                    resolve();
-                })
-                .on('error', (err) => {
-                    console.error('Error converting audio:', err);
-                    reject(err);
-                })
-                .save(convertedFilePath);
-        });
-
-        // Store original audio file in GridFS
-        const audioFileId = await storeAudio(
-            fileBuffer, 
-            req.file.originalname || `audio-${Date.now()}.webm`, 
-            req.file.mimetype || 'audio/webm',
-            {
-                userId: req.body.userId,
-                chapterId: req.body.chapterId || null,
-                messageId: messageId
-            }
-        );
-
         // Add timeout for the OpenAI transcription request
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('Transcription request timed out')), 45000);
         });
 
-        // Transcribe the converted audio using OpenAI's API
+        // Transcribe the audio using OpenAI's API
         const transcriptionPromise = openaiTranscription.audio.transcriptions.create({
-            file: fs.createReadStream(convertedFilePath),
+            file: fs.createReadStream(audioFilePath),
             model: "whisper-1"
         });
 
         // Use Promise.race to implement the timeout
         const transcription = await Promise.race([transcriptionPromise, timeoutPromise]);
         
-        // Clean up temporary files
+        // Clean up temporary file
         fs.unlinkSync(audioFilePath);
-        fs.unlinkSync(convertedFilePath);
         
         // Check for empty transcription
         if (!transcription.text || transcription.text.trim() === "") {
@@ -650,9 +596,7 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             chatHistory.messages.push({
                 role: "user",
                 content: transcription.text,
-                isAudio: true,
-                audioFileId: audioFileId,
-                messageId: messageId
+                isAudio: true
             });
             await chatHistory.save();
         } else {
@@ -663,34 +607,24 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
                 messages: [{
                     role: "user",
                     content: transcription.text,
-                    isAudio: true,
-                    audioFileId: audioFileId,
-                    messageId: messageId
+                    isAudio: true
                 }]
             });
         }
 
-        // Return both the transcribed text and redirect to text processing
+        // Return the transcribed text and redirect to text processing
         return res.status(200).json({
             transcription: transcription.text,
-            audioUrl: getAudioUrl(audioFileId),
-            audioFileId: audioFileId,
-            messageId: messageId,
             redirect: true
         });
     } catch (error) {
         console.error("Transcription error:", error);
         
-        // Clean up temporary files if they exist
+        // Clean up temporary file if it exists
         if (req.file) {
             const audioFilePath = path.join(__dirname, "../uploads", req.file.filename);
-            const convertedFilePath = path.join(__dirname, "../uploads", `converted-${req.file.filename}.wav`);
-            
             if (fs.existsSync(audioFilePath)) {
                 fs.unlinkSync(audioFilePath);
-            }
-            if (fs.existsSync(convertedFilePath)) {
-                fs.unlinkSync(convertedFilePath);
             }
         }
         

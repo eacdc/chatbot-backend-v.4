@@ -31,7 +31,7 @@ export default function ChatbotLayout({ children }) {
   const [audioBlob, setAudioBlob] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false); // New state to track message processing
   const [audioModeEnabled, setAudioModeEnabled] = useState(false); // New state for audio mode toggle
-  const [audioMessages, setAudioMessages] = useState({}); // Store audio blobs by message ID
+  const [audioMessages, setAudioMessages] = useState({}); // Remove this line
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const navigate = useNavigate();
@@ -1299,7 +1299,6 @@ export default function ChatbotLayout({ children }) {
       const token = getToken();
       if (!userId || !token) return;
       
-      // Set processing state to true
       setIsProcessing(true);
       
       // Log the incoming audio format
@@ -1311,13 +1310,10 @@ export default function ChatbotLayout({ children }) {
         supportedFormats: ['audio/mp4', 'audio/aac', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/webm']
       });
       
-      // Create form data to send the audio file for transcription
       const formData = new FormData();
-      
-      // Convert audio to a supported format
       let audioToSend = audioBlobCopy;
       
-      // Check for iPhone audio formats
+      // Convert audio to supported format if needed
       if (audioBlobCopy.type === 'audio/mp4' || 
           audioBlobCopy.type === 'audio/aac' || 
           audioBlobCopy.type === 'audio/x-m4a' ||
@@ -1327,24 +1323,20 @@ export default function ChatbotLayout({ children }) {
         console.log('Converting iPhone audio format:', audioBlobCopy.type);
         
         try {
-          // Create an audio context
           const audioContext = new (window.AudioContext || window.webkitAudioContext)();
           const arrayBuffer = await audioBlobCopy.arrayBuffer();
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
           
-          // Create a new audio buffer with the same data
           const newAudioBuffer = audioContext.createBuffer(
             audioBuffer.numberOfChannels,
             audioBuffer.length,
             audioBuffer.sampleRate
           );
           
-          // Copy the audio data
           for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
             newAudioBuffer.copyToChannel(audioBuffer.getChannelData(channel), channel);
           }
           
-          // Convert to M4A format (which is well-supported by OpenAI)
           const m4aBlob = await new Promise((resolve) => {
             const mediaStreamDestination = audioContext.createMediaStreamDestination();
             const source = audioContext.createBufferSource();
@@ -1352,7 +1344,6 @@ export default function ChatbotLayout({ children }) {
             source.connect(mediaStreamDestination);
             source.start();
             
-            // Use M4A format
             const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream, {
               mimeType: 'audio/mp4'
             });
@@ -1373,20 +1364,16 @@ export default function ChatbotLayout({ children }) {
           console.log('Converted audio format:', audioToSend.type);
         } catch (error) {
           console.error('Error converting audio:', error);
-          // If conversion fails, try sending the original audio
           audioToSend = audioBlobCopy;
         }
       }
       
-      // Ensure we're sending with the correct filename and type
       formData.append('audio', audioToSend, 'recording.m4a');
       formData.append('userId', userId);
       formData.append('chapterId', activeChapter?.chapterId || '');
       
-      // Log the audio format being sent
       console.log('Sending audio with format:', audioToSend.type);
       
-      // Use our secure backend endpoint for transcription
       const transcriptionResponse = await axios.post(
         API_ENDPOINTS.TRANSCRIBE_AUDIO,
         formData,
@@ -1398,51 +1385,29 @@ export default function ChatbotLayout({ children }) {
         }
       );
       
-      // Handle audio transcription redirecting to chat
       if (transcriptionResponse.data.redirect) {
         console.log("Audio transcribed, sending to chat API:", transcriptionResponse.data.transcription);
-        
-        // Get the audio URL from the response
-        const { audioUrl, audioFileId, messageId: serverMessageId } = transcriptionResponse.data;
-        
-        // Store the audio URL for playback (use server URL instead of blob URL)
-        if (audioUrl) {
-          // Release the blob URL we created earlier to prevent memory leaks
-          if (audioMessages[messageId]) {
-            URL.revokeObjectURL(audioMessages[messageId]);
-          }
-          
-          // Use the server-provided audio URL
-          setAudioMessages(prev => ({
-            ...prev,
-            [messageId]: audioUrl
-          }));
-        }
         
         // Update chat with transcription
         const updatedUserMessage = { 
           role: "user", 
           content: transcriptionResponse.data.transcription,
           messageId: messageId,
-          isAudio: true,
-          audioFileId: audioFileId,
-          transcription: transcriptionResponse.data.transcription // Add transcription field
+          isAudio: true
         };
         
         setChatHistory(prev => {
-          // Remove the last "[Audio Message]" and replace with actual transcript
           const newHistory = [...prev];
           newHistory.pop();
           return [...newHistory, updatedUserMessage];
         });
         
-        // Now send the transcribed message to chat
+        // Send transcribed message to chat
         const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
           userId,
           message: transcriptionResponse.data.transcription,
           chapterId: activeChapter?.chapterId || '',
-          isAudio: true,
-          audioFileId: audioFileId
+          isAudio: true
         }, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -1450,29 +1415,23 @@ export default function ChatbotLayout({ children }) {
           }
         });
         
-        // Check if there's score information and append it to the message
         let botContent = chatResponse.data.message;
         
-        // Add score information if present
         if (chatResponse.data.score && chatResponse.data.score.marksAwarded !== null) {
           const scoreInfo = `\n\n**Score: ${chatResponse.data.score.marksAwarded}/${chatResponse.data.score.maxMarks}**`;
           botContent += scoreInfo;
         }
         
-        // Handle the chat response
         const botResponse = { role: "assistant", content: botContent };
         setChatHistory(prev => [...prev, botResponse]);
       }
     } catch (error) {
       console.error("Error processing audio message:", error);
       
-      // Check if it's a transcription error or a chat API error
       const errorMessage = error.response?.data?.error || "Failed to process audio message. Please try again.";
       
-      // Update the chat history with a more user-friendly error message
       setChatHistory(prev => {
         const newHistory = [...prev];
-        // Find and update the processing message
         const processingIndex = newHistory.findIndex(msg => 
           msg.messageId === messageId && msg.content === "🎤 Processing audio message..."
         );
@@ -1486,7 +1445,6 @@ export default function ChatbotLayout({ children }) {
           };
         }
         
-        // Add the error message as a system message
         newHistory.push({
           role: "system",
           content: "⚠️ " + errorMessage
@@ -1495,7 +1453,6 @@ export default function ChatbotLayout({ children }) {
         return newHistory;
       });
     } finally {
-      // Set processing state back to false
       setIsProcessing(false);
     }
   };
@@ -2040,24 +1997,14 @@ export default function ChatbotLayout({ children }) {
                                 {msg.content}
                                 {msg.isAudio && msg.messageId && (
                                   <div className="mt-3 p-2 bg-blue-600 rounded-lg">
-                                    {audioMessages[msg.messageId] ? (
-                                      <div className="audio-player">
-                                        <audio 
-                                          src={audioMessages[msg.messageId]} 
-                                          controls 
-                                          controlsList="nodownload"
-                                          className="h-10 w-full max-w-[250px] opacity-90" 
-                                          preload="metadata"
-                                        />
-                                      </div>
-                                    ) : msg.content === "🎤 Processing audio message..." ? (
+                                    {msg.content === "🎤 Processing audio message..." ? (
                                       <div className="flex items-center space-x-2">
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                                         <span className="text-sm text-blue-100">Processing audio...</span>
                                       </div>
                                     ) : (
                                       <div className="text-xs text-blue-100">
-                                        [Audio message]
+                                        [Voice message]
                                       </div>
                                     )}
                                   </div>
