@@ -29,7 +29,6 @@ export default function ChatbotLayout({ children }) {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false); // New state to track message processing
-  const [audioModeEnabled, setAudioModeEnabled] = useState(false); // New state for audio mode toggle
   const [audioMessages, setAudioMessages] = useState({}); // Remove this line
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -1445,25 +1444,6 @@ export default function ChatbotLayout({ children }) {
     <>
       <style>
         {`
-          /* Toggle switch styles */
-          .toggle-checkbox {
-            transition: 0.4s;
-            z-index: 1;
-            position: absolute;
-            top: 0;
-            left: 0;
-          }
-          
-          .toggle-checkbox:checked {
-            transform: translateX(100%);
-            border-color: #3B82F6;
-            transition: 0.4s;
-          }
-          
-          .toggle-label {
-            transition: 0.4s;
-          }
-          
           /* Audio player styles */
           .audio-player audio::-webkit-media-controls-panel {
             background-color: rgba(255, 255, 255, 0.8);
@@ -2116,28 +2096,7 @@ export default function ChatbotLayout({ children }) {
                     </button>
                   </div>
                   
-                    {/* Audio Mode Toggle */}
-                    <div className="flex items-center">
-                      <label htmlFor="audioMode" className="mr-2 text-sm text-gray-600 cursor-pointer">
-                        Audio Mode
-                      </label>
-                      <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                        <input 
-                          type="checkbox" 
-                          name="audioMode" 
-                          id="audioMode" 
-                          checked={audioModeEnabled}
-                          onChange={() => setAudioModeEnabled(!audioModeEnabled)}
-                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                        />
-                        <label 
-                          htmlFor="audioMode" 
-                          className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${audioModeEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}
-                        ></label>
-                      </div>
-                    </div>
-                    
-                    {/* Audio recording button - always visible regardless of audio mode */}
+                  {/* Audio recording button */}
                   {!isRecording ? (
                       <button 
                         className={`bg-blue-600 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'} text-white px-4 py-3 rounded-lg shadow-sm flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto`}
