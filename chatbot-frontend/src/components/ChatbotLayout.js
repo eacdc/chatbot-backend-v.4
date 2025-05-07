@@ -131,30 +131,15 @@ export default function ChatbotLayout({ children }) {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        const userPublisher = userResponse.data.publisher;
+        const userPublisher = "EXCELLENCE PUBLICATION"; // Default publisher for all users
         
-        // PUBLISHER FILTER TEMPORARILY DISABLED - Fetch all books instead
-        // To re-enable filtering, uncomment the code below and comment out the unfiltered request
-        
-        /*
-        if (!userPublisher) {
-          console.log("User has no publisher preference set");
-          return;
-        }
-        
-        // Then fetch books filtered by this publisher
+        // Fetch books filtered by this publisher
         const booksResponse = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?publisher=${userPublisher}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        */
-        
-        // Unfiltered request - remove this block when re-enabling publisher filtering
-        const booksResponse = await axios.get(API_ENDPOINTS.GET_BOOKS, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         setPublisherBooks(booksResponse.data);
-        console.log(`Fetched ${booksResponse.data.length} books for carousel display`);
+        console.log(`Fetched ${booksResponse.data.length} books from EXCELLENCE PUBLICATION for carousel display`);
       } catch (error) {
         console.error("Error fetching publisher books:", error);
       }
