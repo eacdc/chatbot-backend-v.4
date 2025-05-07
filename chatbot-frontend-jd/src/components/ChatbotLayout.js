@@ -1214,7 +1214,8 @@ export default function ChatbotLayout({ children }) {
           content: transcriptionResponse.data.transcription,
           messageId: messageId,
           isAudio: true,
-          audioFileId: audioFileId
+          audioFileId: audioFileId,
+          transcription: transcriptionResponse.data.transcription // Add transcription field
         };
         
         setChatHistory(prev => {
@@ -1228,7 +1229,9 @@ export default function ChatbotLayout({ children }) {
         const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
           userId,
           message: transcriptionResponse.data.transcription,
-          chapterId
+          chapterId,
+          isAudio: true,
+          audioFileId: audioFileId
         }, {
           headers: {
             'Authorization': `Bearer ${token}`,
