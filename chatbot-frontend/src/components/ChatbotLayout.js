@@ -754,11 +754,29 @@ export default function ChatbotLayout({ children }) {
       
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
+      
+      // Log available MIME types
+      console.log('Available MIME types:', MediaRecorder.isTypeSupported);
+      console.log('Supported audio formats:', [
+        'audio/webm',
+        'audio/mp4',
+        'audio/aac',
+        'audio/x-m4a',
+        'audio/mpeg',
+        'audio/mp3'
+      ].filter(type => MediaRecorder.isTypeSupported(type)));
+      
       const mediaRecorder = new MediaRecorder(stream);
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          // Log each chunk's format
+          console.log('Audio chunk details:', {
+            type: event.data.type,
+            size: event.data.size,
+            timestamp: new Date().toISOString()
+          });
         }
       };
       
@@ -774,6 +792,27 @@ export default function ChatbotLayout({ children }) {
           isAudio: audioBlob.type.startsWith('audio/'),
           supportedFormats: ['audio/mp4', 'audio/aac', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/webm']
         });
+        
+        // Check file signature (first few bytes)
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const arr = new Uint8Array(e.target.result).subarray(0, 4);
+          const header = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join(' ');
+          console.log('File header (hex):', header);
+          
+          // Common file signatures
+          const signatures = {
+            '66 74 79 70': 'MP4/M4A',
+            '49 44 33': 'MP3',
+            '52 49 46 46': 'WAV',
+            '4F 67 67 53': 'OGG',
+            '66 4C 61 43': 'FLAC'
+          };
+          
+          const detectedFormat = signatures[header] || 'Unknown';
+          console.log('Detected format from file signature:', detectedFormat);
+        };
+        reader.readAsArrayBuffer(audioBlob);
         
         // Save a reference to the audioBlob before resetting
         const audioBlobCopy = audioBlob;
@@ -1305,24 +1344,24 @@ export default function ChatbotLayout({ children }) {
             newAudioBuffer.copyToChannel(audioBuffer.getChannelData(channel), channel);
           }
           
-          // Convert to WAV format (which is well-supported)
-          const wavBlob = await new Promise((resolve) => {
+          // Convert to M4A format (which is well-supported by OpenAI)
+          const m4aBlob = await new Promise((resolve) => {
             const mediaStreamDestination = audioContext.createMediaStreamDestination();
             const source = audioContext.createBufferSource();
             source.buffer = newAudioBuffer;
             source.connect(mediaStreamDestination);
             source.start();
             
-            // Use WAV format instead of WebM
+            // Use M4A format
             const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream, {
-              mimeType: 'audio/wav'
+              mimeType: 'audio/mp4'
             });
             
             const chunks = [];
             
             mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
             mediaRecorder.onstop = () => {
-              const blob = new Blob(chunks, { type: 'audio/wav' });
+              const blob = new Blob(chunks, { type: 'audio/mp4' });
               resolve(blob);
             };
             
@@ -1330,7 +1369,7 @@ export default function ChatbotLayout({ children }) {
             setTimeout(() => mediaRecorder.stop(), audioBuffer.duration * 1000);
           });
           
-          audioToSend = wavBlob;
+          audioToSend = m4aBlob;
           console.log('Converted audio format:', audioToSend.type);
         } catch (error) {
           console.error('Error converting audio:', error);
@@ -1340,16 +1379,9 @@ export default function ChatbotLayout({ children }) {
       }
       
       // Ensure we're sending with the correct filename and type
-      const fileExtension = audioToSend.type.split('/')[1] || 'wav';
-      formData.append('audio', audioToSend, `recording.${fileExtension}`);
-      
-      // Extract the chapterId string from the activeChapter object
-      const chapterId = typeof activeChapter === 'object' && activeChapter.chapterId 
-        ? activeChapter.chapterId 
-        : activeChapter;
-      
+      formData.append('audio', audioToSend, 'recording.m4a');
       formData.append('userId', userId);
-      formData.append('chapterId', chapterId || '');
+      formData.append('chapterId', activeChapter?.chapterId || '');
       
       // Log the audio format being sent
       console.log('Sending audio with format:', audioToSend.type);
@@ -1408,7 +1440,7 @@ export default function ChatbotLayout({ children }) {
         const chatResponse = await axios.post(API_ENDPOINTS.CHAT, {
           userId,
           message: transcriptionResponse.data.transcription,
-          chapterId,
+          chapterId: activeChapter?.chapterId || '',
           isAudio: true,
           audioFileId: audioFileId
         }, {
@@ -1436,15 +1468,32 @@ export default function ChatbotLayout({ children }) {
       
       // Check if it's a transcription error or a chat API error
       const errorMessage = error.response?.data?.error || "Failed to process audio message. Please try again.";
-      setChatHistory([...newChat.slice(0, -1), { 
-        role: "user", 
-        content: "🎤 Audio message (Transcription failed)",
-        messageId: messageId,
-        isAudio: true
-      }, {
-        role: "system", 
-        content: errorMessage
-      }]);
+      
+      // Update the chat history with a more user-friendly error message
+      setChatHistory(prev => {
+        const newHistory = [...prev];
+        // Find and update the processing message
+        const processingIndex = newHistory.findIndex(msg => 
+          msg.messageId === messageId && msg.content === "🎤 Processing audio message..."
+        );
+        
+        if (processingIndex !== -1) {
+          newHistory[processingIndex] = {
+            role: "user",
+            content: "🎤 Audio message",
+            messageId: messageId,
+            isAudio: true
+          };
+        }
+        
+        // Add the error message as a system message
+        newHistory.push({
+          role: "system",
+          content: "⚠️ " + errorMessage
+        });
+        
+        return newHistory;
+      });
     } finally {
       // Set processing state back to false
       setIsProcessing(false);
@@ -1987,9 +2036,9 @@ export default function ChatbotLayout({ children }) {
                           } text-sm sm:text-base markdown-content`}
                           >
                             {msg.role === "user" ? (
-                                <>
-                                  {msg.content}
-                                  {msg.isAudio && msg.messageId && (
+                              <>
+                                {msg.content}
+                                {msg.isAudio && msg.messageId && (
                                   <div className="mt-3 p-2 bg-blue-600 rounded-lg">
                                     {audioMessages[msg.messageId] ? (
                                       <div className="audio-player">
@@ -2001,6 +2050,11 @@ export default function ChatbotLayout({ children }) {
                                           preload="metadata"
                                         />
                                       </div>
+                                    ) : msg.content === "🎤 Processing audio message..." ? (
+                                      <div className="flex items-center space-x-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                        <span className="text-sm text-blue-100">Processing audio...</span>
+                                      </div>
                                     ) : (
                                       <div className="text-xs text-blue-100">
                                         [Audio message]
@@ -2008,7 +2062,7 @@ export default function ChatbotLayout({ children }) {
                                     )}
                                   </div>
                                 )}
-                                </>
+                              </>
                             ) : (
                               <ReactMarkdown 
                                 remarkPlugins={[remarkGfm]}
