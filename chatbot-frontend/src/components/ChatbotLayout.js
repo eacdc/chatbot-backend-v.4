@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
 import { ThemeContext } from "../ThemeContext";
-import bookLogo from "../book-logo1.jpeg";
 import { FaBook, FaSignOutAlt, FaShareAlt, FaChevronUp, FaChevronDown, FaBell, FaCheck, FaTimes, FaMicrophone, FaCircle, FaPaperPlane, FaVolumeUp, FaChevronRight, FaPlus, FaUserEdit, FaStop } from "react-icons/fa";
 import "./ChatbotLayout.css";
 import { BsBook } from "react-icons/bs";
@@ -1487,13 +1486,13 @@ export default function ChatbotLayout({ children }) {
         <div className="flex items-center space-x-4">
           <div className="flex flex-col items-center bg-blue-50 px-3 py-3 rounded-lg">
             <img 
-              src={bookLogo}
+              src={`${process.env.PUBLIC_URL}/images/book-logo1.JPG`}
               alt="Book Logo" 
               className="h-12 w-auto object-contain rounded mb-1"
               onError={(e) => {
                 console.error("Failed to load book logo");
                 e.target.onerror = null;
-                e.target.src = `${process.env.PUBLIC_URL}/images/testyourlearning-logo.svg`;
+                e.target.src = `${process.env.PUBLIC_URL}/images/book-logoold.jpeg`;
               }}
             />
             <span className="text-sm font-bold tracking-wide text-gray-800">TestYourLearning</span>
