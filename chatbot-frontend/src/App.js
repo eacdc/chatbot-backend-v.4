@@ -13,6 +13,7 @@ import Collections from "./components/Collections"; // Import the Collections pa
 import AdminCollections from "./components/AdminCollections"; // Import the AdminCollections page
 import Profile from "./components/Profile"; // Import the Profile page
 import { setupActivityTracking } from "./utils/auth"; // Import auth utilities
+import { ThemeProvider } from "./ThemeContext"; // Import ThemeProvider
 import "./App.css";
 
 // Custom component for admin routes protection
@@ -45,49 +46,51 @@ function App() {
   }, [userIsAuthenticated]);
 
   return (
-    <Router>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
-        <Route path="/admin-register" element={<AdminRegister />} />
-        
-        {/* Protected Admin Routes */}
-        <Route path="/admin/dashboard" element={<ProtectedAdminRoute element={<AdminDashboard />} />} />
-        <Route path="/admin/add-book" element={<ProtectedAdminRoute element={<AddBook />} />} />
-        <Route path="/admin/add-chapter" element={<ProtectedAdminRoute element={<AddChapter />} />} />
-        <Route path="/admin/collections" element={<ProtectedAdminRoute element={<AdminCollections />} />} />
-        
-        {/* Protected User Routes */}
-        <Route path="/collections" element={
-          userIsAuthenticated ? <Collections /> : <Navigate to="/login" />
-        } />
-        <Route path="/profile" element={
-          userIsAuthenticated ? <Profile /> : <Navigate to="/login" />
-        } />
+    <ThemeProvider>
+      <Router>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
+          <Route path="/admin-register" element={<AdminRegister />} />
+          
+          {/* Protected Admin Routes */}
+          <Route path="/admin/dashboard" element={<ProtectedAdminRoute element={<AdminDashboard />} />} />
+          <Route path="/admin/add-book" element={<ProtectedAdminRoute element={<AddBook />} />} />
+          <Route path="/admin/add-chapter" element={<ProtectedAdminRoute element={<AddChapter />} />} />
+          <Route path="/admin/collections" element={<ProtectedAdminRoute element={<AdminCollections />} />} />
+          
+          {/* Protected User Routes */}
+          <Route path="/collections" element={
+            userIsAuthenticated ? <Collections /> : <Navigate to="/login" />
+          } />
+          <Route path="/profile" element={
+            userIsAuthenticated ? <Profile /> : <Navigate to="/login" />
+          } />
 
-        {/* Protected Chat Route with ChatbotLayout */}
-        <Route
-          path="/chat"
-          element={
-            userIsAuthenticated ? (
-              <ChatbotLayout>
-                <Chat />
-              </ChatbotLayout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          }
-        />
+          {/* Protected Chat Route with ChatbotLayout */}
+          <Route
+            path="/chat"
+            element={
+              userIsAuthenticated ? (
+                <ChatbotLayout>
+                  <Chat />
+                </ChatbotLayout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
 
-        {/* Redirect '/' to Chat if logged in, otherwise go to Login */}
-        <Route path="/" element={<Navigate to={userIsAuthenticated ? "/chat" : "/login"} />} />
+          {/* Redirect '/' to Chat if logged in, otherwise go to Login */}
+          <Route path="/" element={<Navigate to={userIsAuthenticated ? "/chat" : "/login"} />} />
 
-        {/* Catch-all route for 404s */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </Router>
+          {/* Catch-all route for 404s */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Router>
+    </ThemeProvider>
   );
 }
 
