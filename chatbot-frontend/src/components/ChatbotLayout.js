@@ -1518,13 +1518,13 @@ export default function ChatbotLayout({ children }) {
                 {[...publisherBooks, ...publisherBooks].map((book, index) => (
                   <div 
                     key={`${book._id}-${index}`} 
-                    className="inline-block mx-8 rounded-xl overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top bg-white border border-gray-100"
+                    className="inline-block mx-4 rounded-xl overflow-hidden shadow-sm hover:scale-105 transition-transform duration-200 cursor-pointer text-center align-top bg-white border border-gray-100"
                     title={book.title}
                     onClick={() => window.open(`/collections?bookId=${book._id}`, '_blank')}
-                    style={{ width: '160px' }}
+                    style={{ width: '120px' }}
                   >
                     <div className="flex flex-col items-center p-2">
-                      <div className="h-32 w-20 mb-2 bg-blue-50 rounded-lg p-2 flex items-center justify-center">
+                      <div className="h-28 w-16 mb-2 bg-blue-50 rounded-lg p-1 flex items-center justify-center">
                         <img 
                           src={book.bookCoverImgLink} 
                           alt={book.title}
@@ -1535,11 +1535,11 @@ export default function ChatbotLayout({ children }) {
                           }}
                         />
                       </div>
-                      <h3 className="text-base font-medium text-center text-blue-500 uppercase tracking-wide mb-1">
+                      <h3 className="text-xs font-medium text-center text-blue-500 uppercase tracking-wide mb-1">
                         {book.title.split(' ').slice(0, 2).join(' ')}
                       </h3>
-                      <p className="text-xs text-gray-600 line-clamp-2 w-full">
-                        {book.title.length > 40 ? book.title.substring(0, 40) + "..." : book.title}
+                      <p className="text-xs text-gray-600 line-clamp-1 w-full">
+                        {book.title.length > 30 ? book.title.substring(0, 30) + "..." : book.title}
                       </p>
                     </div>
                   </div>
