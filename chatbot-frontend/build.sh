@@ -1,6 +1,13 @@
 #!/bin/bash
 
-# Install dependencies
+# Clean node_modules and install dependencies fresh
+rm -rf node_modules package-lock.json
+npm cache clean --force
+
+# Install socket.io-client explicitly
+npm install --save socket.io-client@4.8.1
+
+# Install all dependencies
 npm install
 
 # Build the application
