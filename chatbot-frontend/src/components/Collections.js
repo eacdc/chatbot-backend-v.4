@@ -84,34 +84,12 @@ export default function Collections() {
       try {
         setLoading(true);
         
-        // Get the user's details from state
-        const userGrade = user?.grade || localStorage.getItem("userGrade");
-        const userPublisher = user?.publisher || localStorage.getItem("userPublisher");
-        
-        // PUBLISHER FILTER TEMPORARILY DISABLED
-        // To re-enable filtering, uncomment the code below and remove the unfiltered request
-        
-        /*
-        // Build query parameters
-        const queryParams = new URLSearchParams();
-        // Temporarily removed grade filtering
-        // if (userGrade) {
-        //   queryParams.append('grade', userGrade);
-        // }
-        if (userPublisher) {
-          queryParams.append('publisher', userPublisher);
-        }
-        
-        // Construct URL with query parameters
-        const url = `${API_ENDPOINTS.GET_BOOKS}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-        */
-        
-        // Unfiltered request - fetch all books without filtering
-        const url = API_ENDPOINTS.GET_BOOKS;
+        // Always filter by EXCELLENCE PUBLICATION
+        const url = `${API_ENDPOINTS.GET_BOOKS}?publisher=EXCELLENCE PUBLICATION`;
         
         const response = await axios.get(url);
         setBooks(response.data);
-        console.log(`Loaded ${response.data.length} books (publisher filtering disabled)`);
+        console.log(`Loaded ${response.data.length} books from EXCELLENCE PUBLICATION`);
       } catch (error) {
         console.error("Error fetching books:", error);
         setError("Failed to fetch books");

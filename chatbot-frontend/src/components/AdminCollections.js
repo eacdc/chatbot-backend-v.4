@@ -70,8 +70,11 @@ export default function AdminCollections() {
     const fetchBooks = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(API_ENDPOINTS.GET_BOOKS);
+        
+        // Filter by EXCELLENCE PUBLICATION
+        const response = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?publisher=EXCELLENCE PUBLICATION`);
         setBooks(response.data);
+        console.log(`Loaded ${response.data.length} books from EXCELLENCE PUBLICATION`);
       } catch (error) {
         console.error("Error fetching books:", error);
         setError("Failed to fetch books");
