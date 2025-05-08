@@ -12,6 +12,8 @@ export const API_ENDPOINTS = {
   GET_BOOKS: `${API_URL}/api/books`,
   ADD_BOOK: `${API_URL}/api/books`,
   ADD_CHAPTER: `${API_URL}/api/chapters`,
+  DELETE_BOOK: `${API_URL}/api/books/:bookId`,
+  DELETE_CHAPTER: `${API_URL}/api/chapters/:chapterId`,
   USER_SIGNUP: `${API_URL}/api/users/register`,
   GET_USER: `${API_URL}/api/users/me`,
   GET_BOOK_CHAPTERS: `${API_URL}/api/books/:bookId/chapters`,

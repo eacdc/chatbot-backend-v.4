@@ -16,6 +16,46 @@ export default function AdminCollections() {
   const [showChaptersModal, setShowChaptersModal] = useState(false);
   const navigate = useNavigate();
 
+  // Handle book deletion
+  const handleDeleteBook = async (bookId, event) => {
+    event.stopPropagation(); // Prevent the click from opening chapters
+    
+    if (window.confirm("Are you sure you want to delete this book? This action cannot be undone.")) {
+      try {
+        await adminAxiosInstance.delete(API_ENDPOINTS.DELETE_BOOK.replace(':bookId', bookId));
+        
+        // Remove book from state
+        setBooks(books.filter(book => book._id !== bookId));
+        
+        // Show success notification
+        setNotification({
+          show: true,
+          type: "success",
+          message: "Book deleted successfully"
+        });
+        
+        // Hide notification after 3 seconds
+        setTimeout(() => {
+          setNotification({ show: false, type: "", message: "" });
+        }, 3000);
+      } catch (error) {
+        console.error("Error deleting book:", error);
+        
+        // Show error notification
+        setNotification({
+          show: true,
+          type: "error",
+          message: "Failed to delete book: " + (error.response?.data?.error || error.message)
+        });
+        
+        // Hide notification after 3 seconds
+        setTimeout(() => {
+          setNotification({ show: false, type: "", message: "" });
+        }, 3000);
+      }
+    }
+  };
+
   // Check admin authentication
   useEffect(() => {
     const adminToken = localStorage.getItem("adminToken");
@@ -224,13 +264,23 @@ export default function AdminCollections() {
                         e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22600%22%20viewBox%3D%220%200%20400%20600%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22400%22%20height%3D%22600%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2224%22%20text-anchor%3D%22middle%22%20x%3D%22200%22%20y%3D%22300%22%3E%3Ctspan%20x%3D%22200%22%20dy%3D%220%22%3EBook%20Cover%3C%2Ftspan%3E%3Ctspan%20x%3D%22200%22%20dy%3D%2230%22%3ENot%20Available%3C%2Ftspan%3E%3C%2Ftext%3E%3C%2Fsvg%3E";
                       }}
                     />
+                    {/* Delete button overlay */}
+                    <button
+                      className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                      onClick={(e) => handleDeleteBook(book._id, e)}
+                      title="Delete book"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
                     <h2 className="font-bold text-lg text-gray-900 line-clamp-1">{book.title}</h2>
                     <p className="text-sm text-gray-600 mb-4">{book.publisher}</p>
-                    <div className="mt-auto">
+                    <div className="mt-auto flex gap-2">
                       <button
-                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                        className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                         onClick={() => fetchChapters(book._id)}
                         disabled={loading}
                       >
@@ -238,6 +288,15 @@ export default function AdminCollections() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
                         </svg>
                         View Chapters
+                      </button>
+                      <button
+                        className="inline-flex items-center justify-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                        onClick={(e) => handleDeleteBook(book._id, e)}
+                        disabled={loading}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
                       </button>
                     </div>
                   </div>

@@ -1,6 +1,19 @@
-import React from "react";
+import React, { useState } from "react";
+import axios from "axios";
+import { API_ENDPOINTS } from "../config";
+import adminAxiosInstance from "../utils/adminAxios";
 
 const ChaptersModal = ({ isOpen, onClose, book, chapters, isAdmin = false }) => {
+  // State for notification and chapter deletion
+  const [notification, setNotification] = useState({ show: false, type: "", message: "" });
+  const [loading, setLoading] = useState(false);
+  const [localChapters, setLocalChapters] = useState(chapters || []);
+  
+  // Update local chapters when the prop changes
+  React.useEffect(() => {
+    setLocalChapters(chapters || []);
+  }, [chapters]);
+  
   // If modal is not open, don't render anything
   if (!isOpen) return null;
   
@@ -22,8 +35,94 @@ const ChaptersModal = ({ isOpen, onClose, book, chapters, isAdmin = false }) => 
     return url;
   };
 
+  // Handle chapter deletion
+  const handleDeleteChapter = async (chapterId) => {
+    if (window.confirm("Are you sure you want to delete this chapter? This action cannot be undone.")) {
+      try {
+        setLoading(true);
+        
+        // Make API call to delete the chapter
+        await adminAxiosInstance.delete(API_ENDPOINTS.DELETE_CHAPTER.replace(':chapterId', chapterId));
+        
+        // Update local state to remove the deleted chapter
+        setLocalChapters(localChapters.filter(chapter => chapter._id !== chapterId));
+        
+        // Show success notification
+        setNotification({
+          show: true,
+          type: "success",
+          message: "Chapter deleted successfully"
+        });
+        
+        // Hide notification after 3 seconds
+        setTimeout(() => {
+          setNotification({ show: false, type: "", message: "" });
+        }, 3000);
+      } catch (error) {
+        console.error("Error deleting chapter:", error);
+        
+        // Show error notification
+        setNotification({
+          show: true,
+          type: "error",
+          message: "Failed to delete chapter: " + (error.response?.data?.error || error.message)
+        });
+        
+        // Hide notification after 3 seconds
+        setTimeout(() => {
+          setNotification({ show: false, type: "", message: "" });
+        }, 3000);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto">
+      {/* Notification popup */}
+      {notification.show && (
+        <div className="fixed top-5 right-5 z-[60] max-w-sm w-full bg-white rounded-xl shadow-lg p-4 border border-gray-200">
+          <div className="flex items-start justify-between">
+            <div className="flex">
+              <div className={`flex-shrink-0 h-6 w-6 mr-3 ${
+                notification.type === "success" ? "text-green-500" : 
+                notification.type === "info" ? "text-blue-500" : "text-red-500"
+              }`}>
+                {notification.type === "success" ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : notification.type === "info" ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">
+                  {notification.type === "success" ? "Success" : 
+                   notification.type === "info" ? "Information" : "Error"}
+                </p>
+                <p className="mt-1 text-gray-600">{notification.message}</p>
+              </div>
+            </div>
+            <button 
+              className="text-gray-400 hover:text-gray-600 focus:outline-none"
+              onClick={() => setNotification({ ...notification, show: false })}
+            >
+              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal content */}
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative animate-scale-in transform-gpu">
         {/* Close button */}
@@ -60,7 +159,7 @@ const ChaptersModal = ({ isOpen, onClose, book, chapters, isAdmin = false }) => 
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              {chapters?.length || 0} Chapters
+              {localChapters?.length || 0} Chapters
             </div>
           </div>
         </div>
@@ -74,9 +173,15 @@ const ChaptersModal = ({ isOpen, onClose, book, chapters, isAdmin = false }) => 
             Chapters
           </h3>
           
-          {chapters?.length > 0 ? (
+          {loading && (
+            <div className="flex justify-center my-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          )}
+          
+          {localChapters?.length > 0 ? (
             <ul className="divide-y divide-gray-200 border border-gray-200 rounded-lg overflow-hidden">
-              {chapters.map((chapter, index) => (
+              {localChapters.map((chapter, index) => (
                 <li key={chapter._id} className="p-4 hover:bg-blue-50 transition-colors duration-150">
                   <div className="flex items-center">
                     <div className="h-8 w-8 flex-shrink-0 bg-blue-100 rounded-full flex items-center justify-center mr-4">
@@ -88,6 +193,20 @@ const ChaptersModal = ({ isOpen, onClose, book, chapters, isAdmin = false }) => 
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{chapter.description}</p>
                       )}
                     </div>
+                    {isAdmin && (
+                      <div className="ml-4 flex-shrink-0">
+                        <button
+                          onClick={() => handleDeleteChapter(chapter._id)}
+                          className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                          title="Delete chapter"
+                          disabled={loading}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}
