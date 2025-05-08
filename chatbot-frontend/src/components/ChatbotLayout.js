@@ -1536,7 +1536,7 @@ export default function ChatbotLayout({ children }) {
                         />
                       </div>
                       <h3 className="text-xs font-medium text-center text-blue-500 uppercase tracking-wide mb-1">
-                        {book.title.split(' ').slice(0, 2).join(' ')}
+                        {book.title.split(' ')[0]}
                       </h3>
                       <p className="text-xs text-gray-600 line-clamp-1 w-full">
                         {book.title.length > 30 ? book.title.substring(0, 30) + "..." : book.title}
