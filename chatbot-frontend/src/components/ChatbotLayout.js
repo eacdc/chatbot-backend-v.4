@@ -4,10 +4,13 @@ import axios from "axios";
 import { API_ENDPOINTS } from "../config";
 import { ThemeContext } from "../ThemeContext";
 import bookLogo from "../book-logo1.jpeg";
-import { FaBook, FaSignOutAlt, FaShareAlt, FaChevronUp, FaChevronDown, FaBell, FaCheck, FaTimes, FaMicrophone, FaCircle, FaPaperPlane, FaVolumeUp } from "react-icons/fa";
+import { FaBook, FaSignOutAlt, FaShareAlt, FaChevronUp, FaChevronDown, FaBell, FaCheck, FaTimes, FaMicrophone, FaCircle, FaPaperPlane, FaVolumeUp, FaChevronRight, FaPlus, FaUserEdit, FaStop } from "react-icons/fa";
 import "./ChatbotLayout.css";
 import { BsBook } from "react-icons/bs";
 import { io } from "socket.io-client";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import SubscribedBooksView from './SubscribedBooksView';
 
 export default function ChatbotLayout({ children }) {
   const [subscribedBooks, setSubscribedBooks] = useState([]);
@@ -50,6 +53,14 @@ export default function ChatbotLayout({ children }) {
   const [chapterScore, setChapterScore] = useState(null);
   const [showScorePopup, setShowScorePopup] = useState(false);
   const scorePopupTimeoutRef = useRef(null);
+
+  // Authentication helper functions
+  const isAuthenticated = () => !!localStorage.getItem("token");
+  
+  // Activity tracking function
+  const updateLastActivity = () => {
+    localStorage.setItem('lastActivityTime', Date.now().toString());
+  };
 
   const getUserId = () => localStorage.getItem("userId");
   const getToken = () => localStorage.getItem("token");
