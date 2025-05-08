@@ -71,10 +71,10 @@ export default function AdminCollections() {
       try {
         setLoading(true);
         
-        // Filter by EXCELLENCE PUBLICATION
-        const response = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?publisher=EXCELLENCE PUBLICATION`);
+        // Get all books without filtering by publisher
+        const response = await axios.get(API_ENDPOINTS.GET_BOOKS);
         setBooks(response.data);
-        console.log(`Loaded ${response.data.length} books from EXCELLENCE PUBLICATION`);
+        console.log(`Loaded ${response.data.length} books (showing all publishers)`);
       } catch (error) {
         console.error("Error fetching books:", error);
         setError("Failed to fetch books");
