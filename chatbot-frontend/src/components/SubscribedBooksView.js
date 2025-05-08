@@ -175,7 +175,7 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
           <p className="mt-4 text-gray-600 font-medium">Loading your books...</p>
         </div>
       ) : subscribedBooks.length > 0 ? (
-        <div className="px-4 sm:px-6 py-4 sm:py-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 overflow-y-auto">
+        <div className="px-4 sm:px-6 py-4 sm:py-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-1 sm:gap-y-5 sm:gap-x-2 overflow-y-auto">
           {subscribedBooks.map((book) => (
             <div key={book._id} className="bg-white bg-opacity-95 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100 flex flex-col min-h-[270px] sm:min-h-0 max-w-[240px] mx-auto">
               <div className="relative h-52 sm:h-48 overflow-hidden flex justify-center items-center">
