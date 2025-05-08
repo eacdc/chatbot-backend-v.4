@@ -377,37 +377,25 @@ export default function Collections() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-10">
               {books.map((book) => (
-                <div key={book._id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100 flex flex-col">
-                  <div className="relative h-64 w-full overflow-hidden flex justify-center">
+                <div key={book._id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100 flex flex-col max-w-[240px] mx-auto">
+                  <div className="relative h-64 overflow-hidden flex justify-center items-center">
                     <img 
                       src={fixImageUrl(book.bookCoverImgLink)} 
                       alt={book.title} 
-                      className="h-full w-auto object-contain transform hover:scale-105 transition-transform duration-500 ease-in-out"
+                      className="h-full max-w-[160px] object-contain transform hover:scale-105 transition-transform duration-500 ease-in-out"
                       onError={(e) => {
                         e.target.onerror = null;
-                        e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22600%22%20viewBox%3D%220%200%20400%20600%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22400%22%20height%3D%22600%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2224%22%20text-anchor%3D%22middle%22%20x%3D%22200%22%20y%3D%22300%22%3E%3Ctspan%20x%3D%22200%22%20dy%3D%220%22%3EBook%20Cover%3C%2Ftspan%3E%3Ctspan%20x%3D%22200%22%20dy%3D%2230%22%3ENot%20Available%3C%2Ftspan%3E%3C%2Ftext%3E%3C%2Fsvg%3E";
-                        console.error(`Failed to load image: ${book.bookCoverImgLink}`);
+                        e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22160%22%20height%3D%22220%22%20viewBox%3D%220%200%20160%20220%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22160%22%20height%3D%22220%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2212%22%20text-anchor%3D%22middle%22%20x%3D%2280%22%20y%3D%22110%22%3E%3Ctspan%20x%3D%2280%22%20dy%3D%220%22%3EBook%20Cover%3C%2Ftspan%3E%3Ctspan%20x%3D%2280%22%20dy%3D%2215%22%3ENot%20Available%3C%2Ftspan%3E%3C%2Ftext%3E%3C%2Fsvg%3E";
                       }}
                     />
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
-                    <h2 className="font-bold text-lg text-gray-900 line-clamp-1">{book.title}</h2>
-                    <p className="text-sm text-gray-600 mb-4">{book.publisher}</p>
-                    <div className="mt-auto flex flex-col sm:flex-row gap-2">
-                      <button
-                        className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 flex-1"
-                        onClick={() => fetchChapters(book._id)}
-                        disabled={loading}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-                        </svg>
-                        View Chapters
-                      </button>
-                      
+                    <h2 className="font-bold text-lg text-gray-900 text-center line-clamp-2 mb-2">{book.title}</h2>
+                    <p className="text-sm text-gray-600 mb-4 text-center">{book.publisher}</p>
+                    <div className="mt-auto">
                       {subscribedBookIds.includes(book._id) ? (
                         <button
-                          className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200 flex-1"
+                          className="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
                           onClick={() => handleUnsubscribe(book._id)}
                           disabled={loading}
                         >
@@ -418,7 +406,7 @@ export default function Collections() {
                         </button>
                       ) : (
                         <button
-                          className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 flex-1"
+                          className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                           onClick={() => handleSubscribe(book._id)}
                           disabled={loading}
                         >
@@ -428,6 +416,16 @@ export default function Collections() {
                           Subscribe
                         </button>
                       )}
+                      <button
+                        className="w-full mt-2 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                        onClick={() => fetchChapters(book._id)}
+                        disabled={loading}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                        </svg>
+                        View Chapters
+                      </button>
                     </div>
                   </div>
                 </div>
