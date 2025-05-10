@@ -294,4 +294,18 @@ router.get("/:bookId/chapters", async (req, res) => {
   }
 });
 
+// Delete a book by MongoDB _id
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedBook = await Book.findByIdAndDelete(id);
+    if (!deletedBook) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+    res.json({ message: 'Book deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete book' });
+  }
+});
+
 module.exports = router;
