@@ -994,20 +994,43 @@ export default function ChatbotLayout({ children }) {
       const token = localStorage.getItem("token");
       if (!token) return;
 
+      console.log("Fetching user notifications...");
+      
       const response = await axios.get(API_ENDPOINTS.GET_NOTIFICATIONS, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
 
+      console.log("Notifications response:", response.data);
+      
       if (Array.isArray(response.data)) {
         setNotifications(response.data);
         const unreadNotifications = response.data.filter(notif => notif.seen_status === "no");
         setUnreadCount(unreadNotifications.length);
         console.log(`Fetched ${response.data.length} notifications (${unreadNotifications.length} unread)`);
+      } else {
+        console.warn("Unexpected response format:", response.data);
       }
     } catch (error) {
       console.error("Error fetching notifications:", error);
+      console.error("Error details:", error.response?.data || error.message);
+      
+      // Show error notification
+      setNotification({
+        show: true,
+        type: "error",
+        message: "Failed to fetch notifications"
+      });
+      
+      // Hide error notification after 3 seconds
+      setTimeout(() => {
+        setNotification({
+          show: false,
+          type: "",
+          message: ""
+        });
+      }, 3000);
     }
   };
 
@@ -1050,7 +1073,9 @@ export default function ChatbotLayout({ children }) {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      await axios.put(
+      console.log("Marking notification as seen:", notificationId);
+      
+      const response = await axios.put(
         API_ENDPOINTS.MARK_NOTIFICATION_SEEN.replace(':notificationId', notificationId),
         {},
         {
@@ -1059,6 +1084,8 @@ export default function ChatbotLayout({ children }) {
           }
         }
       );
+      
+      console.log("Server response:", response.data);
 
       // Update local state
       setNotifications(prevNotifications => 
@@ -1088,6 +1115,7 @@ export default function ChatbotLayout({ children }) {
       }, 3000);
     } catch (error) {
       console.error("Error marking notification as seen:", error);
+      console.error("Error details:", error.response?.data || error.message);
       setNotification({
         show: true,
         type: "error",
@@ -1113,12 +1141,16 @@ export default function ChatbotLayout({ children }) {
   // Handle notification popup confirmation
   const handleNotificationConfirm = () => {
     if (currentNotification && currentNotification._id) {
+      console.log("Confirming notification:", currentNotification._id);
+      
+      // Mark the notification as seen in the database
       markNotificationAsSeen(currentNotification._id);
+      
+      // Update UI state
       setShowNotificationPopup(false);
       setCurrentNotification(null);
-      
-      // Refresh notifications list
-      fetchUserNotifications();
+    } else {
+      console.warn("No valid notification to confirm");
     }
   };
 
@@ -1240,30 +1272,24 @@ export default function ChatbotLayout({ children }) {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      // Since there's no specific endpoint for marking all as seen in the backend yet,
-      // we'll implement a workaround by marking each unseen notification individually
       const unseenNotifications = notifications.filter(notif => notif.seen_status === 'no');
       
       if (unseenNotifications.length === 0) {
         return; // No unseen notifications to mark
       }
       
-      // Create promises for each notification update
-      const markPromises = unseenNotifications.map(notif => 
-        axios.put(
-          API_ENDPOINTS.MARK_NOTIFICATION_SEEN.replace(':notificationId', notif._id),
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
+      // Use the dedicated endpoint to mark all notifications as seen at once
+      const response = await axios.put(
+        API_ENDPOINTS.MARK_ALL_NOTIFICATIONS_SEEN,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
           }
-        )
+        }
       );
       
-      // Execute all promises
-      await Promise.all(markPromises);
-      console.log(`Marked ${unseenNotifications.length} notifications as seen`);
+      console.log(`Marked ${response.data.count} notifications as seen`);
 
       // Update local state
       setNotifications(prevNotifications => 

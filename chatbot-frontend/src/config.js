@@ -36,6 +36,7 @@ export const API_ENDPOINTS = {
   GET_NOTIFICATIONS: `${API_URL}/api/notifications`,
   GET_FIRST_UNSEEN: `${API_URL}/api/notifications/first-unseen`,
   MARK_NOTIFICATION_SEEN: `${API_URL}/api/notifications/:notificationId/mark-seen`,
+  MARK_ALL_NOTIFICATIONS_SEEN: `${API_URL}/api/notifications/mark-all-seen`,
   SEED_NOTIFICATIONS: `${API_URL}/api/notifications/seed`,
 };
 
