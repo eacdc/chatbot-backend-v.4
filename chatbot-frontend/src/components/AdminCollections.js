@@ -255,28 +255,18 @@ export default function AdminCollections() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-10">
               {books.map((book) => (
                 <div key={book._id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100 flex flex-col">
-                  <div className="relative h-64 w-full overflow-hidden flex justify-center">
+                  <div className="relative h-64 overflow-hidden flex justify-center items-center">
                     <img 
                       src={book.bookCoverImgLink} 
                       alt={book.title} 
-                      className="h-full w-auto object-contain transform hover:scale-105 transition-transform duration-500 ease-in-out"
+                      className="h-full max-w-[160px] object-contain transform hover:scale-105 transition-transform duration-500 ease-in-out"
                       onError={(e) => {
                         console.log("Image failed to load:", book.bookCoverImgLink);
                         e.target.onerror = null; // Prevent infinite loop
                         // Use a simple colored background with text instead of external placeholder
-                        e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22600%22%20viewBox%3D%220%200%20400%20600%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22400%22%20height%3D%22600%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2224%22%20text-anchor%3D%22middle%22%20x%3D%22200%22%20y%3D%22300%22%3E%3Ctspan%20x%3D%22200%22%20dy%3D%220%22%3EBook%20Cover%3C%2Ftspan%3E%3Ctspan%20x%3D%22200%22%20dy%3D%2230%22%3ENot%20Available%3C%2Ftspan%3E%3C%2Ftext%3E%3C%2Fsvg%3E";
+                        e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22160%22%20height%3D%22220%22%20viewBox%3D%220%200%20160%20220%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22160%22%20height%3D%22220%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2212%22%20text-anchor%3D%22middle%22%20x%3D%2280%22%20y%3D%22110%22%3E%3Ctspan%20x%3D%2280%22%20dy%3D%220%22%3EBook%20Cover%3C%2Ftspan%3E%3Ctspan%20x%3D%2280%22%20dy%3D%2215%22%3ENot%20Available%3C%2Ftspan%3E%3C%2Ftext%3E%3C%2Fsvg%3E";
                       }}
                     />
-                    {/* Delete button overlay */}
-                    <button
-                      className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                      onClick={(e) => handleDeleteBook(book._id, e)}
-                      title="Delete book"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
                     <h2 className="font-bold text-lg text-gray-900 line-clamp-1">{book.title}</h2>
