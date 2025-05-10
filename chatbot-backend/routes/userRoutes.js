@@ -88,6 +88,13 @@ router.post("/login", async (req, res) => {
     try {
         const { username, password } = req.body;
         console.log("🛠 Received login request:", { username, password: password ? password.trim() : 'undefined' });
+        
+        // Log the origin and referer of the request
+        console.log("📌 Request Origin:", req.headers.origin);
+        console.log("📌 Request Referer:", req.headers.referer);
+        
+        // Store the origin/referer information for potential later use
+        const requestOrigin = req.headers.origin || req.headers.referer || 'unknown';
 
         if (!username || !password) {
             return res.status(400).json({ message: "Username and password are required" });
@@ -111,7 +118,13 @@ router.post("/login", async (req, res) => {
         if (isMatch) {
             // ✅ Generate token
             const token = jwt.sign(
-                { userId: user._id, name: user.fullname, role: user.role, grade: user.grade },
+                { 
+                    userId: user._id, 
+                    name: user.fullname, 
+                    role: user.role, 
+                    grade: user.grade,
+                    loginOrigin: requestOrigin  // Include origin information in the token
+                },
                 process.env.JWT_SECRET,
                 { expiresIn: "1h" }
             );
@@ -122,7 +135,8 @@ router.post("/login", async (req, res) => {
                 userId: user._id, 
                 name: user.fullname, 
                 role: user.role, 
-                grade: user.grade 
+                grade: user.grade,
+                loginOrigin: requestOrigin  // Optionally return this to client
             });
         }
 
@@ -136,7 +150,13 @@ router.post("/login", async (req, res) => {
         if (directHashCompare) {
             // Password matched with direct comparison
             const token = jwt.sign(
-                { userId: user._id, name: user.fullname, role: user.role, grade: user.grade },
+                { 
+                    userId: user._id, 
+                    name: user.fullname, 
+                    role: user.role, 
+                    grade: user.grade,
+                    loginOrigin: requestOrigin  // Include origin information in the token
+                },
                 process.env.JWT_SECRET,
                 { expiresIn: "1h" }
             );
@@ -146,7 +166,8 @@ router.post("/login", async (req, res) => {
                 userId: user._id, 
                 name: user.fullname, 
                 role: user.role, 
-                grade: user.grade 
+                grade: user.grade,
+                loginOrigin: requestOrigin  // Optionally return this to client
             });
         }
             
@@ -159,7 +180,13 @@ router.post("/login", async (req, res) => {
                 
         // Return success but with a note about the password update
         const token = jwt.sign(
-            { userId: user._id, name: user.fullname, role: user.role, grade: user.grade },
+            { 
+                userId: user._id, 
+                name: user.fullname, 
+                role: user.role, 
+                grade: user.grade,
+                loginOrigin: requestOrigin  // Include origin information in the token
+            },
             process.env.JWT_SECRET,
             { expiresIn: "1h" }
         );
@@ -169,6 +196,7 @@ router.post("/login", async (req, res) => {
             name: user.fullname, 
             role: user.role,
             grade: user.grade,
+            loginOrigin: requestOrigin,  // Optionally return this to client
             message: "Password updated for future logins" 
         });
     } catch (error) {

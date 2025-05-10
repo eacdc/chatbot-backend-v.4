@@ -58,6 +58,13 @@ router.put("/approve/:adminId", async (req, res) => {
 // Admin Login (Only Approved Admins Can Login)
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
+  
+  // Log the origin and referer of the request
+  console.log("📌 Admin Login Request Origin:", req.headers.origin);
+  console.log("📌 Admin Login Request Referer:", req.headers.referer);
+  
+  // Store the origin/referer information
+  const requestOrigin = req.headers.origin || req.headers.referer || 'unknown';
 
   try {
     const admin = await Admin.findOne({ email });
@@ -79,7 +86,8 @@ router.post("/login", async (req, res) => {
       adminId: admin._id,
       name: admin.name,
       email: admin.email,
-      role: "admin"
+      role: "admin",
+      loginOrigin: requestOrigin  // Include origin information in the token
     };
 
     // Sign token with same JWT_SECRET as user auth
@@ -92,7 +100,8 @@ router.post("/login", async (req, res) => {
         res.json({
           message: "Login successful",
           token,
-          adminId: admin._id
+          adminId: admin._id,
+          loginOrigin: requestOrigin  // Return the origin info to client
         });
       }
     );
