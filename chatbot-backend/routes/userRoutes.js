@@ -107,6 +107,29 @@ router.post("/login", async (req, res) => {
             return res.status(400).json({ message: "Invalid username or password" });
         }
 
+        // Check if request is from JD frontend and if user's publisher is JD
+        if (requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com')) {
+            console.log("🔒 JD Frontend detected, checking publisher...");
+            if (!user.publisher || user.publisher !== 'JD') {
+                console.log("❌ Access denied: Non-JD user attempting to login via JD frontend");
+                return res.status(403).json({ 
+                    message: "Access denied. This portal is exclusively for JD users."
+                });
+            }
+            console.log("✅ JD publisher verified, continuing with login");
+        } 
+        // Check if request is NOT from JD frontend and user's publisher IS JD
+        else {
+            console.log("🔒 Non-JD Frontend detected, checking publisher...");
+            if (user.publisher === 'JD') {
+                console.log("❌ Access denied: JD user attempting to login via non-JD frontend");
+                return res.status(403).json({ 
+                    message: "JD users must access through the dedicated JD portal."
+                });
+            }
+            console.log("✅ Non-JD publisher verified, continuing with login");
+        }
+
         console.log("🔑 Stored Password Hash:", user.password);
         console.log("🔑 Password Length:", password.length);
         console.log("🔑 Password Char Codes:", [...password].map(c => c.charCodeAt(0)));
