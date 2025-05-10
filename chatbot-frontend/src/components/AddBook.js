@@ -9,6 +9,11 @@ const AddBook = () => {
   const gradeOptions = [
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "College Student"
   ];
+  
+  // Publisher options
+  const publisherOptions = [
+    "JD", "EXCELLENCE PUBLICATION"
+  ];
 
   const [bookData, setBookData] = useState({
     title: "",
@@ -241,16 +246,21 @@ const AddBook = () => {
 
             <div>
               <label htmlFor="publisher" className="block text-sm font-medium text-gray-700 mb-1">Publisher</label>
-              <input
+              <select
                 id="publisher"
-                type="text"
                 name="publisher"
-                placeholder="Enter publisher name"
                 value={bookData.publisher}
                 onChange={handleChange}
                 className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
-              />
+              >
+                <option value="">Select a publisher</option>
+                {publisherOptions.map((publisher) => (
+                  <option key={publisher} value={publisher}>
+                    {publisher}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
