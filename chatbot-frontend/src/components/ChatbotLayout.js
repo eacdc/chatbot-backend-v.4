@@ -426,14 +426,25 @@ export default function ChatbotLayout({ children }) {
     
     // Replace LaTeX formulas with more readable versions
     let cleanedContent = content
-      // Replace \text{...} with just the text inside
+      // Handle the specific pattern in your example: \( \frac{3}{7} \times \frac{4}{9} \)
+      .replace(/\\[\(\s]*\\frac\{([^}]+)\}\{([^}]+)\}\\s*\\times\\s*\\frac\{([^}]+)\}\{([^}]+)\}\\[\)\s]*/g, '($1/$2 × $3/$4)')
+      .replace(/\\[\(\s]*\\frac\{([^}]+)\}\{([^}]+)\}\\[\)\s]*/g, '($1/$2)')
+      
+      // Handle lettered list items with LaTeX
+      .replace(/([a-z]\))\s*\\[\(\s]*\\frac\{([^}]+)\}\{([^}]+)\}\\s*\\times\\s*\\frac\{([^}]+)\}\{([^}]+)\}\\[\)\s]*/g, '$1 $2/$3 × $4/$5')
+      .replace(/([a-z]\))\s*\\[\(\s]*\\frac\{([^}]+)\}\{([^}]+)\}\\[\)\s]*/g, '$1 $2/$3')
+      
+      // Replace any remaining \text{...} with just the text inside
       .replace(/\\text\{([^}]+)\}/g, '$1')
       
-      // Replace \frac{a}{b} with a/b
+      // Replace any remaining \frac{a}{b} with a/b
       .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
       
+      // Replace LaTeX parentheses with regular ones
+      .replace(/\\[\(\s]*/g, '(')
+      .replace(/\\[\)\s]*/g, ')')
+      
       // Replace [ ... ] LaTeX display math mode with italicized content
-      // More aggressive replacement for square bracket LaTeX notation
       .replace(/\[\s*\\text\{([^}]+)\}\s*=\s*\\frac\{([^}]+)\}\{([^}]+)\}\s*\]/g, '*$1 = $2/$3*')
       .replace(/\[\s*([^\]]+)\s*\]/g, '*$1*')
       
@@ -473,6 +484,14 @@ export default function ChatbotLayout({ children }) {
       
     // Do a final pass to remove any remaining square bracket LaTeX that wasn't caught
     cleanedContent = cleanedContent.replace(/\[\s*\\[^\]]+\]/g, '*formula*');
+    
+    // Clean up any remaining LaTeX commands or unwanted characters
+    cleanedContent = cleanedContent
+      // Clean up multiple spaces
+      .replace(/\s{2,}/g, ' ')
+      // Clean up any dangling backslashes
+      .replace(/\\\s/g, ' ')
+      .replace(/\\\\/g, '\\');
       
     return cleanedContent;
   };

@@ -351,7 +351,21 @@ Return only the JSON object. Do not include anything else.`,
             }
             
             // Add formatting instructions to the prompt
-            systemPrompt += `\n\nPlease format your response using Markdown for clarity. Use **bold** for important points, *italics* for emphasis, and - for bullet points when listing items.`;
+            systemPrompt += `\n\nPlease format your response using Markdown for clarity. Use **bold** for important points, *italics* for emphasis, and - for bullet points when listing items.
+
+IMPORTANT FORMATTING INSTRUCTIONS:
+1. DO NOT use LaTeX formatting for mathematical expressions under any circumstances.
+2. DO NOT use \\( \\frac{a}{b} \\) notation. Instead use simple text like (a/b).
+3. DO NOT use syntax like \\text{}, \\frac{}, \\times, or any other LaTeX commands.
+4. Format all mathematical operations using plain text:
+   - For fractions, use the / symbol: 3/7 instead of \\frac{3}{7}
+   - For multiplication, use × or *: 3 × 4 instead of \\times
+   - For division, use ÷ or /: 6 ÷ 2 instead of \\div
+5. Format complex expressions clearly with parentheses if needed:
+   - Use (3/7 × 4/9) instead of \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
+   - Use (4/11 × 4/7) instead of \\( \\frac{4}{11} \\times \\frac{4}{7} \\)
+6. For lettered items in lists use: a) 3/7 × 4/9 instead of a) \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
+7. All mathematical content must use ONLY plain text formatting.`;
             
             // If we have no questions or question mode is disabled, default to an explanation prompt
             if (!chapter.questionPrompt || chapter.questionPrompt.length === 0) {
@@ -366,7 +380,21 @@ Return only the JSON object. Do not include anything else.`,
                     .replace("{{CHAPTER_CONTENT}}", chapter.prompt || "No specific content available for this chapter.");
                 
                 // Add formatting instructions
-                systemPrompt += `\n\nPlease format your response using Markdown for clarity. Use **bold** for important points, *italics* for emphasis, and - for bullet points when listing items.`;
+                systemPrompt += `\n\nPlease format your response using Markdown for clarity. Use **bold** for important points, *italics* for emphasis, and - for bullet points when listing items.
+
+IMPORTANT FORMATTING INSTRUCTIONS:
+1. DO NOT use LaTeX formatting for mathematical expressions under any circumstances.
+2. DO NOT use \\( \\frac{a}{b} \\) notation. Instead use simple text like (a/b).
+3. DO NOT use syntax like \\text{}, \\frac{}, \\times, or any other LaTeX commands.
+4. Format all mathematical operations using plain text:
+   - For fractions, use the / symbol: 3/7 instead of \\frac{3}{7}
+   - For multiplication, use × or *: 3 × 4 instead of \\times
+   - For division, use ÷ or /: 6 ÷ 2 instead of \\div
+5. Format complex expressions clearly with parentheses if needed:
+   - Use (3/7 × 4/9) instead of \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
+   - Use (4/11 × 4/7) instead of \\( \\frac{4}{11} \\times \\frac{4}{7} \\)
+6. For lettered items in lists use: a) 3/7 × 4/9 instead of a) \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
+7. All mathematical content must use ONLY plain text formatting.`;
             }
              console.log(`System Prompt ${systemPrompt}`);
             // Prepare the messages to send to OpenAI
