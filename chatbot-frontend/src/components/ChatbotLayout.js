@@ -1067,8 +1067,41 @@ export default function ChatbotLayout({ children }) {
         )
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      
+      // Refresh notifications list to ensure UI is updated
+      fetchUserNotifications();
+      
+      // Show success notification
+      setNotification({
+        show: true,
+        type: "success",
+        message: "Notification marked as read"
+      });
+      
+      // Hide notification after 3 seconds
+      setTimeout(() => {
+        setNotification({
+          show: false,
+          type: "",
+          message: ""
+        });
+      }, 3000);
     } catch (error) {
       console.error("Error marking notification as seen:", error);
+      setNotification({
+        show: true,
+        type: "error",
+        message: "Failed to mark notification as read"
+      });
+      
+      // Hide error notification after 3 seconds
+      setTimeout(() => {
+        setNotification({
+          show: false,
+          type: "",
+          message: ""
+        });
+      }, 3000);
     }
   };
 
@@ -1083,6 +1116,9 @@ export default function ChatbotLayout({ children }) {
       markNotificationAsSeen(currentNotification._id);
       setShowNotificationPopup(false);
       setCurrentNotification(null);
+      
+      // Refresh notifications list
+      fetchUserNotifications();
     }
   };
 
@@ -1235,10 +1271,45 @@ export default function ChatbotLayout({ children }) {
       );
       setUnreadCount(0);
       
+      // Refresh notifications to ensure UI is updated
+      fetchUserNotifications();
+      
+      // Show success notification
+      setNotification({
+        show: true,
+        type: "success",
+        message: `${unseenNotifications.length} notifications marked as read`
+      });
+      
+      // Hide notification after 3 seconds
+      setTimeout(() => {
+        setNotification({
+          show: false,
+          type: "",
+          message: ""
+        });
+      }, 3000);
+      
       // Close notifications panel
       setShowNotifications(false);
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
+      
+      // Show error notification
+      setNotification({
+        show: true,
+        type: "error",
+        message: "Failed to mark notifications as read"
+      });
+      
+      // Hide error notification after 3 seconds
+      setTimeout(() => {
+        setNotification({
+          show: false,
+          type: "",
+          message: ""
+        });
+      }, 3000);
     }
   };
 
