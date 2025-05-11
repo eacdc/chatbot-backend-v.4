@@ -212,7 +212,7 @@ Return only the JSON object. Do not include anything else.`,
             // Call OpenAI to get the agent classification
             try {
                 const intentAnalysis = await openaiSelector.chat.completions.create({
-                    model: "gpt-4o",
+                    model: "gpt-4.1",
                     messages: intentAnalysisMessages,
                     temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
                 });
@@ -457,7 +457,7 @@ Since the subject is English, continue all communication in English language.`;
                 try {
                     // Attempt the request
                     const response = await openaiSelector.chat.completions.create({
-                        model: "gpt-4o", // For DeepSeek API we use this model
+                        model: "gpt-4.1", // For DeepSeek API we use this model
                         messages: messagesForOpenAI,
                         temperature: 0.25,
                         max_tokens: 1000
