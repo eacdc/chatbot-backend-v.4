@@ -268,6 +268,12 @@ Return only the JSON object. Do not include anything else.`,
                     currentQuestion = questionPrompt;
                     currentScore = questionPrompt.question_marks || 1;
                     
+                    // Log the question marks that will be used
+                    console.log(`📊 Question marks for ${classification}: ${currentQuestion.question_marks || 1}`);
+                    if (previousQuestion) {
+                        console.log(`📊 Previous question marks: ${previousQuestion.question_marks || 1}`);
+                    }
+                    
                 } else if (classification === "explanation_ai") {
                     // For explanation mode, we'll just use the first question as reference material
                     const questionPrompt = chapter.questionPrompt[0];
@@ -293,6 +299,10 @@ Return only the JSON object. Do not include anything else.`,
                     .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1)
                     .replace("{{PREVIOUS_QUESTION_MARKS}}", previousQuestion ? previousQuestion.question_marks || 1 : 1);
                 
+                // Log the marks values used in the prompt
+                console.log(`📊 oldchat_ai prompt replacement - QUESTION_MARKS: ${currentQuestion ? currentQuestion.question_marks || 1 : 1}`);
+                console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_QUESTION_MARKS: ${previousQuestion ? previousQuestion.question_marks || 1 : 1}`);
+                
             } else if (classification === "newchat_ai") {
                 // Get the newchat_ai prompt template
                 const newChatPrompt = await Prompt.getPromptByType("newchat_ai");
@@ -305,6 +315,9 @@ Return only the JSON object. Do not include anything else.`,
                     .replace("{{QUESTION}}", currentQuestion ? currentQuestion.question : "review questions")
                     .replace("{{QUESTION_ID}}", currentQuestion ? currentQuestion.questionId : "Q1")
                     .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1);
+                
+                // Log the marks values used in the prompt
+                console.log(`📊 newchat_ai prompt replacement - QUESTION_MARKS: ${currentQuestion ? currentQuestion.question_marks || 1 : 1}`);
                 
             } else if (classification === "closureChat_ai") {
                 // Get the closurechat_ai prompt template
