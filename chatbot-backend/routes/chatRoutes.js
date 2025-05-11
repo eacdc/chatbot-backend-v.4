@@ -370,18 +370,9 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             // Check if request is coming from the specified origin and add language instruction
             const requestOrigin = req.headers.origin || req.headers.referer || '';
             if (requestOrigin.includes('chatbot-frontend-v-4.onrender.com')) {
-                // Check if subject is English
-                const isEnglishSubject = bookSubject && bookSubject.toLowerCase().includes('english');
-                
-                if (!isEnglishSubject) {
-                    // Add French language instruction
-                    systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
-All communication should be done in French. Please respond to all questions and interactions in French language.`;
-                } else {
-                    // Add note that we're keeping English for the English subject
-                    systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
-Since the subject is English, continue all communication in English language.`;
-                }
+                // Pass subject information directly in the prompt without conditional checks
+                systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
+The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in French. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
             }
             
             // If we have no questions or question mode is disabled, default to an explanation prompt
@@ -415,18 +406,9 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 
                 // Check if request is coming from the specified origin and add language instruction
                 if (requestOrigin.includes('chatbot-frontend-v-4.onrender.com')) {
-                    // Check if subject is English
-                    const isEnglishSubject = bookSubject && bookSubject.toLowerCase().includes('english');
-                    
-                    if (!isEnglishSubject) {
-                        // Add French language instruction
-                        systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
-All communication should be done in French. Please respond to all questions and interactions in French language.`;
-                    } else {
-                        // Add note that we're keeping English for the English subject
-                        systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
-Since the subject is English, continue all communication in English language.`;
-                    }
+                    // Pass subject information directly in the prompt without conditional checks
+                    systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
+The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in French. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
                 }
             }
              console.log(`System Prompt ${systemPrompt}`);
