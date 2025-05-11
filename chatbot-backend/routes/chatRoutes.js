@@ -350,7 +350,7 @@ Return only the JSON object. Do not include anything else.`,
                     .replace("{{CHAPTER_CONTENT}}", chapter.prompt || "No specific content available for this chapter.");
             }
             
-            // Add formatting instructions to the prompt
+            // Add formatting instructions
             systemPrompt += `\n\nPlease format your response using Markdown for clarity. Use **bold** for important points, *italics* for emphasis, and - for bullet points when listing items.
 
 IMPORTANT FORMATTING INSTRUCTIONS:
@@ -365,7 +365,15 @@ IMPORTANT FORMATTING INSTRUCTIONS:
    - Use (3/7 × 4/9) instead of \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
    - Use (4/11 × 4/7) instead of \\( \\frac{4}{11} \\times \\frac{4}{7} \\)
 6. For lettered items in lists use: a) 3/7 × 4/9 instead of a) \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
-7. All mathematical content must use ONLY plain text formatting.`;
+7. All mathematical content must use ONLY plain text formatting.
+8. ALWAYS format these elements with proper Markdown:
+   - **Questions:** Make all questions bold with "**Question:**" prefix 
+   - **Scores:** Make scores bold with "**Score:**" prefix (e.g., **Score:** 3/5)
+   - **Explanations:** Make explanation headers bold with "**Explanation:**" prefix
+   - **Next Question:** Make next question instructions bold with "**Next Question:**" prefix
+   - **Important Notes:** Use bold for any important notes or warnings
+9. When providing examples or solutions, use code blocks with triple backticks for clear formatting.
+10. Use headers appropriately: # for main sections, ## for subsections.`;
 
             // Check if request is coming from the specified origin and add language instruction
             const requestOrigin = req.headers.origin || req.headers.referer || '';
@@ -402,7 +410,15 @@ IMPORTANT FORMATTING INSTRUCTIONS:
    - Use (3/7 × 4/9) instead of \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
    - Use (4/11 × 4/7) instead of \\( \\frac{4}{11} \\times \\frac{4}{7} \\)
 6. For lettered items in lists use: a) 3/7 × 4/9 instead of a) \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
-7. All mathematical content must use ONLY plain text formatting.`;
+7. All mathematical content must use ONLY plain text formatting.
+8. ALWAYS format these elements with proper Markdown:
+   - **Questions:** Make all questions bold with "**Question:**" prefix 
+   - **Scores:** Make scores bold with "**Score:**" prefix (e.g., **Score:** 3/5)
+   - **Explanations:** Make explanation headers bold with "**Explanation:**" prefix
+   - **Next Question:** Make next question instructions bold with "**Next Question:**" prefix
+   - **Important Notes:** Use bold for any important notes or warnings
+9. When providing examples or solutions, use code blocks with triple backticks for clear formatting.
+10. Use headers appropriately: # for main sections, ## for subsections.`;
 
                 // Check if request is coming from the specified origin and add language instruction
                 if (requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com')) {
