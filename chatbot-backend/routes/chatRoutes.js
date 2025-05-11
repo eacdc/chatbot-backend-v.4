@@ -531,26 +531,10 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                         marksAwarded = extractedScore;
                         console.log(`Extracted score from message: ${marksAwarded}/${maxScore}`);
                     } else {
-                        // Fallback to the old method of approximate marking if score not explicitly found
-                const positiveResponse = botMessage.toLowerCase().match(/\b(correct|right|well done|good job|excellent|perfect|spot on|exactly|accurate|yes|indeed)\b/);
-                const partialResponse = botMessage.toLowerCase().match(/\b(partially|almost|close|not quite|incomplete|partly|somewhat|nearly|approaching)\b/);
-                const negativeResponse = botMessage.toLowerCase().match(/\b(incorrect|wrong|not right|mistake|error|no,|afraid not|unfortunately|not correct|not accurate)\b/);
-                
-                if (positiveResponse) {
-                    // Award full marks for positive responses
-                            marksAwarded = maxScore;
-                } else if (partialResponse) {
-                    // Award partial marks for partially correct answers
-                            marksAwarded = maxScore / 2;
-                } else if (negativeResponse) {
-                    // No marks for negative responses
-                    marksAwarded = 0;
-                } else {
-                    // If we can't determine, award partial marks
-                            marksAwarded = maxScore / 3;
-                        }
-                        console.log(`Estimated score from message patterns: ${marksAwarded}/${maxScore}`);
-                }
+                        // If no score pattern is found, award zero marks
+                        marksAwarded = 0;
+                        console.log(`No score pattern found, awarding zero marks`);
+                    }
                 
                 try {
                         // Record the answer for the PREVIOUS question with the user's current message as the answer
