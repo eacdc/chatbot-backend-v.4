@@ -521,19 +521,31 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     let marksAwarded = 0;
                     const maxScore = previousQuestion.question_marks || 1;
                     
-                    // Look for score patterns like "Score: 3/5" or "You earned 4 out of 5 points" or "Score: 3 / 3" with spaces
-                    const scorePattern = /(?:score|earned|awarded|get|receive|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i;
-                    const scoreMatch = botMessage.match(scorePattern);
+                    // Specific pattern for score at beginning of response, looking for lines that start with "Score:"
+                    // This will target the score for the previous question, not the next question preview
+                    const scoreFirstPattern = /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im;
+                    const firstScoreMatch = botMessage.match(scoreFirstPattern);
                     
-                    if (scoreMatch && scoreMatch.length >= 3) {
+                    if (firstScoreMatch && firstScoreMatch.length >= 3) {
                         // Extract score from the matched pattern (first group is awarded, second is max)
-                        const extractedScore = parseFloat(scoreMatch[1]);
+                        const extractedScore = parseFloat(firstScoreMatch[1]);
                         marksAwarded = extractedScore;
-                        console.log(`Extracted score from message: ${marksAwarded}/${maxScore}`);
+                        console.log(`Extracted first score from message: ${marksAwarded}/${maxScore}`);
                     } else {
-                        // If no score pattern is found, award zero marks
-                        marksAwarded = 0;
-                        console.log(`No score pattern found, awarding zero marks`);
+                        // Try a more general pattern if a score line at the beginning isn't found
+                        const scoreGeneralPattern = /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i;
+                        const generalScoreMatch = botMessage.match(scoreGeneralPattern);
+                        
+                        if (generalScoreMatch && generalScoreMatch.length >= 3) {
+                            // Use the first match from the general pattern
+                            const extractedScore = parseFloat(generalScoreMatch[1]);
+                            marksAwarded = extractedScore;
+                            console.log(`Extracted score using general pattern: ${marksAwarded}/${maxScore}`);
+                        } else {
+                            // If no score pattern is found, award zero marks
+                            marksAwarded = 0;
+                            console.log(`No score pattern found, awarding zero marks`);
+                        }
                     }
                 
                 try {
