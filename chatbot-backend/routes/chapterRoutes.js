@@ -566,7 +566,7 @@ Return "keep" if:
 - The question can be answered without referring to external elements
 - The question is complete and well-formed
 
-Respond ONLY with the word "keep" or "skip" - no explanation or additional text.`;
+Respond ONLY with the word "keep" or "skip" - no explanation or nowadditional text.`;
 
 const systemPrompt_manu = `You are an AI that evaluates questions for completeness and self-containment.
 If you find that some parts of the question is missing or it is referencing some portion of the text which is not 
