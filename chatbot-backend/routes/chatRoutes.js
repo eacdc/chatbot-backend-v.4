@@ -393,7 +393,7 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             if (requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com')) {
                 // Pass subject information directly in the prompt without conditional checks
                 systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
-The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in French. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
+The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in French, even the headings like Score,Marks,Explanation,Question,Next Question, etc. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
             }
             
             // If we have no questions or question mode is disabled, default to an explanation prompt
@@ -437,7 +437,7 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                 if (requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com')) {
                     // Pass subject information directly in the prompt without conditional checks
                     systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
-The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in French. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
+The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in French, even the headings like Score,Marks,Explanation,Question,Next Question, etc. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
                 }
             }
              console.log(`System Prompt ${systemPrompt}`);
