@@ -636,14 +636,78 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
         let filePathToTranscribe = audioFilePath;
         
         // Check if we need to convert the file (for Safari/MacOS webm files)
-        if (req.file.mimetype === "audio/webm" && 
-            req.headers['user-agent'] && 
-            req.headers['user-agent'].includes("Safari") && 
-            !req.headers['user-agent'].includes("Chrome")) {
-            
+        const isIPhone = req.headers['user-agent'] && 
+                        (req.headers['user-agent'].includes("iPhone") || 
+                         (req.headers['user-agent'].includes("Safari") && 
+                          !req.headers['user-agent'].includes("Chrome")));
+                          
+        // Handle iPhone .m4a files with mimetype audio/webm
+        if (isIPhone && req.file.originalname.endsWith('.m4a')) {
+            try {
+                console.log("Converting iPhone audio file to mp3 format");
+                // Create a different output filename to avoid in-place editing errors
+                const mp3FilePath = audioFilePath.replace(path.extname(audioFilePath), "") + ".mp3";
+                
+                // Rename the file directly if it's not a valid m4a (iOS sometimes sends incorrect file with m4a extension)
+                try {
+                    // Check if we can read the file header to determine if it's a real m4a
+                    const fileHeader = fs.readFileSync(audioFilePath, { length: 8 });
+                    // If it's not a valid m4a (doesn't have ftyp header), just rename it
+                    if (!fileHeader.toString().includes('ftyp')) {
+                        console.log("iPhone file appears to not be a valid m4a, renaming to correct extension");
+                        const correctedFilePath = audioFilePath.replace(path.extname(audioFilePath), ".webm");
+                        fs.renameSync(audioFilePath, correctedFilePath);
+                        filePathToTranscribe = correctedFilePath;
+                        // Skip conversion since we just renamed
+                        console.log("Using renamed file for transcription");
+                        return;
+                    }
+                } catch (headerError) {
+                    console.error("Error checking file header:", headerError);
+                    // Continue with conversion attempt
+                }
+                
+                // Convert the file using fluent-ffmpeg
+                await new Promise((resolve, reject) => {
+                    ffmpeg(audioFilePath)
+                        .outputOptions([
+                            '-vn',
+                            '-ar 44100',
+                            '-ac 2',
+                            '-b:a 192k'
+                        ])
+                        .save(mp3FilePath)
+                        .on('end', () => {
+                            console.log("Conversion successful");
+                            resolve();
+                        })
+                        .on('error', (err) => {
+                            console.error("Error during conversion", err);
+                            reject(err);
+                        });
+                });
+                
+                console.log("Using converted file for transcription");
+                filePathToTranscribe = mp3FilePath;
+            } catch (conversionError) {
+                console.error("Error converting audio file:", conversionError);
+                // As a last resort, try renaming to match the mimetype
+                try {
+                    const webmFilePath = audioFilePath.replace(path.extname(audioFilePath), ".webm");
+                    fs.renameSync(audioFilePath, webmFilePath);
+                    filePathToTranscribe = webmFilePath;
+                    console.log("Conversion failed, using renamed file instead");
+                } catch (renameError) {
+                    console.error("Error renaming file:", renameError);
+                    // Continue with original file if all else fails
+                }
+            }
+        }
+        // Original Safari webm handling
+        else if (req.file.mimetype === "audio/webm" && isIPhone) {
             try {
                 console.log("Converting Safari webm file to mp3 format");
-                const mp3FilePath = audioFilePath.replace(".webm", ".mp3");
+                const mp3FilePath = audioFilePath.replace(path.extname(audioFilePath), "") + ".mp3";
                 
                 // Convert webm to mp3 using fluent-ffmpeg
                 await new Promise((resolve, reject) => {
