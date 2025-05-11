@@ -366,6 +366,23 @@ IMPORTANT FORMATTING INSTRUCTIONS:
    - Use (4/11 × 4/7) instead of \\( \\frac{4}{11} \\times \\frac{4}{7} \\)
 6. For lettered items in lists use: a) 3/7 × 4/9 instead of a) \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
 7. All mathematical content must use ONLY plain text formatting.`;
+
+            // Check if request is coming from the specified origin and add language instruction
+            const requestOrigin = req.headers.origin || req.headers.referer || '';
+            if (requestOrigin.includes('chatbot-frontend-v-4.onrender.com')) {
+                // Check if subject is English
+                const isEnglishSubject = bookSubject && bookSubject.toLowerCase().includes('english');
+                
+                if (!isEnglishSubject) {
+                    // Add French language instruction
+                    systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
+All communication should be done in French. Please respond to all questions and interactions in French language.`;
+                } else {
+                    // Add note that we're keeping English for the English subject
+                    systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
+Since the subject is English, continue all communication in English language.`;
+                }
+            }
             
             // If we have no questions or question mode is disabled, default to an explanation prompt
             if (!chapter.questionPrompt || chapter.questionPrompt.length === 0) {
@@ -395,6 +412,22 @@ IMPORTANT FORMATTING INSTRUCTIONS:
    - Use (4/11 × 4/7) instead of \\( \\frac{4}{11} \\times \\frac{4}{7} \\)
 6. For lettered items in lists use: a) 3/7 × 4/9 instead of a) \\( \\frac{3}{7} \\times \\frac{4}{9} \\)
 7. All mathematical content must use ONLY plain text formatting.`;
+
+                // Check if request is coming from the specified origin and add language instruction
+                if (requestOrigin.includes('chatbot-frontend-v-4.onrender.com')) {
+                    // Check if subject is English
+                    const isEnglishSubject = bookSubject && bookSubject.toLowerCase().includes('english');
+                    
+                    if (!isEnglishSubject) {
+                        // Add French language instruction
+                        systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
+All communication should be done in French. Please respond to all questions and interactions in French language.`;
+                    } else {
+                        // Add note that we're keeping English for the English subject
+                        systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
+Since the subject is English, continue all communication in English language.`;
+                    }
+                }
             }
              console.log(`System Prompt ${systemPrompt}`);
             // Prepare the messages to send to OpenAI
@@ -912,12 +945,21 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             try {
                 console.log(`Recording answer for question ${questionId} in QnALists`);
                 
-                // Get the chapter to get the bookId
+                // Get the chapter to get the bookId and subject
                 const chapter = await Chapter.findById(chapterId);
                 const chapterBookId = chapter ? chapter.bookId : null;
                 
                 if (!chapterBookId) {
                     console.error(`Cannot find bookId for chapter ${chapterId}`);
+                }
+                
+                // Get book details to check subject (for language determination)
+                let bookSubject = "general subject";
+                if (chapterBookId) {
+                    const book = await Book.findById(chapterBookId);
+                    if (book) {
+                        bookSubject = book.subject || "general subject";
+                    }
                 }
                 
                 await QnALists.recordAnswer({
@@ -929,7 +971,8 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     score: marksAwarded,
                     answerText: answerText || "",
                     questionText: questionText || "",
-                    agentType: "oldchat_ai" // Always oldchat_ai for answered questions
+                    agentType: "oldchat_ai", // Always oldchat_ai for answered questions
+                    subject: bookSubject // Add subject for reference
                 });
             } catch (qnaError) {
                 console.error("Error recording answer in QnALists:", qnaError);
