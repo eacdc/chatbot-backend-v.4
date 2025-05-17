@@ -394,6 +394,10 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                 // Pass subject information directly in the prompt without conditional checks
                 systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
 The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in French, even the headings like Score,Marks,Explanation,Question,Next Question, etc. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
+            } else if (requestOrigin.includes('chatbot-backend-v-4-cp.onrender.com')) {
+                // Bengali language instruction for the specific origin
+                systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
+The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in Bengali, even the headings like Score,Marks,Explanation,Question,Next Question, etc. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
             }
             
             // If we have no questions or question mode is disabled, default to an explanation prompt
@@ -438,6 +442,10 @@ IMPORTANT FORMATTING INSTRUCTIONS:
                     // Pass subject information directly in the prompt without conditional checks
                     systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
 The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in French, even the headings like Score,Marks,Explanation,Question,Next Question, etc. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
+                } else if (requestOrigin.includes('chatbot-backend-v-4-cp.onrender.com')) {
+                    // Bengali language instruction for the specific origin
+                    systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:
+The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in Bengali, even the headings like Score,Marks,Explanation,Question,Next Question, etc. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
                 }
             }
              console.log(`System Prompt ${systemPrompt}`);
@@ -541,12 +549,12 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             const extractedScore = parseFloat(generalScoreMatch[1]);
                             marksAwarded = extractedScore;
                             console.log(`Extracted score using general pattern: ${marksAwarded}/${maxScore}`);
-                        } else {
+                } else {
                             // If no score pattern is found, award zero marks
                             marksAwarded = 0;
                             console.log(`No score pattern found, awarding zero marks`);
                         }
-                    }
+                }
                 
                 try {
                         // Record the answer for the PREVIOUS question with the user's current message as the answer
