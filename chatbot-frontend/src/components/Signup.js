@@ -11,6 +11,11 @@ const Signup = () => {
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "College Student"
     ];
     
+    // Publisher options for the dropdown
+    const publisherOptions = [
+        "JD", "EXCELLENCE PUBLICATION", "CP", "CM"
+    ];
+    
     const [formData, setFormData] = useState({
         username: "",
         fullname: "",
@@ -192,16 +197,21 @@ const Signup = () => {
                             <label htmlFor="publisher" className="block text-sm font-medium text-gray-700 mb-1">
                                 Publisher <span className="text-gray-500 font-normal">(Optional)</span>
                             </label>
-                            <input
+                            <select
                                 id="publisher"
                                 name="publisher"
-                                type="text"
                                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-lg placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Your preferred publisher (optional)"
                                 value={formData.publisher}
                                 onChange={handleChange}
-                            />
-                            <p className="mt-1 text-xs text-gray-500">Enter your preferred publisher to see only books from that publisher.</p>
+                            >
+                                <option value="">Select a publisher (optional)</option>
+                                {publisherOptions.map((publisher) => (
+                                    <option key={publisher} value={publisher}>
+                                        {publisher}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="mt-1 text-xs text-gray-500">Select your preferred publisher to see only books from that publisher.</p>
                         </div>
                         <div>
                             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>

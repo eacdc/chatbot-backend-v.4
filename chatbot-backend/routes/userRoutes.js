@@ -118,6 +118,17 @@ router.post("/login", async (req, res) => {
             }
             console.log("✅ JD publisher verified, continuing with login");
         } 
+        // Check if request is from CP frontend and if user's publisher is CM
+        else if (requestOrigin.includes('chatbot-backend-v-4-cp.onrender.com')) {
+            console.log("🔒 CP Frontend detected, checking publisher...");
+            if (!user.publisher || user.publisher !== 'CM') {
+                console.log("❌ Access denied: Non-CM user attempting to login via CP frontend");
+                return res.status(403).json({ 
+                    message: "Access denied. This portal is exclusively for CM users."
+                });
+            }
+            console.log("✅ CM publisher verified, continuing with login");
+        }
         // Check if request is NOT from JD frontend and user's publisher IS JD
         else {
             console.log("🔒 Non-JD Frontend detected, checking publisher...");
@@ -127,7 +138,14 @@ router.post("/login", async (req, res) => {
                     message: "JD users must access through the dedicated JD portal."
                 });
             }
-            console.log("✅ Non-JD publisher verified, continuing with login");
+            // Check if user's publisher is CM and trying to login via non-CP frontend
+            else if (user.publisher === 'CM') {
+                console.log("❌ Access denied: CM user attempting to login via non-CP frontend");
+                return res.status(403).json({ 
+                    message: "CM users must access through the dedicated CP portal."
+                });
+            }
+            console.log("✅ Publisher verification passed, continuing with login");
         }
 
         console.log("🔑 Stored Password Hash:", user.password);
