@@ -12,7 +12,7 @@ const AddBook = () => {
   
   // Publisher options
   const publisherOptions = [
-    "JD", "EXCELLENCE PUBLICATION"
+    "JD", "EXCELLENCE PUBLICATION", "CP"
   ];
 
   const [bookData, setBookData] = useState({
