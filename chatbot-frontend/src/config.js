@@ -1,4 +1,14 @@
-const API_URL = process.env.REACT_APP_API_URL || 'https://chatbot-backend-v-4.onrender.com';
+// Determine the appropriate API URL based on domain
+const determineApiUrl = () => {
+  // Check if we're on the CP domain
+  if (window.location.hostname.includes('chatbot-backend-v-4-cp.onrender.com')) {
+    return 'https://chatbot-backend-v-4-cp.onrender.com';
+  }
+  // Default to the standard backend URL
+  return process.env.REACT_APP_API_URL || 'https://chatbot-backend-v-4.onrender.com';
+};
+
+const API_URL = determineApiUrl();
 
 export const API_ENDPOINTS = {
   LOGIN: `${API_URL}/api/users/login`,
