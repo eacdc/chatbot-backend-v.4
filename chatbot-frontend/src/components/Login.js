@@ -23,25 +23,31 @@ const Login = () => {
     console.log("Login form submitted");
 
     try {
-      console.log("Calling login function");
+      console.log("Calling login function with:", { username: formData.username, password: '******' });
       const userData = await login(formData);
-      console.log("Login successful, userData:", userData);
+      console.log("Login successful, userData:", JSON.stringify(userData, null, 2));
       
       // Verify localStorage has been set
       console.log("localStorage token:", localStorage.getItem('token'));
+      console.log("localStorage token length:", localStorage.getItem('token') ? localStorage.getItem('token').length : 0);
       console.log("localStorage userId:", localStorage.getItem('userId'));
       console.log("localStorage isAuthenticated:", localStorage.getItem('isAuthenticated'));
       
       // Use direct window location navigation instead of React Router
-      console.log("Redirecting to chat page");
-      window.location.href = "/chat";
+      console.log("Preparing to redirect to chat page");
+      
+      // Add a short delay to ensure localStorage has been updated
+      setTimeout(() => {
+        console.log("Redirecting to chat page now");
+        window.location.href = "/chat";
+      }, 100);
     } catch (err) {
       console.error("Login error in component:", err);
       
       // Add more detailed error logging
       if (err.response) {
         console.error("Error response status:", err.response.status);
-        console.error("Error response data:", err.response.data);
+        console.error("Error response data:", JSON.stringify(err.response.data, null, 2));
         
         // Check if there's a specific message for 403 errors
         if (err.response.status === 403) {

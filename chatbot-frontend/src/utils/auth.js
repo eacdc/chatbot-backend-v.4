@@ -15,13 +15,15 @@ const REFRESH_TOKEN_KEY = 'refresh_token';
 export const login = async (credentials) => {
   console.log("Login attempt with:", { username: credentials.username, password: '******' });
   console.log("Current domain:", window.location.hostname);
+  console.log("API URL being used:", API_URL);
+  console.log("Login endpoint:", API_ENDPOINTS.LOGIN);
   
   try {
     console.log("Calling login endpoint:", API_ENDPOINTS.LOGIN);
     const response = await axiosInstance.post(API_ENDPOINTS.LOGIN, credentials);
     
-    console.log("Login response:", response.status, response.data ? 'Data received' : 'No data');
-    console.log("Response data:", JSON.stringify(response.data, null, 2));
+    console.log("Login response status:", response.status);
+    console.log("Login response full data:", JSON.stringify(response.data, null, 2));
     
     if (response.data && response.data.token) {
       console.log("Token received, storing in localStorage");
@@ -52,7 +54,8 @@ export const login = async (credentials) => {
       
       // Verify localStorage was updated
       console.log("LocalStorage after login:", {
-        token: localStorage.getItem('token') ? 'Set' : 'Not set',
+        token: localStorage.getItem('token'),
+        tokenLength: localStorage.getItem('token') ? localStorage.getItem('token').length : 0,
         userId: localStorage.getItem('userId'),
         isAuthenticated: localStorage.getItem('isAuthenticated')
       });

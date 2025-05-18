@@ -1,14 +1,23 @@
 // Determine the appropriate API URL based on domain
 const determineApiUrl = () => {
+  const hostname = window.location.hostname;
+  console.log("Current hostname for API URL detection:", hostname);
+  
   // Check if we're on the CP domain
-  if (window.location.hostname.includes('chatbot-backend-v-4-cp.onrender.com')) {
+  if (hostname === 'chatbot-backend-v-4-cp.onrender.com' || 
+      hostname.includes('chatbot-backend-v-4-cp.onrender.com')) {
+    console.log("CP domain detected, using CP backend URL");
     return 'https://chatbot-backend-v-4-cp.onrender.com';
   }
+  
   // Default to the standard backend URL
-  return process.env.REACT_APP_API_URL || 'https://chatbot-backend-v-4.onrender.com';
+  console.log("Using default backend URL");
+  const defaultUrl = process.env.REACT_APP_API_URL || 'https://chatbot-backend-v-4.onrender.com';
+  return defaultUrl;
 };
 
 const API_URL = determineApiUrl();
+console.log("Selected API_URL:", API_URL);
 
 export const API_ENDPOINTS = {
   LOGIN: `${API_URL}/api/users/login`,
