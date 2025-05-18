@@ -96,6 +96,18 @@ router.post("/login", async (req, res) => {
         // Store the origin/referer information for potential later use
         const requestOrigin = req.headers.origin || req.headers.referer || 'unknown';
 
+        // Extract hostname from origin/referer for more precise matching
+        let hostname = '';
+        try {
+            if (requestOrigin !== 'unknown') {
+                const url = new URL(requestOrigin);
+                hostname = url.hostname;
+                console.log("📍 Extracted hostname:", hostname);
+            }
+        } catch (error) {
+            console.log("⚠️ Could not extract hostname from origin:", error.message);
+        }
+
         if (!username || !password) {
             return res.status(400).json({ message: "Username and password are required" });
         }
@@ -108,7 +120,7 @@ router.post("/login", async (req, res) => {
         }
 
         // Check if request is from JD frontend and if user's publisher is JD
-        if (requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com')) {
+        if (hostname === 'chatbot-frontend-v-4-jd-1.onrender.com' || requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com')) {
             console.log("🔒 JD Frontend detected, checking publisher...");
             if (!user.publisher || user.publisher !== 'JD') {
                 console.log("❌ Access denied: Non-JD user attempting to login via JD frontend");
@@ -118,31 +130,31 @@ router.post("/login", async (req, res) => {
             }
             console.log("✅ JD publisher verified, continuing with login");
         } 
-        // Check if request is from CP frontend and if user's publisher is CM
-        else if (requestOrigin.includes('chatbot-backend-v-4-cp.onrender.com')) {
+        // Check if request is from CP frontend and if user's publisher is CP
+        else if (hostname === 'chatbot-backend-v-4-cp.onrender.com' || requestOrigin.includes('chatbot-backend-v-4-cp.onrender.com')) {
             console.log("🔒 CP Frontend detected, checking publisher...");
-            if (!user.publisher || user.publisher !== 'CM') {
-                console.log("❌ Access denied: Non-CM user attempting to login via CP frontend");
+            if (!user.publisher || user.publisher !== 'CP') {
+                console.log("❌ Access denied: Non-CP user attempting to login via CP frontend");
                 return res.status(403).json({ 
-                    message: "Access denied. This portal is exclusively for CM users."
+                    message: "Access denied. This portal is exclusively for CP users."
                 });
             }
-            console.log("✅ CM publisher verified, continuing with login");
+            console.log("✅ CP publisher verified, continuing with login");
         }
         // Check if request is NOT from JD frontend and user's publisher IS JD
         else {
-            console.log("🔒 Non-JD Frontend detected, checking publisher...");
+            console.log("🔒 Standard Frontend detected, checking publisher...");
             if (user.publisher === 'JD') {
                 console.log("❌ Access denied: JD user attempting to login via non-JD frontend");
                 return res.status(403).json({ 
                     message: "JD users must access through the dedicated JD portal."
                 });
             }
-            // Check if user's publisher is CM and trying to login via non-CP frontend
-            else if (user.publisher === 'CM') {
-                console.log("❌ Access denied: CM user attempting to login via non-CP frontend");
+            // Check if user's publisher is CP and trying to login via non-CP frontend
+            else if (user.publisher === 'CP') {
+                console.log("❌ Access denied: CP user attempting to login via non-CP frontend");
                 return res.status(403).json({ 
-                    message: "CM users must access through the dedicated CP portal."
+                    message: "CP users must access through the dedicated CP portal."
                 });
             }
             console.log("✅ Publisher verification passed, continuing with login");

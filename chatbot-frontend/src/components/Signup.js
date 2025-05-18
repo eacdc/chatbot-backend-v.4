@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom"; // For navigation
 import { API_ENDPOINTS } from "../config";
@@ -23,6 +23,24 @@ const Signup = () => {
     });
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [publisherValue, setPublisherValue] = useState("EXCELLENCE PUBLICATION");
+
+    // Detect if the app is being accessed from CP domain
+    useEffect(() => {
+        const hostname = window.location.hostname;
+        console.log("Current hostname:", hostname);
+        
+        // Check for CP domain
+        const isCPDomain = hostname === 'chatbot-backend-v-4-cp.onrender.com' || 
+                         hostname.includes('chatbot-backend-v-4-cp.onrender.com');
+        
+        if (isCPDomain) {
+            console.log("CP domain detected, setting publisher to CP");
+            setPublisherValue("CP");
+        } else {
+            console.log("Standard domain detected, setting publisher to EXCELLENCE PUBLICATION");
+        }
+    }, []);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -49,8 +67,8 @@ const Signup = () => {
                 delete userData.email;
             }
             
-            // Always set publisher to "EXCELLENCE PUBLICATION"
-            userData.publisher = "EXCELLENCE PUBLICATION";
+            // Set the publisher based on domain
+            userData.publisher = publisherValue;
             
             const response = await axios.post(API_ENDPOINTS.USER_SIGNUP, userData);
 

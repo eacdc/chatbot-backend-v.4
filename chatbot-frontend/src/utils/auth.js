@@ -14,6 +14,7 @@ const REFRESH_TOKEN_KEY = 'refresh_token';
  */
 export const login = async (credentials) => {
   console.log("Login attempt with:", { username: credentials.username, password: '******' });
+  console.log("Current domain:", window.location.hostname);
   
   try {
     console.log("Calling login endpoint:", API_ENDPOINTS.LOGIN);
