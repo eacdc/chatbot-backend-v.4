@@ -93,23 +93,45 @@ export default function ChatbotLayout({ children }) {
       
       try {
         setLoading(true);
-        const response = await axios.get(API_ENDPOINTS.GET_SUBSCRIPTIONS, {
+        
+        // First get user data to determine publisher
+        const userResponse = await axios.get(API_ENDPOINTS.GET_USER, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const userPublisher = userResponse.data.publisher;
+        
+        // Get all user subscriptions
+        const subsResponse = await axios.get(API_ENDPOINTS.GET_SUBSCRIPTIONS, {
           headers: {
             Authorization: `Bearer ${token}`
           }
         });
         
-        console.log("Subscriptions data:", response.data);
-        // Log the structure of each subscription to check for bookCoverImgLink
-        if (response.data && response.data.length > 0) {
+        console.log("Subscriptions data:", subsResponse.data);
+        
+        // Filter subscriptions based on user's publisher if available
+        let filteredSubscriptions = subsResponse.data;
+        if (userPublisher) {
+          // Filter to only show subscriptions with matching publisher
+          filteredSubscriptions = subsResponse.data.filter(
+            sub => sub.publisher === userPublisher
+          );
+          console.log(`Filtered subscriptions to ${filteredSubscriptions.length} books from ${userPublisher}`);
+        }
+        
+        // Log the structure of first subscription if available
+        if (filteredSubscriptions.length > 0) {
           console.log("First subscription details:", {
-            _id: response.data[0]._id,
-            bookId: response.data[0].bookId,
-            bookTitle: response.data[0].bookTitle,
-            bookCoverImgLink: response.data[0].bookCoverImgLink
+            _id: filteredSubscriptions[0]._id,
+            bookId: filteredSubscriptions[0].bookId,
+            bookTitle: filteredSubscriptions[0].bookTitle,
+            publisher: filteredSubscriptions[0].publisher,
+            bookCoverImgLink: filteredSubscriptions[0].bookCoverImgLink
           });
         }
-        setSubscribedBooks(response.data);
+        
+        setSubscribedBooks(filteredSubscriptions);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching subscriptions:", error);
@@ -140,15 +162,26 @@ export default function ChatbotLayout({ children }) {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        const userPublisher = "EXCELLENCE PUBLICATION"; // Default publisher for all users
+        // Use the user's publisher preference if available
+        const userPublisher = userResponse.data.publisher;
         
-        // Fetch books filtered by this publisher
-        const booksResponse = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?publisher=${userPublisher}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        setPublisherBooks(booksResponse.data);
-        console.log(`Fetched ${booksResponse.data.length} books from EXCELLENCE PUBLICATION for carousel display`);
+        if (userPublisher) {
+          // Fetch books filtered by user's publisher
+          const booksResponse = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?publisher=${userPublisher}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          setPublisherBooks(booksResponse.data);
+          console.log(`Fetched ${booksResponse.data.length} books from ${userPublisher} for carousel display`);
+        } else {
+          // Fetch all books if user has no publisher preference
+          const booksResponse = await axios.get(API_ENDPOINTS.GET_BOOKS, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          setPublisherBooks(booksResponse.data);
+          console.log(`Fetched ${booksResponse.data.length} books without publisher filter for carousel display`);
+        }
       } catch (error) {
         console.error("Error fetching publisher books:", error);
       }
@@ -1014,7 +1047,7 @@ export default function ChatbotLayout({ children }) {
       if (!token) return;
 
       console.log("Fetching user notifications...");
-      
+
       const response = await axios.get(API_ENDPOINTS.GET_NOTIFICATIONS, {
         headers: {
           Authorization: `Bearer ${token}`
@@ -1022,7 +1055,7 @@ export default function ChatbotLayout({ children }) {
       });
 
       console.log("Notifications response:", response.data);
-      
+
       if (Array.isArray(response.data)) {
         setNotifications(response.data);
         const unreadNotifications = response.data.filter(notif => notif.seen_status === "no");
@@ -1300,12 +1333,12 @@ export default function ChatbotLayout({ children }) {
       // Use the dedicated endpoint to mark all notifications as seen at once
       const response = await axios.put(
         API_ENDPOINTS.MARK_ALL_NOTIFICATIONS_SEEN,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
           }
-        }
       );
       
       console.log(`Marked ${response.data.count} notifications as seen`);
