@@ -9,13 +9,16 @@ export const handleApiError = (error) => {
     const status = error.response.status;
     const message = error.response.data?.message;
     
+    console.log("API Error Response:", status, message);
+    
     switch (status) {
       case 400:
         return message || 'Invalid request. Please check your input.';
       case 401:
         return 'Please login to continue.';
       case 403:
-        return 'You do not have permission to perform this action.';
+        // Return the exact error message from the server for 403 errors
+        return message || 'You do not have permission to perform this action.';
       case 404:
         return message || 'Resource not found.';
       case 429:
@@ -43,6 +46,13 @@ export const handleApiError = (error) => {
  * @returns {string} Formatted authentication error message
  */
 export const handleAuthError = (error) => {
+  console.log("Auth Error:", error.response?.status, error.response?.data);
+  
+  // Handle access denied errors (403)
+  if (error.response?.status === 403) {
+    return error.response.data?.message || 'Access denied.';
+  }
+  
   if (error.response?.status === 401) {
     const message = error.response.data?.message;
     switch (message) {
@@ -53,7 +63,7 @@ export const handleAuthError = (error) => {
       case 'invalid_token':
         return 'Invalid authentication. Please login again.';
       default:
-        return 'Authentication failed. Please try again.';
+        return message || 'Authentication failed. Please try again.';
     }
   }
   return handleApiError(error);

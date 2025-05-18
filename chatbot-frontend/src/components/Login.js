@@ -36,8 +36,26 @@ const Login = () => {
       console.log("Redirecting to chat page");
       window.location.href = "/chat";
     } catch (err) {
-      console.error("Login error:", err);
-      setError(handleAuthError(err));
+      console.error("Login error in component:", err);
+      
+      // Add more detailed error logging
+      if (err.response) {
+        console.error("Error response status:", err.response.status);
+        console.error("Error response data:", err.response.data);
+        
+        // Check if there's a specific message for 403 errors
+        if (err.response.status === 403) {
+          const errorMsg = err.response.data?.message || "Access denied";
+          console.error("Setting error message to:", errorMsg);
+          setError(errorMsg);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      const errorMessage = handleAuthError(err);
+      console.error("Final error message:", errorMessage);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
