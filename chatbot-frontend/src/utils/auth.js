@@ -65,8 +65,13 @@ export const login = async (credentials) => {
   } catch (error) {
     console.error("Login error:", error.message);
     if (error.response) {
-      console.error("Status:", error.response.status);
-      console.error("Data:", error.response.data);
+      console.error("Error status:", error.response.status);
+      console.error("Error data:", JSON.stringify(error.response.data, null, 2));
+      
+      // If we got a 403 forbidden response with a message
+      if (error.response.status === 403 && error.response.data?.message) {
+        console.error("Access denied message:", error.response.data.message);
+      }
     } else if (error.request) {
       console.error("No response received");
     }
