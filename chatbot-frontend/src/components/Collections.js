@@ -84,12 +84,20 @@ export default function Collections() {
       try {
         setLoading(true);
         
-        // Always filter by EXCELLENCE PUBLICATION
-        const url = `${API_ENDPOINTS.GET_BOOKS}?publisher=EXCELLENCE PUBLICATION`;
-        
-        const response = await axios.get(url);
-        setBooks(response.data);
-        console.log(`Loaded ${response.data.length} books from EXCELLENCE PUBLICATION`);
+        // Only fetch books if we have the user data
+        if (user && user.publisher) {
+          // Filter books by the logged-in user's publisher
+          const url = `${API_ENDPOINTS.GET_BOOKS}?publisher=${user.publisher}`;
+          
+          const response = await axios.get(url);
+          setBooks(response.data);
+          console.log(`Loaded ${response.data.length} books from ${user.publisher}`);
+        } else {
+          // Fetch all books if user has no publisher preference
+          const response = await axios.get(API_ENDPOINTS.GET_BOOKS);
+          setBooks(response.data);
+          console.log(`Loaded ${response.data.length} books without publisher filter`);
+        }
       } catch (error) {
         console.error("Error fetching books:", error);
         setError("Failed to fetch books");

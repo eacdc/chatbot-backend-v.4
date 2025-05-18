@@ -38,6 +38,7 @@ router.post("/", authenticateUser, async (req, res) => {
       userName: user.fullname,
       bookId,
       bookTitle: book.title,
+      publisher: book.publisher,
       bookCoverImgLink: book.bookCoverImgLink
     });
 
@@ -144,6 +145,33 @@ router.get("/admin/update-all-covers", async (req, res) => {
     });
   } catch (err) {
     console.error("Error updating subscriptions with book covers:", err.message);
+    res.status(500).json({ error: `Failed to update subscriptions: ${err.message}` });
+  }
+});
+
+// Admin endpoint to update all subscriptions with publisher info
+router.get("/admin/update-publishers", async (req, res) => {
+  try {
+    const subscriptions = await Subscription.find({});
+    let updated = 0;
+
+    for (const subscription of subscriptions) {
+      // Find the associated book
+      const book = await Book.findById(subscription.bookId);
+      if (book && book.publisher) {
+        // Update the subscription with the book's publisher
+        subscription.publisher = book.publisher;
+        await subscription.save();
+        updated++;
+      }
+    }
+
+    res.status(200).json({ 
+      message: `Updated ${updated} of ${subscriptions.length} subscriptions with publisher information`,
+      subscriptions: await Subscription.find({})
+    });
+  } catch (err) {
+    console.error("Error updating subscriptions with publisher info:", err.message);
     res.status(500).json({ error: `Failed to update subscriptions: ${err.message}` });
   }
 });
