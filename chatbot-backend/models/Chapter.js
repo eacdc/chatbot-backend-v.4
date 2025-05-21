@@ -1,12 +1,14 @@
 const mongoose = require("mongoose");
+const OpenAI = require("openai");
 
 const questionSchema = new mongoose.Schema({
   questionId: { type: String, unique: true }, // Unique ID for each question
   Q: { type: Number, required: true },
   question: { type: String, required: true },
-  question_answered: { type: Boolean, default: false },
   question_marks: { type: Number, default: 1 },
-  marks_gained: { type: Number, default: 0 }
+  subtopic: { type: String, default: "General" },
+  tentativeAnswer: { type: String, default: "" },
+  difficultyLevel: { type: String, enum: ["Easy", "Medium", "Hard"], default: "Medium" }
 });
 
 const chapterSchema = new mongoose.Schema(
@@ -15,6 +17,7 @@ const chapterSchema = new mongoose.Schema(
     bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true }, // Reference to Book
     title: { type: String, required: true },
     prompt: { type: String, required: true },
+    embedding: { type: [Number], default: null }, // Embedding vector for semantic search
     questionPrompt: {
       type: Array,
       default: [],
@@ -37,10 +40,103 @@ const chapterSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Auto-generate chapterId before saving
+// Initialize OpenAI client - use environment variable
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Method to generate embedding for a chapter
+chapterSchema.methods.generateEmbedding = async function() {
+  try {
+    // Use the prompt as the input for the embedding
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small", // Most efficient embedding model
+      input: this.prompt,
+      encoding_format: "float"
+    });
+    
+    if (response && response.data && response.data[0]) {
+      this.embedding = response.data[0].embedding;
+      console.log(`Generated embedding for chapter ${this.chapterId || this.title}`);
+      return this.embedding;
+    } else {
+      throw new Error("Invalid response from OpenAI embeddings API");
+    }
+  } catch (error) {
+    console.error("Error generating embedding:", error);
+    throw error;
+  }
+};
+
+// Static method to find similar chapters using embeddings
+chapterSchema.statics.findSimilar = async function(query, limit = 5) {
+  try {
+    // Generate embedding for the query
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query,
+      encoding_format: "float"
+    });
+    
+    if (!embeddingResponse || !embeddingResponse.data || !embeddingResponse.data[0]) {
+      throw new Error("Failed to generate embedding for query");
+    }
+    
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+    
+    // Find chapters with embeddings
+    const chapters = await this.find({ embedding: { $ne: null } });
+    
+    if (chapters.length === 0) {
+      return [];
+    }
+    
+    // Calculate cosine similarity for each chapter
+    const withSimilarity = chapters.map(chapter => ({
+      chapter,
+      similarity: cosineSimilarity(queryEmbedding, chapter.embedding)
+    }));
+    
+    // Sort by similarity (descending) and take top results
+    return withSimilarity
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit)
+      .map(item => item.chapter);
+  } catch (error) {
+    console.error("Error finding similar chapters:", error);
+    throw error;
+  }
+};
+
+// Helper function to calculate cosine similarity between two vectors
+function cosineSimilarity(vecA, vecB) {
+  if (!vecA || !vecB || vecA.length !== vecB.length) {
+    return 0;
+  }
+  
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const magnitudeA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+  const magnitudeB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+  
+  if (magnitudeA === 0 || magnitudeB === 0) {
+    return 0;
+  }
+  
+  return dotProduct / (magnitudeA * magnitudeB);
+}
+
+// Auto-generate chapterId and handle question parsing before saving
 chapterSchema.pre("save", async function (next) {
   if (!this.chapterId) {
     this.chapterId = "CHAP-" + Math.floor(100000 + Math.random() * 900000);
+  }
+
+  // Generate embedding if it doesn't exist
+  if (!this.embedding) {
+    try {
+      await this.generateEmbedding();
+    } catch (error) {
+      console.error("Error generating embedding on save, continuing anyway:", error);
+      // Continue with save even if embedding generation fails
+    }
   }
 
   // Parse questionPrompt from the prompt field if it appears to be a JSON array of questions
@@ -67,9 +163,10 @@ chapterSchema.pre("save", async function (next) {
           questionId: q.questionId || `QID-${this._id || new mongoose.Types.ObjectId()}-${index}-${Date.now()}`,
           Q: q.Q,
           question: q.question,
-          question_answered: Boolean(q.question_answered || false),
           question_marks: parseInt(q.question_marks || 3, 10),
-          marks_gained: parseInt(q.marks_gained || 0, 10)
+          subtopic: q.subtopic || "General",
+          tentativeAnswer: q.tentativeAnswer || "",
+          difficultyLevel: q.difficultyLevel || "Medium"
         }));
         
         this.questionPrompt = formattedQuestions;
@@ -105,9 +202,10 @@ chapterSchema.pre("save", async function (next) {
                     questionId: questionObj.questionId || `QID-${this._id || new mongoose.Types.ObjectId()}-${index}-${Date.now()}`,
                     Q: questionObj.Q,
                     question: questionObj.question,
-                    question_answered: Boolean(questionObj.question_answered || false),
                     question_marks: parseInt(questionObj.question_marks || 3, 10),
-                    marks_gained: parseInt(questionObj.marks_gained || 0, 10)
+                    subtopic: questionObj.subtopic || "General",
+                    tentativeAnswer: questionObj.tentativeAnswer || "",
+                    difficultyLevel: questionObj.difficultyLevel || "Medium"
                   });
                   successCount++;
                 }

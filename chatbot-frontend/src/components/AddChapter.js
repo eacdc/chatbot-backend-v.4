@@ -9,12 +9,15 @@ const AddChapter = () => {
   const [processingLoading, setProcessingLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [isEnhancedMode, setIsEnhancedMode] = useState(true); // Default to using enhanced mode
   const [chapterData, setChapterData] = useState({
     bookId: "",
     title: "",
     rawText: "",
     subject: "",
-    finalPrompt: ""
+    finalPrompt: "",
+    hasEmbedding: false,
+    embedding: null
   });
 
   // Fetch books for dropdown
@@ -57,6 +60,15 @@ const AddChapter = () => {
     setError(""); // Clear error when user types
   };
 
+  const toggleProcessingMode = () => {
+    setIsEnhancedMode(!isEnhancedMode);
+    setSuccessMessage(
+      isEnhancedMode 
+        ? "Switched to standard processing mode" 
+        : "Switched to enhanced processing mode with embeddings and question analysis"
+    );
+  };
+
   const handleProcessText = async () => {
     if (!chapterData.rawText.trim()) {
       setError("Please enter some text in the Raw Text field");
@@ -94,12 +106,17 @@ const AddChapter = () => {
         return;
       }
 
-      console.log("Processing text using batch processing");
+      // Choose endpoint based on the processing mode
+      const endpoint = isEnhancedMode 
+        ? API_ENDPOINTS.ENHANCED_BATCH_PROCESS 
+        : API_ENDPOINTS.PROCESS_TEXT_BATCH;
+      
+      console.log(`Processing text using ${isEnhancedMode ? 'enhanced' : 'standard'} batch processing`);
       console.log("Text length:", chapterData.rawText.length);
       console.log("Subject:", chapterData.subject);
       
-      // Use batch processing endpoint for text processing
-      const response = await adminAxiosInstance.post(API_ENDPOINTS.PROCESS_TEXT_BATCH, 
+      // Use selected processing endpoint
+      const response = await adminAxiosInstance.post(endpoint, 
         { 
           rawText: chapterData.rawText,
           subject: chapterData.subject
@@ -109,6 +126,15 @@ const AddChapter = () => {
       console.log("Processing response received:", response.status);
       
       if (response.data && response.data.success) {
+        // Check if response has embedding data (from enhanced mode)
+        const hasEmbedding = !!response.data.hasEmbedding;
+        let embedding = null;
+        
+        if (hasEmbedding && response.data.embedding) {
+          console.log("Received embedding data");
+          embedding = response.data.embedding;
+        }
+        
         // Check if response contains structured question data
         if (response.data.isQuestionFormat && response.data.questionArray) {
           console.log(`Received structured question data with ${response.data.totalQuestions} questions`);
@@ -118,18 +144,28 @@ const AddChapter = () => {
             ...chapterData,
             finalPrompt: response.data.combinedPrompt,
             hasQuestionFormat: true,
-            questionCount: response.data.totalQuestions
+            questionCount: response.data.totalQuestions,
+            hasEmbedding,
+            embedding
           });
           
-          setSuccessMessage(`Text successfully processed! ${response.data.totalQuestions} questions extracted and ready to save.`);
+          const enhancedMessage = hasEmbedding 
+            ? ` with embeddings and` 
+            : ` with`;
+            
+          setSuccessMessage(`Text successfully processed! ${response.data.totalQuestions} questions extracted${enhancedMessage} metadata ready to save.`);
         } else if (response.data.combinedPrompt) {
           // Regular text processing
           setChapterData({
             ...chapterData,
             finalPrompt: response.data.combinedPrompt,
-            hasQuestionFormat: false
+            hasQuestionFormat: false,
+            hasEmbedding,
+            embedding
           });
-          setSuccessMessage("Text successfully processed! Ready to save as chapter.");
+          
+          const embedMessage = hasEmbedding ? " with embeddings" : "";
+          setSuccessMessage(`Text successfully processed${embedMessage}! Ready to save as chapter.`);
         } else {
           setError("Processing did not complete successfully");
         }
@@ -138,7 +174,8 @@ const AddChapter = () => {
         setChapterData({
           ...chapterData,
           finalPrompt: response.data.processedText,
-          hasQuestionFormat: false
+          hasQuestionFormat: false,
+          hasEmbedding: false
         });
         setSuccessMessage("Text processed successfully! Ready to save as chapter.");
       } else {
@@ -212,6 +249,11 @@ const AddChapter = () => {
       prompt: chapterData.finalPrompt
     };
     
+    // If we have embedding data, include it (the backend will recognize and store it)
+    if (chapterData.hasEmbedding && chapterData.embedding) {
+      dataToSubmit.embedding = chapterData.embedding;
+    }
+    
     try {
       const adminToken = localStorage.getItem("adminToken");
       if (!adminToken) {
@@ -225,7 +267,8 @@ const AddChapter = () => {
         bookId: dataToSubmit.bookId, 
         title: dataToSubmit.title, 
         subject: dataToSubmit.subject,
-        promptLength: dataToSubmit.prompt.length 
+        promptLength: dataToSubmit.prompt.length,
+        hasEmbedding: chapterData.hasEmbedding
       });
       
       const response = await adminAxiosInstance.post(
@@ -241,7 +284,9 @@ const AddChapter = () => {
           title: "",
           rawText: "",
           subject: "",
-          finalPrompt: ""
+          finalPrompt: "",
+          hasEmbedding: false,
+          embedding: null
         });
       }
     } catch (error) {
@@ -373,6 +418,34 @@ const AddChapter = () => {
                       />
                     </div>
                   </div>
+                  
+                  <div className="sm:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700">Processing Mode</label>
+                    <div className="mt-1">
+                      <div className="flex items-center">
+                        <button
+                          type="button"
+                          onClick={toggleProcessingMode}
+                          className={`px-4 py-2 text-sm font-medium rounded-md ${
+                            isEnhancedMode 
+                              ? "bg-indigo-100 text-indigo-800 border border-indigo-300" 
+                              : "bg-gray-100 text-gray-700 border border-gray-300"
+                          }`}
+                        >
+                          {isEnhancedMode ? "Enhanced Mode (with embeddings)" : "Standard Mode"}
+                        </button>
+                        <div className="ml-2">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            isEnhancedMode 
+                              ? "bg-indigo-100 text-indigo-800" 
+                              : "bg-gray-100 text-gray-800"
+                          }`}>
+                            {isEnhancedMode ? "AI analysis + embeddings" : "Basic processing"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -400,7 +473,7 @@ const AddChapter = () => {
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                             </svg>
-                            Process Text
+                            {isEnhancedMode ? "Process with AI Analysis" : "Process Text"}
                           </>
                         )}
                       </button>
@@ -421,10 +494,18 @@ const AddChapter = () => {
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-medium text-gray-900">Final Prompt</h2>
-                    <div className="flex-shrink-0">
+                    <div className="flex items-center space-x-2">
+                      {chapterData.hasEmbedding && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <svg className="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          With Embeddings
+                        </span>
+                      )}
                       <span className="text-sm text-gray-500">
                         Processed text will appear here automatically
-                          </span>
+                      </span>
                     </div>
                   </div>
                   <div>

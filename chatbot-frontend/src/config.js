@@ -50,6 +50,9 @@ export const API_ENDPOINTS = {
   
   // Chapter preparation endpoints
   PROCESS_TEXT_BATCH: `${API_URL}/api/chapters/process-text-batch`,
+  ENHANCED_BATCH_PROCESS: `${API_URL}/api/chapters/enhanced-batch-process`,
+  GENERATE_EMBEDDINGS: `${API_URL}/api/chapters/generate-embeddings`,
+  SEMANTIC_SEARCH: `${API_URL}/api/chapters/semantic-search`,
   
   // Notification endpoints
   GET_NOTIFICATIONS: `${API_URL}/api/notifications`,
