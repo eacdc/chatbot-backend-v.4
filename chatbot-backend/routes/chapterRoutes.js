@@ -176,6 +176,333 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
   }
 });
 
+// Enhanced batch processing with embeddings and question analysis
+router.post("/enhanced-batch-process", authenticateAdmin, async (req, res) => {
+  try {
+    const { rawText } = req.body;
+
+    if (!rawText) {
+      return res.status(400).json({ error: "Raw text is required" });
+    }
+
+    // First process the text normally to get structured content
+    const processedResult = await processBatchTextInternal(rawText);
+    
+    if (!processedResult.success) {
+      return res.status(500).json({ 
+        error: "Failed to process text", 
+        message: processedResult.error || "Unknown error"
+      });
+    }
+
+    // Generate embeddings for the processed text
+    let embeddingVector;
+    try {
+      const embeddingResponse = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: processedResult.combinedPrompt,
+        encoding_format: "float"
+      });
+      
+      embeddingVector = embeddingResponse.data[0].embedding;
+      console.log("Successfully generated embeddings for the processed text");
+    } catch (error) {
+      console.error("Error generating embeddings:", error);
+      // Continue even if embedding generation fails
+    }
+
+    // Extract and process questions
+    let enhancedQuestions = [];
+    let questionsToProcess = [];
+
+    // Try to extract questions from the processed text
+    if (processedResult.isQuestionFormat && processedResult.questionArray) {
+      questionsToProcess = processedResult.questionArray;
+    } else {
+      // Try to extract questions using regex if not already in question format
+      const questionMatches = processedResult.combinedPrompt.match(/\{[\s\S]*?"subtopic"[\s\S]*?"question"[\s\S]*?\}/g);
+      
+      if (questionMatches && questionMatches.length > 0) {
+        console.log(`Found ${questionMatches.length} potential question objects`);
+        
+        for (const match of questionMatches) {
+          try {
+            const cleanedJson = match.trim().replace(/,\s*$/, '');
+            const questionObj = JSON.parse(cleanedJson);
+            
+            if (questionObj.subtopic && questionObj.question) {
+              questionsToProcess.push(questionObj);
+            }
+          } catch (error) {
+            console.error("Error parsing question JSON:", error);
+          }
+        }
+      }
+    }
+
+    console.log(`Processing ${questionsToProcess.length} questions for enhanced analysis`);
+
+    // Process each question to add metadata
+    for (let i = 0; i < questionsToProcess.length; i++) {
+      const question = questionsToProcess[i];
+      
+      try {
+        console.log(`Analyzing question ${i+1}/${questionsToProcess.length}`);
+        
+        // Generate answer, difficulty, and marks for each question
+        const analysisResponse = await openai.chat.completions.create({
+          model: "gpt-4.1",
+          temperature: 0.2,
+          messages: [
+            { 
+              role: "system", 
+              content: `You are an expert educational content analyzer. 
+Analyze the given question and determine its difficulty level, appropriate marks, and a tentative answer.
+Structure your response as a valid JSON object with these fields:
+- "tentativeAnswer": A comprehensive answer to the question
+- "difficultyLevel": Either "Easy", "Medium", or "Hard" based on the complexity
+- "marks": A number between 1-10 based on the question complexity and length (higher for harder questions)
+
+Return ONLY the JSON object without any explanation or additional text.`
+            },
+            { role: "user", content: question.question }
+          ]
+        });
+        
+        const analysisText = analysisResponse.choices[0].message.content.trim();
+        let analysis;
+        
+        try {
+          // Try to parse the response as JSON
+          analysis = JSON.parse(analysisText);
+        } catch (error) {
+          console.error("Error parsing analysis response:", error);
+          // Create a fallback analysis object
+          analysis = {
+            tentativeAnswer: "Analysis failed",
+            difficultyLevel: "Medium",
+            marks: 3
+          };
+        }
+        
+        // Build enhanced question object
+        const enhancedQuestion = {
+          Q: question.Q || i + 1,
+          subtopic: question.subtopic || "General",
+          question: question.question,
+          tentativeAnswer: analysis.tentativeAnswer,
+          difficultyLevel: analysis.difficultyLevel,
+          marks: analysis.marks,
+          question_marks: analysis.marks || 3,
+          questionId: `QID-${Date.now()}-${i}`
+        };
+        
+        enhancedQuestions.push(enhancedQuestion);
+      } catch (error) {
+        console.error(`Error analyzing question ${i+1}:`, error);
+        
+        // Add the question with default values
+        enhancedQuestions.push({
+          Q: question.Q || i + 1,
+          subtopic: question.subtopic || "General",
+          question: question.question,
+          tentativeAnswer: "Not available",
+          difficultyLevel: "Medium",
+          marks: 3,
+          question_marks: 3,
+          questionId: `QID-${Date.now()}-${i}`
+        });
+      }
+    }
+
+    // Format the final result
+    const finalResult = {
+      success: true,
+      message: `Enhanced processing completed with ${enhancedQuestions.length} questions analyzed`,
+      hasEmbedding: !!embeddingVector,
+      questionArray: enhancedQuestions,
+      totalQuestions: enhancedQuestions.length,
+      combinedPrompt: JSON.stringify(enhancedQuestions)
+    };
+
+    // Add embedding if available
+    if (embeddingVector) {
+      finalResult.embedding = embeddingVector;
+    }
+
+    res.json(finalResult);
+
+  } catch (error) {
+    console.error("Error in enhanced batch processing:", error);
+    res.status(500).json({ 
+      error: "Failed to process text", 
+      message: error.message || "Unknown error"
+    });
+  }
+});
+
+// Internal version of processBatchText that returns data instead of sending response
+async function processBatchTextInternal(rawText) {
+  try {
+    console.log(`Processing text with batching. Text length: ${rawText.length} characters`);
+    
+    // Split text into smaller parts at sentence boundaries
+    const textParts = splitTextIntoSentenceParts(rawText, 20);
+    console.log(`Split text into ${textParts.length} parts`);
+    
+    // Fetch the system prompt from the database
+    let systemPrompt;
+    try {
+      const promptDoc = await Prompt.findOne({ prompt_type: "batchProcessing", isActive: true });
+      if (promptDoc) {
+        systemPrompt = promptDoc.prompt;
+        console.log("Successfully loaded Batch Processing prompt from database");
+      } else {
+        systemPrompt = "";
+        console.warn("Warning: Batch Processing system prompt not found in database, using default");
+      }
+    } catch (error) {
+      console.error("Error fetching Batch Processing system prompt:", error);
+      systemPrompt = "";
+    }
+
+    // Process each part with OpenAI and collect responses
+    const collatedResponses = {};
+    
+    for (let i = 0; i < textParts.length; i++) {
+      try {
+        console.log(`Processing part ${i+1}/${textParts.length}`);
+        
+        // Construct messages for OpenAI
+        const messagesForOpenAI = [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: textParts[i] }
+        ];
+        
+        // Function to make OpenAI request with retry logic
+        const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
+          try {
+            console.log(`OpenAI request for part ${i+1} attempt ${retryCount + 1}/${maxRetries + 1}`);
+            
+            // Send request to OpenAI
+            const response = await openai.chat.completions.create({
+              model: "gpt-4.1",
+              temperature: 0,
+              messages: messagesForOpenAI,
+            });
+            
+            if (!response || !response.choices || response.choices.length === 0) {
+              throw new Error("Invalid response from OpenAI");
+            }
+            
+            return response;
+          } catch (error) {
+            // If we've reached max retries, throw the error
+            if (retryCount >= maxRetries) {
+              throw error;
+            }
+            
+            console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+            
+            // Wait before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
+            
+            // Try again with incremented retry count
+            return makeOpenAIRequest(retryCount + 1, maxRetries);
+          }
+        };
+        
+        const response = await makeOpenAIRequest();
+
+        if (!response || !response.choices || response.choices.length === 0) {
+          console.error(`Invalid or empty response from OpenAI for part ${i+1}`);
+          collatedResponses[`part_${i+1}`] = "Error processing this section";
+        } else {
+          const processedText = response.choices[0].message.content;
+          console.log(`Part ${i+1} processed successfully. Result length: ${processedText.length}`);
+          collatedResponses[`part_${i+1}`] = processedText;
+        }
+      } catch (error) {
+        console.error(`Error processing part ${i+1}:`, error);
+        collatedResponses[`part_${i+1}`] = "Error processing this section";
+      }
+    }
+    
+    // Combine all responses
+    const combinedPrompt = Object.values(collatedResponses).join("\n\n");
+    
+    // Check if the combined text appears to contain JSON formatted questions
+    if (combinedPrompt.includes('"Q":') && combinedPrompt.includes('"question":')) {
+      try {
+        console.log("Detected question format in the batch output");
+        
+        // Extract JSON objects from the text
+        const questionJsonObjects = combinedPrompt.match(/\{[\s\S]*?"Q"[\s\S]*?"question"[\s\S]*?\}/g);
+        
+        if (questionJsonObjects && questionJsonObjects.length > 0) {
+          console.log(`Found ${questionJsonObjects.length} potential question objects in the text`);
+          
+          // Parse each JSON object
+          const structuredQuestions = [];
+          
+          for (const jsonStr of questionJsonObjects) {
+            try {
+              // Clean up the JSON string
+              const cleanedJson = jsonStr.trim().replace(/,\s*$/, '');
+              const questionObj = JSON.parse(cleanedJson);
+              
+              // Validate the required fields
+              if (questionObj.Q !== undefined && questionObj.question) {
+                // Add default values for missing fields
+                structuredQuestions.push({
+                  Q: questionObj.Q,
+                  question: questionObj.question,
+                  question_marks: questionObj.question_marks || 1,
+                  subtopic: questionObj.subtopic || "General",
+                  tentativeAnswer: questionObj.tentativeAnswer || "",
+                  difficultyLevel: questionObj.difficultyLevel || "Medium"
+                });
+              }
+            } catch (parseError) {
+              console.error(`Error parsing question JSON:`, parseError.message);
+            }
+          }
+          
+          if (structuredQuestions.length > 0) {
+            console.log(`Successfully structured ${structuredQuestions.length} questions`);
+            
+            return {
+              success: true,
+              message: `Text processed and structured into ${structuredQuestions.length} questions`,
+              combinedPrompt: JSON.stringify(structuredQuestions),
+              isQuestionFormat: true,
+              questionArray: structuredQuestions,
+              totalQuestions: structuredQuestions.length
+            };
+          }
+        }
+      } catch (formatError) {
+        console.error("Error attempting to format as questions:", formatError);
+      }
+    }
+    
+    // Standard response format - only reaches here if question formatting fails
+    return {
+      success: true,
+      message: "Text processed successfully",
+      combinedPrompt: combinedPrompt,
+      isQuestionFormat: false
+    };
+    
+  } catch (error) {
+    console.error("Error in batch processing:", error);
+    return {
+      success: false,
+      error: error.message || "Unknown error"
+    };
+  }
+}
+
 // Process raw text through OpenAI with text splitting (batched processing)
 router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
   return await processBatchText(req, res);
@@ -351,15 +678,16 @@ async function processBatchText(req, res) {
                       // Check if the question should be kept
                       const validationResult = await validateQuestionWithOpenAI(questionObj.question);
                       if (validationResult === "keep") {
-                  // Add default values for missing fields
-                  structuredQuestions.push({
-                    Q: questionObj.Q,
-                    question: questionObj.question,
-                    question_answered: questionObj.question_answered || false,
-                    question_marks: questionObj.question_marks || 1,
-                    marks_gained: questionObj.marks_gained || 0
-                  });
-                  successCount++;
+                        // Add default values for missing fields
+                        structuredQuestions.push({
+                          Q: questionObj.Q,
+                          question: questionObj.question,
+                          question_marks: questionObj.question_marks || 1,
+                          subtopic: questionObj.subtopic || "General",
+                          tentativeAnswer: questionObj.tentativeAnswer || "",
+                          difficultyLevel: questionObj.difficultyLevel || "Medium"
+                        });
+                        successCount++;
                       } else {
                         console.log(`Skipping question at index ${index} based on validation`);
                         errorCount++;
@@ -370,9 +698,10 @@ async function processBatchText(req, res) {
                       structuredQuestions.push({
                         Q: questionObj.Q,
                         question: questionObj.question,
-                        question_answered: questionObj.question_answered || false,
                         question_marks: questionObj.question_marks || 1,
-                        marks_gained: questionObj.marks_gained || 0
+                        subtopic: questionObj.subtopic || "General",
+                        tentativeAnswer: questionObj.tentativeAnswer || "",
+                        difficultyLevel: questionObj.difficultyLevel || "Medium"
                       });
                       successCount++;
                     } finally {
@@ -599,5 +928,112 @@ given to you, then you can rephrase the question to make it complete. Keep the t
     return "keep";
   }
 }
+
+// Semantic search for chapters using embeddings
+router.post("/semantic-search", authenticateUser, async (req, res) => {
+  try {
+    const { query, limit = 5, bookId } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: "Search query is required" });
+    }
+    
+    // Find chapters with embeddings, optionally filtered by bookId
+    const queryOptions = { embedding: { $ne: null } };
+    if (bookId) {
+      queryOptions.bookId = bookId;
+    }
+    
+    // Get total count of chapters with embeddings
+    const chaptersWithEmbeddingsCount = await Chapter.countDocuments(queryOptions);
+    
+    if (chaptersWithEmbeddingsCount === 0) {
+      return res.status(404).json({ 
+        message: "No chapters with embeddings found. Please process chapters first." 
+      });
+    }
+    
+    // Use the model's findSimilar method to get semantically similar chapters
+    const similarChapters = await Chapter.findSimilar(query, limit);
+    
+    // Format response to include relevant fields
+    const results = similarChapters.map(chapter => ({
+      chapterId: chapter.chapterId,
+      title: chapter.title,
+      bookId: chapter.bookId,
+      createdAt: chapter.createdAt,
+      questionCount: Array.isArray(chapter.questionPrompt) ? chapter.questionPrompt.length : 0
+    }));
+    
+    res.json({
+      success: true,
+      message: `Found ${results.length} similar chapters`,
+      results,
+      total: chaptersWithEmbeddingsCount
+    });
+    
+  } catch (error) {
+    console.error("Error in semantic search:", error);
+    res.status(500).json({ 
+      error: "Failed to perform semantic search", 
+      message: error.message 
+    });
+  }
+});
+
+// Generate embeddings for existing chapters that don't have them yet
+router.post("/generate-embeddings", authenticateAdmin, async (req, res) => {
+  try {
+    const { bookId } = req.body;
+    
+    // Find chapters without embeddings, optionally filtered by bookId
+    const queryOptions = { embedding: null };
+    if (bookId) {
+      queryOptions.bookId = bookId;
+    }
+    
+    const chapters = await Chapter.find(queryOptions);
+    
+    if (chapters.length === 0) {
+      return res.json({
+        message: "No chapters found that need embeddings",
+        processed: 0
+      });
+    }
+    
+    console.log(`Found ${chapters.length} chapters that need embeddings`);
+    
+    let processed = 0;
+    let errors = 0;
+    
+    // Process each chapter to generate embeddings
+    for (const chapter of chapters) {
+      try {
+        await chapter.generateEmbedding();
+        await chapter.save();
+        processed++;
+        console.log(`Generated embedding for chapter: ${chapter.title} (${processed}/${chapters.length})`);
+      } catch (error) {
+        console.error(`Error generating embedding for chapter ${chapter.chapterId}:`, error);
+        errors++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Generated embeddings for ${processed} chapters with ${errors} errors`,
+      processed,
+      errors,
+      total: chapters.length
+    });
+    
+  } catch (error) {
+    console.error("Error generating embeddings:", error);
+    res.status(500).json({
+      error: "Failed to generate embeddings",
+      message: error.message
+    });
+  }
+});
 
 module.exports = router;
