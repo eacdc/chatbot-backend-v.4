@@ -36,6 +36,7 @@ adminAxiosInstance.interceptors.request.use(
 adminAxiosInstance.interceptors.response.use(
   (response) => {
     console.log('Admin response status:', response.status); // Debug log
+    console.log('Admin response raw data:', JSON.stringify(response.data)); // Log raw response data
     return response;
   },
   async (error) => {
@@ -78,5 +79,23 @@ adminAxiosInstance.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Debug function to test API endpoints
+export const testEndpoint = async (endpoint, data = {}) => {
+  try {
+    console.log(`Testing endpoint: ${endpoint}`);
+    const response = await adminAxiosInstance.post(endpoint, data);
+    console.log('Test response status:', response.status);
+    console.log('Test response data:', JSON.stringify(response.data));
+    return response;
+  } catch (error) {
+    console.error('Test error:', error);
+    if (error.response) {
+      console.error('Test error status:', error.response.status);
+      console.error('Test error data:', error.response.data);
+    }
+    throw error;
+  }
+};
 
 export default adminAxiosInstance; 
