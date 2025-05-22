@@ -7,7 +7,6 @@ const API_URL = process.env.REACT_APP_API_URL || 'https://chatbot-backend-v-4.on
 console.log('Admin API URL:', API_URL);
 
 const adminAxiosInstance = axios.create({
-  baseURL: API_URL,
   timeout: 1800000, // 30 minutes timeout for very large text processing operations
   headers: {
     'Content-Type': 'application/json'
