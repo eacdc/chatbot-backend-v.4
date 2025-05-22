@@ -10,6 +10,7 @@ const AddChapter = () => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isEnhancedMode, setIsEnhancedMode] = useState(true); // Default to using enhanced mode
+  const [autoSaveQnA, setAutoSaveQnA] = useState(true); // Default to auto-save after QnA generation
   const [chapterData, setChapterData] = useState({
     bookId: "",
     title: "",
@@ -80,6 +81,11 @@ const AddChapter = () => {
       return;
     }
 
+    if (!chapterData.title.trim()) {
+      setError("Please enter a chapter title");
+      return;
+    }
+
     if (!chapterData.subject) {
       const selectedBook = books.find((book) => book._id === chapterData.bookId);
       if (selectedBook && selectedBook.subject) {
@@ -119,24 +125,33 @@ const AddChapter = () => {
       const response = await adminAxiosInstance.post(endpoint, 
         { 
           rawText: chapterData.rawText,
-          subject: chapterData.subject
+          subject: chapterData.subject,
+          bookId: chapterData.bookId,
+          title: chapterData.title
         }
       );
       
       console.log("Processing response received:", response.status);
       
       if (response.data && response.data.success) {
-        // Check if response has embedding data (from enhanced mode)
-        const hasEmbedding = !!response.data.hasEmbedding;
-        let embedding = null;
-        
-        if (hasEmbedding && response.data.embedding) {
-          console.log("Received embedding data");
-          embedding = response.data.embedding;
-        }
-        
-        // Check if response contains structured question data
-        if (response.data.isQuestionFormat && response.data.questionArray) {
+        if (isEnhancedMode && response.data.chapter) {
+          // For enhanced mode with direct save
+          console.log("Chapter created with raw text embedding and question analysis");
+          
+          setSuccessMessage(`Chapter "${response.data.chapter.title}" successfully created with ${response.data.enhancedQuestions.length} analyzed questions!`);
+          
+          // Reset form
+          setChapterData({
+            bookId: "",
+            title: "",
+            rawText: "",
+            subject: "",
+            finalPrompt: "",
+            hasEmbedding: false,
+            embedding: null
+          });
+        } else if (response.data.isQuestionFormat && response.data.questionArray) {
+          // Standard processing with question format
           console.log(`Received structured question data with ${response.data.totalQuestions} questions`);
           
           // Store the question array in finalPrompt as JSON string
@@ -145,27 +160,22 @@ const AddChapter = () => {
             finalPrompt: response.data.combinedPrompt,
             hasQuestionFormat: true,
             questionCount: response.data.totalQuestions,
-            hasEmbedding,
-            embedding
+            hasEmbedding: !!response.data.hasEmbedding,
+            embedding: response.data.embedding || null
           });
           
-          const enhancedMessage = hasEmbedding 
-            ? ` with embeddings and` 
-            : ` with`;
-            
-          setSuccessMessage(`Text successfully processed! ${response.data.totalQuestions} questions extracted${enhancedMessage} metadata ready to save.`);
+          setSuccessMessage(`Text successfully processed! ${response.data.totalQuestions} questions extracted with metadata ready to save.`);
         } else if (response.data.combinedPrompt) {
           // Regular text processing
           setChapterData({
             ...chapterData,
             finalPrompt: response.data.combinedPrompt,
             hasQuestionFormat: false,
-            hasEmbedding,
-            embedding
+            hasEmbedding: !!response.data.hasEmbedding,
+            embedding: response.data.embedding || null
           });
           
-          const embedMessage = hasEmbedding ? " with embeddings" : "";
-          setSuccessMessage(`Text successfully processed${embedMessage}! Ready to save as chapter.`);
+          setSuccessMessage(`Text successfully processed! Ready to save as chapter.`);
         } else {
           setError("Processing did not complete successfully");
         }
@@ -216,13 +226,136 @@ const AddChapter = () => {
     }
   };
 
+  const handleGenerateQnA = async () => {
+    if (!chapterData.rawText.trim()) {
+      setError("Please enter some text in the Raw Text field");
+      return;
+    }
+
+    if (!chapterData.bookId) {
+      setError("Please select a book");
+      return;
+    }
+
+    if (!chapterData.title.trim()) {
+      setError("Please enter a chapter title");
+      return;
+    }
+
+    if (!chapterData.subject) {
+      const selectedBook = books.find((book) => book._id === chapterData.bookId);
+      if (selectedBook && selectedBook.subject) {
+        // Update subject if it's not set but book is selected
+        setChapterData(prevData => ({
+          ...prevData,
+          subject: selectedBook.subject
+        }));
+      } else {
+        setError("Could not determine subject from selected book");
+        return;
+      }
+    }
+
+    setProcessingLoading(true);
+    setError("");
+    setSuccessMessage("");
+    
+    try {
+      const adminToken = localStorage.getItem("adminToken");
+      if (!adminToken) {
+        setError("Please log in as an admin to continue");
+        setProcessingLoading(false);
+        return;
+      }
+
+      // Use the generate-qna endpoint
+      const response = await adminAxiosInstance.post(
+        API_ENDPOINTS.GENERATE_QNA, 
+        { 
+          rawText: chapterData.rawText,
+          subject: chapterData.subject,
+          bookId: chapterData.bookId,
+          title: chapterData.title,
+          saveChapter: autoSaveQnA
+        }
+      );
+      
+      console.log("QnA generation response received:", response.status);
+      
+      if (response.data && response.data.success) {
+        // Store the analyzed questions in finalPrompt as JSON string
+        setChapterData({
+          ...chapterData,
+          finalPrompt: JSON.stringify(response.data.analyzedQuestions, null, 2),
+          hasQuestionFormat: true,
+          questionCount: response.data.analyzedQuestions.length
+        });
+        
+        if (autoSaveQnA) {
+          setSuccessMessage(`Successfully generated ${response.data.analyzedQuestions.length} questions and saved chapter!`);
+          
+          // Reset the form if auto-save was enabled
+          setTimeout(() => {
+            setChapterData({
+              bookId: "",
+              title: "",
+              rawText: "",
+              subject: "",
+              finalPrompt: "",
+              hasEmbedding: false,
+              embedding: null,
+              hasQuestionFormat: false,
+              questionCount: 0
+            });
+          }, 2000);
+        } else {
+          setSuccessMessage(`Successfully generated ${response.data.analyzedQuestions.length} questions with analysis! Click "Add Chapter" to save.`);
+        }
+      } else {
+        setError("Failed to generate QnA");
+      }
+    } catch (error) {
+      console.error("Error generating QnA:", error);
+      
+      // Error handling
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", JSON.stringify(error.response.data));
+        
+        if (error.response.status === 401) {
+          setError("Authentication failed. Please log in again as an admin.");
+          return;
+        }
+        
+        if (error.response.status === 504) {
+          setError("Processing timed out. The text may be too complex. Please try again with smaller text.");
+          return;
+        }
+      } else if (error.request) {
+        console.error("No response received from server");
+        setError("No response received from server. Please check your connection.");
+        return;
+      }
+      
+      setError(error.response?.data?.error || error.message || "Failed to generate QnA. Please try again.");
+    } finally {
+      setProcessingLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+    
+    // In enhanced mode with direct save, we don't need to submit manually
+    if (isEnhancedMode && successMessage.includes("successfully created")) {
+      setLoading(false);
+      return;
+    }
   
     if (!chapterData.finalPrompt) {
-      setError("Please process the text before adding the chapter");
+      setError("Please process the text or generate QnA before adding the chapter");
       setLoading(false);
       return;
     }
@@ -242,43 +375,51 @@ const AddChapter = () => {
       }
     }
   
-    const dataToSubmit = {
-      bookId: chapterData.bookId,
-      title: chapterData.title,
-      subject: chapterData.subject,
-      prompt: chapterData.finalPrompt
-    };
+    let dataToSubmit;
     
-    // If we have embedding data, include it (the backend will recognize and store it)
-    if (chapterData.hasEmbedding && chapterData.embedding) {
-      dataToSubmit.embedding = chapterData.embedding;
-    }
-    
-    try {
-      const adminToken = localStorage.getItem("adminToken");
-      if (!adminToken) {
-        setError("Please log in as an admin to continue");
+    // If we have generated QnA questions, we need to format them differently
+    if (chapterData.hasQuestionFormat && chapterData.finalPrompt) {
+      try {
+        // Parse the finalPrompt back to an array
+        const analyzedQuestions = JSON.parse(chapterData.finalPrompt);
+        
+        dataToSubmit = {
+          bookId: chapterData.bookId,
+          title: chapterData.title,
+          subject: chapterData.subject,
+          prompt: JSON.stringify(analyzedQuestions), // Save the questions as a JSON string
+          rawText: chapterData.rawText, // Include raw text for storage
+          questionPrompt: analyzedQuestions // Send as proper array for the backend to process
+        };
+      } catch (error) {
+        console.error("Error parsing finalPrompt JSON:", error);
+        setError("Invalid question format. Please regenerate the QnA.");
         setLoading(false);
         return;
       }
-
-      console.log("Sending request to add chapter with admin token...");
-      console.log("Chapter data:", { 
-        bookId: dataToSubmit.bookId, 
-        title: dataToSubmit.title, 
-        subject: dataToSubmit.subject,
-        promptLength: dataToSubmit.prompt.length,
-        hasEmbedding: chapterData.hasEmbedding
-      });
-      
-      const response = await adminAxiosInstance.post(
-        API_ENDPOINTS.ADD_CHAPTER, 
-        dataToSubmit
-      );
+    } else {
+      // Standard format
+      dataToSubmit = {
+        bookId: chapterData.bookId,
+        title: chapterData.title,
+        subject: chapterData.subject,
+        prompt: chapterData.finalPrompt,
+        rawText: chapterData.rawText // Include raw text for storage
+      };
+    }
+    
+    // Add embedding if it exists
+    if (chapterData.hasEmbedding && chapterData.embedding) {
+      dataToSubmit.embedding = chapterData.embedding;
+    }
+  
+    try {
+      const response = await adminAxiosInstance.post(API_ENDPOINTS.ADD_CHAPTER, dataToSubmit);
       
       if (response.status === 201) {
-        setSuccessMessage("Chapter added successfully!");
-        // Reset form after successful submission
+        setSuccessMessage(`Chapter "${response.data.title}" added successfully!`);
+        
+        // Reset form
         setChapterData({
           bookId: "",
           title: "",
@@ -286,22 +427,16 @@ const AddChapter = () => {
           subject: "",
           finalPrompt: "",
           hasEmbedding: false,
-          embedding: null
+          embedding: null,
+          hasQuestionFormat: false,
+          questionCount: 0
         });
+      } else {
+        setError("Failed to add chapter. Please try again.");
       }
     } catch (error) {
       console.error("Error adding chapter:", error);
-      if (error.response) {
-        console.error("Response status:", error.response.status);
-        console.error("Response data:", error.response.data);
-        
-        // Handle specific error cases
-        if (error.response.status === 401) {
-          setError("Authentication failed. Please log in again as an admin.");
-          return;
-        }
-      }
-      setError(error.response?.data?.error || error.response?.data?.message || "Failed to add chapter. Please try again.");
+      setError(error.response?.data?.error || "Failed to add chapter. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -446,6 +581,32 @@ const AddChapter = () => {
                       </div>
                     </div>
                   </div>
+                  
+                  <div className="sm:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700">QnA Options</label>
+                    <div className="mt-2">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={autoSaveQnA}
+                          onChange={() => setAutoSaveQnA(!autoSaveQnA)}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                        <span className="ml-2 text-sm text-gray-600">Auto-save chapter after generating QnA</span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        When enabled, the chapter will be saved automatically after questions are generated
+                      </p>
+                      <div className="mt-2 flex items-center">
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full flex items-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Uses vector embeddings for semantic question analysis
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -453,7 +614,7 @@ const AddChapter = () => {
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-medium text-gray-900">Raw Text</h2>
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 flex space-x-2">
                       <button 
                         type="button" 
                         onClick={handleProcessText}
@@ -474,6 +635,30 @@ const AddChapter = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                             </svg>
                             {isEnhancedMode ? "Process with AI Analysis" : "Process Text"}
+                          </>
+                        )}
+                      </button>
+
+                      <button 
+                        type="button" 
+                        onClick={handleGenerateQnA}
+                        disabled={processingLoading}
+                        className={`${processingLoading ? 'bg-purple-400' : 'bg-purple-600 hover:bg-purple-700'} text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 inline-flex items-center text-sm font-medium`}
+                      >
+                        {processingLoading ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Generating QnA...
+                          </span>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Generate QnA with Vector Search
                           </>
                         )}
                       </button>

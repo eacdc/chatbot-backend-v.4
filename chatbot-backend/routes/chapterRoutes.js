@@ -20,13 +20,31 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // In routes/chapters.js
 router.post("/", authenticateAdmin, async (req, res) => {
     try {
-      const { bookId, title, prompt } = req.body;
-      const newChapter = new Chapter({ bookId, title, prompt });
+      const { bookId, title, prompt, rawText, questionPrompt } = req.body;
+
+      // Create a new chapter object with the required fields
+      const newChapter = new Chapter({ 
+        bookId, 
+        title, 
+        prompt 
+      });
+
+      // Add optional fields if provided
+      if (rawText) {
+        newChapter.rawText = rawText;
+      }
+
+      // Add questionPrompt array if provided
+      if (questionPrompt && Array.isArray(questionPrompt)) {
+        newChapter.questionPrompt = questionPrompt;
+      }
+
+      // Save the chapter
       const savedChapter = await newChapter.save();
       res.status(201).json(savedChapter);
     } catch (error) {
       console.error("Error adding chapter:", error);
-      res.status(500).json({ error: "Failed to add chapter" });
+      res.status(500).json({ error: "Failed to add chapter", message: error.message });
     }
   });
 
@@ -179,10 +197,10 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
 // Enhanced batch processing with embeddings and question analysis
 router.post("/enhanced-batch-process", authenticateAdmin, async (req, res) => {
   try {
-    const { rawText } = req.body;
+    const { rawText, bookId, title } = req.body;
 
-    if (!rawText) {
-      return res.status(400).json({ error: "Raw text is required" });
+    if (!rawText || !bookId || !title) {
+      return res.status(400).json({ error: "Raw text, bookId, and title are required" });
     }
 
     // First process the text normally to get structured content
@@ -195,19 +213,19 @@ router.post("/enhanced-batch-process", authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Generate embeddings for the processed text
-    let embeddingVector;
+    // Generate embeddings for the raw text (for knowledge base)
+    let rawTextEmbedding;
     try {
       const embeddingResponse = await openai.embeddings.create({
         model: "text-embedding-3-small",
-        input: processedResult.combinedPrompt,
+        input: rawText,
         encoding_format: "float"
       });
       
-      embeddingVector = embeddingResponse.data[0].embedding;
-      console.log("Successfully generated embeddings for the processed text");
+      rawTextEmbedding = embeddingResponse.data[0].embedding;
+      console.log("Successfully generated embeddings for the raw text knowledge base");
     } catch (error) {
-      console.error("Error generating embeddings:", error);
+      console.error("Error generating raw text embeddings:", error);
       // Continue even if embedding generation fails
     }
 
@@ -242,101 +260,189 @@ router.post("/enhanced-batch-process", authenticateAdmin, async (req, res) => {
 
     console.log(`Processing ${questionsToProcess.length} questions for enhanced analysis`);
 
-    // Process each question to add metadata
+    // Process each question to add metadata using raw text as knowledge base
     for (let i = 0; i < questionsToProcess.length; i++) {
       const question = questionsToProcess[i];
       
       try {
         console.log(`Analyzing question ${i+1}/${questionsToProcess.length}`);
         
-        // Generate answer, difficulty, and marks for each question
+        // Use the raw text as context for question analysis
         const analysisResponse = await openai.chat.completions.create({
-          model: "gpt-4.1",
+          model: "gpt-4-turbo",
           temperature: 0.2,
           messages: [
-            { 
-              role: "system", 
-              content: `You are an expert educational content analyzer. 
-Analyze the given question and determine its difficulty level, appropriate marks, and a tentative answer.
-Structure your response as a valid JSON object with these fields:
-- "tentativeAnswer": A comprehensive answer to the question
-- "difficultyLevel": Either "Easy", "Medium", or "Hard" based on the complexity
-- "marks": A number between 1-10 based on the question complexity and length (higher for harder questions)
-
-Return ONLY the JSON object without any explanation or additional text.`
+            {
+              role: "system",
+              content: `You are an educational content analyzer. Given a question and the original text content, determine:
+              1. The difficulty level (Easy, Medium, Hard)
+              2. Appropriate marks for this question (1-10)
+              3. A tentative answer based on the content
+              
+              Use ONLY the provided content to determine the answer. If the answer cannot be derived from the content, say "Cannot determine from provided content."
+              Format your response as JSON with properties: difficultyLevel, question_marks, tentativeAnswer`
             },
-            { role: "user", content: question.question }
+            {
+              role: "user",
+              content: `CONTENT:\n${rawText}\n\nQUESTION: ${question.question}`
+            }
           ]
         });
         
-        const analysisText = analysisResponse.choices[0].message.content.trim();
-        let analysis;
+        const analysisContent = analysisResponse.choices[0].message.content;
+        let analysisData;
         
         try {
-          // Try to parse the response as JSON
-          analysis = JSON.parse(analysisText);
-        } catch (error) {
-          console.error("Error parsing analysis response:", error);
-          // Create a fallback analysis object
-          analysis = {
-            tentativeAnswer: "Analysis failed",
+          // Extract JSON data from the response
+          const jsonMatch = analysisContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            analysisData = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error("No JSON found in response");
+          }
+        } catch (parseError) {
+          console.error("Error parsing analysis response:", parseError);
+          // Create default analysis data
+          analysisData = {
             difficultyLevel: "Medium",
-            marks: 3
+            question_marks: 3,
+            tentativeAnswer: "Analysis failed - please review manually."
           };
         }
         
-        // Build enhanced question object
-        const enhancedQuestion = {
-          Q: question.Q || i + 1,
-          subtopic: question.subtopic || "General",
-          question: question.question,
-          tentativeAnswer: analysis.tentativeAnswer,
-          difficultyLevel: analysis.difficultyLevel,
-          marks: analysis.marks,
-          question_marks: analysis.marks || 3,
+        // Add the analysis data to the question
+        enhancedQuestions.push({
+          ...question,
+          difficultyLevel: analysisData.difficultyLevel || "Medium",
+          question_marks: parseInt(analysisData.question_marks || 3, 10),
+          tentativeAnswer: analysisData.tentativeAnswer || "",
           questionId: `QID-${Date.now()}-${i}`
-        };
+        });
         
-        enhancedQuestions.push(enhancedQuestion);
       } catch (error) {
         console.error(`Error analyzing question ${i+1}:`, error);
-        
         // Add the question with default values
         enhancedQuestions.push({
-          Q: question.Q || i + 1,
-          subtopic: question.subtopic || "General",
-          question: question.question,
-          tentativeAnswer: "Not available",
+          ...question,
           difficultyLevel: "Medium",
-          marks: 3,
           question_marks: 3,
+          tentativeAnswer: "Analysis failed - please review manually.",
           questionId: `QID-${Date.now()}-${i}`
         });
       }
     }
 
-    // Format the final result
-    const finalResult = {
+    // Create the new chapter with both raw text and processed text
+    const newChapter = new Chapter({
+      bookId,
+      title,
+      prompt: processedResult.combinedPrompt,
+      rawText,
+      questionPrompt: enhancedQuestions,
+      rawTextEmbedding
+    });
+
+    // Save the chapter
+    const savedChapter = await newChapter.save();
+    
+    res.status(201).json({
       success: true,
-      message: `Enhanced processing completed with ${enhancedQuestions.length} questions analyzed`,
-      hasEmbedding: !!embeddingVector,
-      questionArray: enhancedQuestions,
-      totalQuestions: enhancedQuestions.length,
-      combinedPrompt: JSON.stringify(enhancedQuestions)
-    };
-
-    // Add embedding if available
-    if (embeddingVector) {
-      finalResult.embedding = embeddingVector;
-    }
-
-    res.json(finalResult);
-
+      message: "Chapter processed and saved successfully",
+      chapter: savedChapter,
+      enhancedQuestions
+    });
+    
   } catch (error) {
     console.error("Error in enhanced batch processing:", error);
     res.status(500).json({ 
-      error: "Failed to process text", 
-      message: error.message || "Unknown error"
+      error: "Failed to process and save chapter", 
+      message: error.message 
+    });
+  }
+});
+
+// Analyze a new question using the chapter's raw text knowledge base
+router.post("/analyze-question/:chapterId", async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { question } = req.body;
+    
+    if (!question) {
+      return res.status(400).json({ error: "Question is required" });
+    }
+    
+    // Find the chapter
+    const chapter = await Chapter.findOne({ chapterId });
+    
+    if (!chapter) {
+      return res.status(404).json({ error: "Chapter not found" });
+    }
+    
+    // Ensure the chapter has raw text
+    if (!chapter.rawText) {
+      return res.status(400).json({ error: "Chapter doesn't have raw text for analysis" });
+    }
+    
+    // Use the raw text as context for question analysis
+    const analysisResponse = await openai.chat.completions.create({
+      model: "gpt-4-turbo",
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content: `You are an educational content analyzer. Given a question and the original text content, determine:
+          1. The difficulty level (Easy, Medium, Hard)
+          2. Appropriate marks for this question (1-10)
+          3. A tentative answer based on the content
+          
+          Use ONLY the provided content to determine the answer. If the answer cannot be derived from the content, say "Cannot determine from provided content."
+          Format your response as JSON with properties: difficultyLevel, question_marks, tentativeAnswer`
+        },
+        {
+          role: "user",
+          content: `CONTENT:\n${chapter.rawText}\n\nQUESTION: ${question}`
+        }
+      ]
+    });
+    
+    const analysisContent = analysisResponse.choices[0].message.content;
+    let analysisData;
+    
+    try {
+      // Extract JSON data from the response
+      const jsonMatch = analysisContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        analysisData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON found in response");
+      }
+    } catch (parseError) {
+      console.error("Error parsing analysis response:", parseError);
+      return res.status(500).json({ 
+        error: "Failed to parse analysis response", 
+        message: parseError.message 
+      });
+    }
+    
+    // Create a new question object with the analysis data
+    const analyzedQuestion = {
+      question,
+      difficultyLevel: analysisData.difficultyLevel || "Medium",
+      question_marks: parseInt(analysisData.question_marks || 3, 10),
+      tentativeAnswer: analysisData.tentativeAnswer || "",
+      questionId: `QID-${chapter._id}-${Date.now()}`
+    };
+    
+    res.json({
+      success: true,
+      analyzedQuestion
+    });
+    
+  } catch (error) {
+    console.error("Error analyzing question:", error);
+    res.status(500).json({ 
+      error: "Failed to analyze question", 
+      message: error.message 
     });
   }
 });
@@ -1035,5 +1141,303 @@ router.post("/generate-embeddings", authenticateAdmin, async (req, res) => {
     });
   }
 });
+
+// Generate QnA from raw text
+router.post("/generate-qna", authenticateAdmin, async (req, res) => {
+  try {
+    const { rawText, bookId, title, subject } = req.body;
+
+    if (!rawText || !bookId || !title) {
+      return res.status(400).json({ error: "Raw text, bookId, and title are required" });
+    }
+
+    // 1. Generate embedding for the raw text (knowledge base)
+    let rawTextEmbedding;
+    try {
+      const embeddingResponse = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: rawText,
+        encoding_format: "float"
+      });
+      
+      rawTextEmbedding = embeddingResponse.data[0].embedding;
+      console.log("Successfully generated embeddings for the raw text knowledge base");
+    } catch (error) {
+      console.error("Error generating raw text embeddings:", error);
+      return res.status(500).json({ error: "Failed to generate embeddings for knowledge base" });
+    }
+
+    // 2. Fetch the batch processing system prompt from the database
+    let systemPrompt;
+    try {
+      const promptDoc = await Prompt.findOne({ prompt_type: "batchProcessing", isActive: true });
+      if (promptDoc) {
+        systemPrompt = promptDoc.prompt;
+        console.log("Successfully loaded Batch Processing prompt from database");
+      } else {
+        systemPrompt = `You are an expert in creating educational questions from content.
+For the provided text, extract and create questions and organize them by subtopics.
+Format each question in a JSON structure as follows:
+{
+  "subtopic": "The subtopic name",
+  "question": "The complete question text"
+}
+
+Each question should be self-contained and not reference external figures or diagrams.
+Provide one question per JSON object and ensure they cover different concepts.`;
+        console.warn("Warning: Batch Processing system prompt not found in database, using default");
+      }
+    } catch (error) {
+      console.error("Error fetching Batch Processing system prompt:", error);
+      systemPrompt = `You are an expert in creating educational questions from content.
+For the provided text, extract and create questions and organize them by subtopics.
+Format each question in a JSON structure as follows:
+{
+  "subtopic": "The subtopic name",
+  "question": "The complete question text"
+}
+
+Each question should be self-contained and not reference external figures or diagrams.
+Provide one question per JSON object and ensure they cover different concepts.`;
+    }
+
+    // 3. Send raw text to LLM with batch processing prompt to get questions
+    const questionsResponse = await openai.chat.completions.create({
+      model: "gpt-4-turbo",
+      temperature: 0.5,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: rawText }
+      ]
+    });
+
+    if (!questionsResponse.choices || questionsResponse.choices.length === 0) {
+      return res.status(500).json({ error: "Failed to generate questions from content" });
+    }
+
+    // 4. Extract questions from the response
+    const questionsText = questionsResponse.choices[0].message.content;
+    console.log("Raw questions response:", questionsText);
+
+    // Extract JSON objects from the text using regex
+    const questionObjects = [];
+    const jsonRegex = /\{[\s\S]*?"subtopic"[\s\S]*?"question"[\s\S]*?\}/g;
+    const matches = questionsText.match(jsonRegex);
+
+    if (!matches || matches.length === 0) {
+      return res.status(500).json({ 
+        error: "Failed to extract question objects from the response",
+        rawResponse: questionsText
+      });
+    }
+
+    console.log(`Found ${matches.length} potential question objects`);
+
+    // Split raw text into chunks for embedding-based retrieval
+    const textChunks = splitTextIntoChunks(rawText, 1000, 200); // 1000 chars with 200 char overlap
+    console.log(`Split raw text into ${textChunks.length} chunks for embedding-based retrieval`);
+    
+    // Generate embeddings for each chunk
+    const chunkEmbeddings = [];
+    for (let i = 0; i < textChunks.length; i++) {
+      try {
+        const embeddingResponse = await openai.embeddings.create({
+          model: "text-embedding-3-small",
+          input: textChunks[i],
+          encoding_format: "float"
+        });
+        
+        chunkEmbeddings.push({
+          text: textChunks[i],
+          embedding: embeddingResponse.data[0].embedding
+        });
+        console.log(`Generated embedding for chunk ${i+1}/${textChunks.length}`);
+      } catch (error) {
+        console.error(`Error generating embedding for chunk ${i+1}:`, error);
+      }
+    }
+
+    // 5. Process each question to analyze it using vector embeddings
+    const analyzedQuestions = [];
+
+    for (let i = 0; i < matches.length; i++) {
+      try {
+        // Parse the question object
+        const cleanedJson = matches[i].trim().replace(/,\s*$/, '');
+        const questionObj = JSON.parse(cleanedJson);
+        
+        if (!questionObj.subtopic || !questionObj.question) {
+          console.error(`Invalid question object at index ${i}`);
+          continue;
+        }
+
+        console.log(`Analyzing question ${i+1}/${matches.length}: ${questionObj.question.substring(0, 50)}...`);
+        
+        // Generate embedding for the question
+        const questionEmbeddingResponse = await openai.embeddings.create({
+          model: "text-embedding-3-small",
+          input: questionObj.question,
+          encoding_format: "float"
+        });
+        
+        const questionEmbedding = questionEmbeddingResponse.data[0].embedding;
+        
+        // Find the most relevant chunks using cosine similarity
+        const relevantChunks = chunkEmbeddings
+          .map(chunk => ({
+            text: chunk.text,
+            similarity: cosineSimilarity(questionEmbedding, chunk.embedding)
+          }))
+          .sort((a, b) => b.similarity - a.similarity)
+          .slice(0, 3) // Get top 3 most relevant chunks
+          .map(chunk => chunk.text)
+          .join("\n\n");
+        
+        console.log(`Retrieved ${relevantChunks.length > 0 ? '3' : '0'} most relevant text chunks for question ${i+1}`);
+        
+        // 6. Use the relevant chunks for question analysis
+        const analysisResponse = await openai.chat.completions.create({
+          model: "gpt-4-turbo",
+          temperature: 0.2,
+          messages: [
+            {
+              role: "system",
+              content: `You are an educational content analyzer. Given a question and relevant content, determine:
+              1. The difficulty level (Easy, Medium, Hard)
+              2. Appropriate marks for this question (1-10)
+              3. A tentative answer based on the content
+              
+              Use ONLY the provided content to determine the answer. If the answer cannot be derived from the provided content, say "Cannot determine from provided content."
+              Format your response as JSON with properties: difficultyLevel, question_marks, tentativeAnswer`
+            },
+            {
+              role: "user",
+              content: `CONTENT:\n${relevantChunks}\n\nQUESTION: ${questionObj.question}`
+            }
+          ]
+        });
+        
+        const analysisContent = analysisResponse.choices[0].message.content;
+        let analysisData;
+        
+        try {
+          // Extract JSON data from the response
+          const jsonMatch = analysisContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            analysisData = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error("No JSON found in response");
+          }
+        } catch (parseError) {
+          console.error(`Error parsing analysis response for question ${i+1}:`, parseError);
+          // Create default analysis data
+          analysisData = {
+            difficultyLevel: "Medium",
+            question_marks: 3,
+            tentativeAnswer: "Analysis failed - please review manually."
+          };
+        }
+        
+        // 7. Add the question with analysis data to the results
+        analyzedQuestions.push({
+          subtopic: questionObj.subtopic,
+          question: questionObj.question,
+          difficultyLevel: analysisData.difficultyLevel || "Medium",
+          question_marks: parseInt(analysisData.question_marks || 3, 10),
+          tentativeAnswer: analysisData.tentativeAnswer || "",
+          questionId: `QID-${Date.now()}-${i}`
+        });
+        
+      } catch (error) {
+        console.error(`Error processing question ${i+1}:`, error);
+      }
+    }
+
+    // 8. Return the analyzed questions to the frontend
+    res.json({
+      success: true,
+      message: `Successfully generated and analyzed ${analyzedQuestions.length} questions using vector embeddings`,
+      analyzedQuestions,
+      hasRawTextEmbedding: !!rawTextEmbedding
+    });
+    
+    // Optionally save the chapter if requested
+    if (req.body.saveChapter === true) {
+      try {
+        // Create a new chapter with the analyzed questions
+        const newChapter = new Chapter({
+          bookId,
+          title,
+          prompt: JSON.stringify(analyzedQuestions),
+          rawText,
+          questionPrompt: analyzedQuestions,
+          rawTextEmbedding
+        });
+
+        // Save the chapter
+        await newChapter.save();
+        
+        console.log(`Chapter "${title}" saved with ${analyzedQuestions.length} analyzed questions`);
+      } catch (saveError) {
+        console.error("Error saving chapter during generate-qna:", saveError);
+        // Don't fail the request if chapter save fails, we've already returned success response
+      }
+    }
+    
+  } catch (error) {
+    console.error("Error in generate-qna:", error);
+    res.status(500).json({ 
+      error: "Failed to generate and analyze questions", 
+      message: error.message 
+    });
+  }
+});
+
+// Helper function to split text into chunks for embedding
+function splitTextIntoChunks(text, chunkSize = 1000, overlap = 200) {
+  const chunks = [];
+  let currentPos = 0;
+  
+  while (currentPos < text.length) {
+    let chunkEnd = Math.min(currentPos + chunkSize, text.length);
+    
+    // Try to find a natural break point (period followed by space)
+    if (chunkEnd < text.length) {
+      const nextPeriod = text.indexOf('. ', chunkEnd - overlap);
+      if (nextPeriod !== -1 && nextPeriod < chunkEnd + overlap) {
+        chunkEnd = nextPeriod + 2; // +2 to include the period and space
+      }
+    }
+    
+    chunks.push(text.substring(currentPos, chunkEnd));
+    
+    // Move position forward, accounting for overlap
+    currentPos = chunkEnd - overlap;
+    
+    // Make sure we're making progress
+    if (currentPos <= 0 || currentPos >= text.length) {
+      break;
+    }
+  }
+  
+  return chunks;
+}
+
+// Helper function to calculate cosine similarity
+function cosineSimilarity(vecA, vecB) {
+  if (!vecA || !vecB || vecA.length !== vecB.length) {
+    return 0;
+  }
+  
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const magnitudeA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+  const magnitudeB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+  
+  if (magnitudeA === 0 || magnitudeB === 0) {
+    return 0;
+  }
+  
+  return dotProduct / (magnitudeA * magnitudeB);
+}
 
 module.exports = router;
