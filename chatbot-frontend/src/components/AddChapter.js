@@ -281,9 +281,11 @@ const AddChapter = () => {
       );
       
       console.log("QnA generation response received:", response.status);
+      console.log("Response data:", response.data); // Log the full response data
       
       if (response.data && response.data.success) {
         // Store the analyzed questions in finalPrompt as JSON string
+        console.log("Analyzed questions:", response.data.analyzedQuestions); // Log the analyzed questions
         setChapterData({
           ...chapterData,
           finalPrompt: JSON.stringify(response.data.analyzedQuestions, null, 2),
