@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import adminAxiosInstance from "../utils/adminAxios";
+import adminAxiosInstance, { testEndpoint } from "../utils/adminAxios";
 import { API_ENDPOINTS } from "../config";
 
 const AddChapter = () => {
@@ -268,6 +268,9 @@ const AddChapter = () => {
         return;
       }
 
+      // Log the actual endpoint URL
+      console.log("Using QnA endpoint URL:", API_ENDPOINTS.GENERATE_QNA);
+
       // Use the generate-qna endpoint
       const response = await adminAxiosInstance.post(
         API_ENDPOINTS.GENERATE_QNA, 
@@ -347,6 +350,34 @@ const AddChapter = () => {
       }
       
       setError(error.response?.data?.error || error.message || "Failed to generate QnA. Please try again.");
+    } finally {
+      setProcessingLoading(false);
+    }
+  };
+
+  // Add a test function to directly check the endpoint
+  const testGenerateQnA = async () => {
+    try {
+      setProcessingLoading(true);
+      setError("");
+      setSuccessMessage("Testing endpoint directly...");
+      
+      // Minimal test data
+      const testData = {
+        rawText: "This is a test text. Physics is the study of matter and energy.",
+        bookId: chapterData.bookId || "6819ddc8ec8dd4bcc19b9207", // Use current or fallback ID
+        title: "Test Chapter",
+        subject: "SCIENCE",
+        saveChapter: false
+      };
+      
+      console.log("Testing endpoint with data:", testData);
+      await testEndpoint(API_ENDPOINTS.GENERATE_QNA, testData);
+      
+      setSuccessMessage("Test completed - check console for results");
+    } catch (error) {
+      console.error("Test API error:", error);
+      setError("Test failed - check console for details");
     } finally {
       setProcessingLoading(false);
     }
@@ -646,6 +677,19 @@ const AddChapter = () => {
                             Generate QnA
                           </>
                         )}
+                      </button>
+                      
+                      {/* Diagnostic Test Button */}
+                      <button 
+                        type="button" 
+                        onClick={testGenerateQnA}
+                        disabled={processingLoading}
+                        className="ml-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 inline-flex items-center text-xs font-medium"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Test API
                       </button>
                     </div>
                   </div>
