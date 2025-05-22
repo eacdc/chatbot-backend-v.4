@@ -16,7 +16,7 @@ const adminAxiosInstance = axios.create({
 // Request interceptor for adding admin auth token
 adminAxiosInstance.interceptors.request.use(
   (config) => {
-    console.log('Admin request URL:', config.url); // Debug log
+    console.log('Admin request URL:', config.url || 'No URL provided'); // Debug log
     
     const adminToken = localStorage.getItem('adminToken');
     if (adminToken) {
