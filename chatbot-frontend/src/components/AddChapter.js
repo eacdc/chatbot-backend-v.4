@@ -284,6 +284,13 @@ const AddChapter = () => {
       console.log("Response data:", response.data); // Log the full response data
       
       if (response.data && response.data.success) {
+        // Check if analyzedQuestions exists in the response
+        if (!response.data.analyzedQuestions || !Array.isArray(response.data.analyzedQuestions)) {
+          console.error("Response has success: true but no analyzedQuestions array");
+          setError("Invalid response format from server. Missing questions data.");
+          return;
+        }
+        
         // Store the analyzed questions in finalPrompt as JSON string
         console.log("Analyzed questions:", response.data.analyzedQuestions); // Log the analyzed questions
         setChapterData({
