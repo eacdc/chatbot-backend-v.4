@@ -1166,28 +1166,43 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
     const textChunks = splitTextIntoChunks(processedText, 800, 150); // Smaller chunks (800 chars with 150 char overlap)
     console.log(`Split text into ${textChunks.length} chunks for embedding-based retrieval`);
     
-    // 2. Generate embeddings for each chunk
+    // 2. Generate embeddings for each chunk - process in batches to reduce memory usage
     const chunkEmbeddings = [];
-    for (let i = 0; i < textChunks.length; i++) {
-      try {
-        const embeddingResponse = await openai.embeddings.create({
-          model: "text-embedding-3-small",
-          input: textChunks[i],
-          encoding_format: "float"
-        });
+    const BATCH_SIZE = 10; // Process 10 chunks at a time
+    
+    for (let i = 0; i < textChunks.length; i += BATCH_SIZE) {
+      const batchEnd = Math.min(i + BATCH_SIZE, textChunks.length);
+      console.log(`Processing embedding batch ${i/BATCH_SIZE + 1}: chunks ${i+1} to ${batchEnd}`);
+      
+      // Process each chunk in the current batch
+      for (let j = i; j < batchEnd; j++) {
+        try {
+          const embeddingResponse = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: textChunks[j],
+            encoding_format: "float"
+          });
+          
+          chunkEmbeddings.push({
+            text: textChunks[j],
+            embedding: embeddingResponse.data[0].embedding
+          });
+          console.log(`Generated embedding for chunk ${j+1}/${textChunks.length}`);
+        } catch (error) {
+          console.error(`Error generating embedding for chunk ${j+1}:`, error);
+        }
         
-        chunkEmbeddings.push({
-          text: textChunks[i],
-          embedding: embeddingResponse.data[0].embedding
-        });
-        console.log(`Generated embedding for chunk ${i+1}/${textChunks.length}`);
-      } catch (error) {
-        console.error(`Error generating embedding for chunk ${i+1}:`, error);
+        // Add a small delay between embedding requests to prevent rate limiting
+        if (j < batchEnd - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
       }
       
-      // Add a small delay between embedding requests to prevent rate limiting
-      if (i < textChunks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+      // Force garbage collection between batches by clearing references
+      if (i + BATCH_SIZE < textChunks.length) {
+        console.log(`Completed embedding batch ${i/BATCH_SIZE + 1}, waiting before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        global.gc && global.gc(); // Trigger garbage collection if available
       }
     }
 
@@ -1250,7 +1265,6 @@ Provide one question per JSON object and ensure they cover different concepts.`;
     console.log("Raw questions response:", questionsText);
 
     // Extract JSON objects from the text using regex
-    const questionObjects = [];
     const jsonRegex = /\{[\s\S]*?"subtopic"[\s\S]*?"question"[\s\S]*?\}/g;
     const matches = questionsText.match(jsonRegex);
 
@@ -1274,101 +1288,116 @@ Provide one question per JSON object and ensure they cover different concepts.`;
       console.log(`Limiting analysis to first ${MAX_QUESTIONS_TO_ANALYZE} questions to prevent memory issues`);
     }
 
-    for (let i = 0; i < questionsToProcess.length; i++) {
-      try {
-        // Parse the question object
-        const cleanedJson = questionsToProcess[i].trim().replace(/,\s*$/, '');
-        const questionObj = JSON.parse(cleanedJson);
-        
-        if (!questionObj.subtopic || !questionObj.question) {
-          console.error(`Invalid question object at index ${i}`);
-          continue;
-        }
-
-        console.log(`Analyzing question ${i+1}/${questionsToProcess.length}: ${questionObj.question.substring(0, 50)}...`);
-        
-        // Generate embedding for the question
-        const questionEmbeddingResponse = await openai.embeddings.create({
-          model: "text-embedding-3-small",
-          input: questionObj.question,
-          encoding_format: "float"
-        });
-        
-        const questionEmbedding = questionEmbeddingResponse.data[0].embedding;
-        
-        // Find the most relevant chunks using cosine similarity
-        const relevantChunks = chunkEmbeddings
-          .map(chunk => ({
-            text: chunk.text,
-            similarity: cosineSimilarity(questionEmbedding, chunk.embedding)
-          }))
-          .sort((a, b) => b.similarity - a.similarity)
-          .slice(0, 3) // Get top 3 most relevant chunks
-          .map(chunk => chunk.text)
-          .join("\n\n");
-        
-        console.log(`Retrieved ${relevantChunks.length > 0 ? '3' : '0'} most relevant text chunks for question ${i+1}`);
-        
-        // 7. Use the relevant chunks for question analysis
-        const analysisResponse = await openai.chat.completions.create({
-          model: "gpt-4-turbo",
-          temperature: 0.2,
-          messages: [
-            {
-              role: "system",
-              content: `You are an educational content analyzer. Given a question and relevant content, determine:
-              1. The difficulty level (Easy, Medium, Hard)
-              2. Appropriate marks for this question (1-10)
-              3. A tentative answer based on the content
-              
-              Use ONLY the provided content to determine the answer. If the answer cannot be derived from the provided content, say "Cannot determine from provided content."
-              Format your response as JSON with properties: difficultyLevel, question_marks, tentativeAnswer`
-            },
-            {
-              role: "user",
-              content: `CONTENT:\n${relevantChunks}\n\nQUESTION: ${questionObj.question}`
-            }
-          ]
-        });
-        
-        const analysisContent = analysisResponse.choices[0].message.content;
-        let analysisData;
-        
+    // Process questions in smaller batches to reduce memory pressure
+    const QUESTION_BATCH_SIZE = 3;
+    
+    for (let batchStart = 0; batchStart < questionsToProcess.length; batchStart += QUESTION_BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + QUESTION_BATCH_SIZE, questionsToProcess.length);
+      console.log(`Processing question batch ${Math.floor(batchStart/QUESTION_BATCH_SIZE) + 1}: questions ${batchStart+1} to ${batchEnd}`);
+      
+      for (let i = batchStart; i < batchEnd; i++) {
         try {
-          // Extract JSON data from the response
-          const jsonMatch = analysisContent.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            analysisData = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error("No JSON found in response");
+          // Parse the question object
+          const cleanedJson = questionsToProcess[i].trim().replace(/,\s*$/, '');
+          const questionObj = JSON.parse(cleanedJson);
+          
+          if (!questionObj.subtopic || !questionObj.question) {
+            console.error(`Invalid question object at index ${i}`);
+            continue;
           }
-        } catch (parseError) {
-          console.error(`Error parsing analysis response for question ${i+1}:`, parseError);
-          // Create default analysis data
-          analysisData = {
-            difficultyLevel: "Medium",
-            question_marks: 3,
-            tentativeAnswer: "Analysis failed - please review manually."
-          };
+
+          console.log(`Analyzing question ${i+1}/${questionsToProcess.length}: ${questionObj.question.substring(0, 50)}...`);
+          
+          // Generate embedding for the question
+          const questionEmbeddingResponse = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: questionObj.question,
+            encoding_format: "float"
+          });
+          
+          const questionEmbedding = questionEmbeddingResponse.data[0].embedding;
+          
+          // Find the most relevant chunks using cosine similarity
+          const relevantChunks = chunkEmbeddings
+            .map(chunk => ({
+              text: chunk.text,
+              similarity: cosineSimilarity(questionEmbedding, chunk.embedding)
+            }))
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, 3) // Get top 3 most relevant chunks
+            .map(chunk => chunk.text)
+            .join("\n\n");
+          
+          console.log(`Retrieved ${relevantChunks.length > 0 ? '3' : '0'} most relevant text chunks for question ${i+1}`);
+          
+          // 7. Use the relevant chunks for question analysis
+          const analysisResponse = await openai.chat.completions.create({
+            model: "gpt-4-turbo",
+            temperature: 0.2,
+            messages: [
+              {
+                role: "system",
+                content: `You are an educational content analyzer. Given a question and relevant content, determine:
+                1. The difficulty level (Easy, Medium, Hard)
+                2. Appropriate marks for this question (1-10)
+                3. A tentative answer based on the content
+                
+                Use ONLY the provided content to determine the answer. If the answer cannot be derived from the provided content, say "Cannot determine from provided content."
+                Format your response as JSON with properties: difficultyLevel, question_marks, tentativeAnswer`
+              },
+              {
+                role: "user",
+                content: `CONTENT:\n${relevantChunks}\n\nQUESTION: ${questionObj.question}`
+              }
+            ]
+          });
+          
+          const analysisContent = analysisResponse.choices[0].message.content;
+          let analysisData;
+          
+          try {
+            // Extract JSON data from the response
+            const jsonMatch = analysisContent.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              analysisData = JSON.parse(jsonMatch[0]);
+            } else {
+              throw new Error("No JSON found in response");
+            }
+          } catch (parseError) {
+            console.error(`Error parsing analysis response for question ${i+1}:`, parseError);
+            // Create default analysis data
+            analysisData = {
+              difficultyLevel: "Medium",
+              question_marks: 3,
+              tentativeAnswer: "Analysis failed - please review manually."
+            };
+          }
+          
+          // Add the question with analysis data to the results
+          analyzedQuestions.push({
+            subtopic: questionObj.subtopic,
+            question: questionObj.question,
+            difficultyLevel: analysisData.difficultyLevel || "Medium",
+            question_marks: parseInt(analysisData.question_marks || 3, 10),
+            tentativeAnswer: analysisData.tentativeAnswer || "",
+            questionId: `QID-${Date.now()}-${i}`
+          });
+          
+          // Add a small delay between question analyses to prevent rate limiting
+          if (i < batchEnd - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
+        } catch (error) {
+          console.error(`Error processing question ${batchStart+i+1}:`, error);
         }
-        
-        // Add the question with analysis data to the results
-        analyzedQuestions.push({
-          subtopic: questionObj.subtopic,
-          question: questionObj.question,
-          difficultyLevel: analysisData.difficultyLevel || "Medium",
-          question_marks: parseInt(analysisData.question_marks || 3, 10),
-          tentativeAnswer: analysisData.tentativeAnswer || "",
-          questionId: `QID-${Date.now()}-${i}`
-        });
-        
-        // Add a small delay between question analyses to prevent rate limiting
-        if (i < questionsToProcess.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-      } catch (error) {
-        console.error(`Error processing question ${i+1}:`, error);
+      }
+      
+      // Force garbage collection between batches
+      if (batchEnd < questionsToProcess.length) {
+        console.log(`Completed question batch ${Math.floor(batchStart/QUESTION_BATCH_SIZE) + 1}, waiting before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        global.gc && global.gc(); // Trigger garbage collection if available
       }
     }
 

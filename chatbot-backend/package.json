@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "server": "node server.js",
+    "start": "node --expose-gc --max-old-space-size=8192 server.js",
+    "server": "node --expose-gc --max-old-space-size=8192 server.js",
     "client": "npm start --prefix ../chatbot-frontend",
     "dev": "concurrently \"npm run server\" \"npm run client\""
   },
