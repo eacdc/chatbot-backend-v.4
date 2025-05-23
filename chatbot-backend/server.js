@@ -1,6 +1,35 @@
 // Increase Node.js heap memory limit to 8GB
 process.env.NODE_OPTIONS = '--max-old-space-size=8192';
 
+// Enable garbage collection
+global.gc = function() {
+  try {
+    if (global.gc) {
+      console.log("Triggering manual garbage collection");
+      const startMemory = process.memoryUsage().heapUsed / 1024 / 1024;
+      const startTime = Date.now();
+      global.gc();
+      const endTime = Date.now();
+      const endMemory = process.memoryUsage().heapUsed / 1024 / 1024;
+      console.log(`GC completed in ${endTime - startTime}ms. Memory before: ${startMemory.toFixed(2)}MB, after: ${endMemory.toFixed(2)}MB, freed: ${(startMemory - endMemory).toFixed(2)}MB`);
+    }
+  } catch (e) {
+    console.error("Error during garbage collection:", e);
+  }
+};
+
+// Monitor memory usage
+setInterval(() => {
+  const memoryUsage = process.memoryUsage();
+  console.log(`Memory usage: RSS: ${(memoryUsage.rss / 1024 / 1024).toFixed(2)}MB, Heap Total: ${(memoryUsage.heapTotal / 1024 / 1024).toFixed(2)}MB, Heap Used: ${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+  
+  // Force garbage collection if memory usage is too high
+  if (memoryUsage.heapUsed > 6 * 1024 * 1024 * 1024) { // 6GB threshold
+    console.log("Memory usage is high, forcing garbage collection");
+    global.gc && global.gc();
+  }
+}, 60000); // Check every minute
+
 require("dotenv").config(); // ✅ Load environment variables first
 
 const express = require("express");
@@ -18,42 +47,73 @@ console.log("Cloudinary Configuration:", {
 });
 
 const app = express();
-app.use(express.json({ limit: '100mb' })); // Increase JSON body size limit to handle very large texts
-app.use(express.urlencoded({ extended: true, limit: '100mb' })); // Increase URL-encoded body size limit
+app.use(express.json({ limit: '50mb' })); // Reduced from 100mb to 50mb
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Reduced from 100mb to 50mb
 app.use(compression()); // Use compression for all responses
 
-// ✅ Improved CORS
-app.use(
-  cors({
-    origin: function(origin, callback) {
-      // Allow all origins
-      callback(null, true);
-    },
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "user-id", "x-requested-with"]
-  })
-);
+// Define allowed origins
+const allowedOrigins = [
+  'https://www.testyourlearning.com',
+  'https://testyourlearning.com',
+  'http://localhost:3000',
+  'http://localhost:5000'
+];
 
-// Add CORS headers to all responses as a backup
+// ✅ Simplified CORS setup - allow all origins for now to debug the issue
+app.use(cors({
+  origin: '*', // Allow all origins temporarily to debug
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization", "user-id", "x-requested-with", "Access-Control-Allow-Origin"]
+}));
+
+// Add CORS headers to all responses
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Origin", "*"); // Allow all origins temporarily
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, user-id");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, user-id, Access-Control-Allow-Origin");
+  res.header("Access-Control-Allow-Credentials", "true");
+  
+  // Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
-    // Pre-flight request, respond immediately with 200
     return res.status(200).end();
   }
   next();
 });
 
 // Handle OPTIONS preflight requests
-app.options('*', cors());
+app.options('*', (req, res) => {
+  res.header("Access-Control-Allow-Origin", "*"); // Allow all origins temporarily
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, user-id, Access-Control-Allow-Origin");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.status(200).end();
+});
 
 // ✅ Debug Middleware (Logs API requests)
 app.use((req, res, next) => {
   console.log(`📩 ${req.method} Request to ${req.url}`);
-  if (Object.keys(req.body).length) console.log("Request Body:", req.body);
+  if (req.method !== 'OPTIONS' && Object.keys(req.body).length) {
+    if (req.url.includes('/generate-qna')) {
+      // For large text requests, just log the length instead of the full body
+      const bodySize = JSON.stringify(req.body).length;
+      console.log(`Request Body size: ${(bodySize / 1024).toFixed(2)}KB`);
+    } else {
+      console.log("Request Body:", req.body);
+    }
+  }
+  next();
+});
+
+// Add timeout middleware for long-running requests
+app.use((req, res, next) => {
+  // Set a 2-minute timeout for all requests
+  req.setTimeout(120000, () => {
+    console.log(`Request timeout for ${req.method} ${req.url}`);
+    if (!res.headersSent) {
+      res.status(503).json({ error: "Request timed out" });
+    }
+  });
   next();
 });
 
