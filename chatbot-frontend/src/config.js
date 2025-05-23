@@ -1,23 +1,6 @@
-// Determine the appropriate API URL based on domain
-const determineApiUrl = () => {
-  const hostname = window.location.hostname;
-  console.log("Current hostname for API URL detection:", hostname);
-  
-  // Check if we're on the CP domain
-  if (hostname === 'chatbot-backend-v-4-cp.onrender.com' || 
-      hostname.includes('chatbot-backend-v-4-cp.onrender.com')) {
-    console.log("CP domain detected, using CP backend URL");
-    return 'https://chatbot-backend-v-4-cp.onrender.com';
-  }
-  
-  // Default to the standard backend URL
-  console.log("Using default backend URL");
-  const defaultUrl = process.env.REACT_APP_API_URL || 'https://chatbot-backend-v-4.onrender.com';
-  return defaultUrl;
-};
-
-const API_URL = determineApiUrl();
-console.log("Selected API_URL:", API_URL);
+// Directly set the API URL to ensure it's always available
+const API_URL = 'https://chatbot-backend-v-4.onrender.com';
+console.log("Using API_URL:", API_URL);
 
 export const API_ENDPOINTS = {
   LOGIN: `${API_URL}/api/users/login`,
@@ -53,6 +36,8 @@ export const API_ENDPOINTS = {
   ENHANCED_BATCH_PROCESS: `${API_URL}/api/chapters/enhanced-batch-process`,
   GENERATE_EMBEDDINGS: `${API_URL}/api/chapters/generate-embeddings`,
   SEMANTIC_SEARCH: `${API_URL}/api/chapters/semantic-search`,
+  ANALYZE_QUESTION: `${API_URL}/api/chapters/analyze-question/:chapterId`,
+  GENERATE_QNA: `${API_URL}/api/chapters/generate-qna`,
   
   // Notification endpoints
   GET_NOTIFICATIONS: `${API_URL}/api/notifications`,

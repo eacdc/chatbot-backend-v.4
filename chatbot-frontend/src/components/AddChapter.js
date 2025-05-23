@@ -268,7 +268,7 @@ const AddChapter = () => {
         return;
       }
 
-      // Log the actual endpoint URL
+      // Log the endpoint URL
       console.log("Using QnA endpoint URL:", API_ENDPOINTS.GENERATE_QNA);
 
       // Use the generate-qna endpoint
@@ -372,12 +372,18 @@ const AddChapter = () => {
       };
       
       console.log("Testing endpoint with data:", testData);
-      await testEndpoint(API_ENDPOINTS.GENERATE_QNA, testData);
       
-      setSuccessMessage("Test completed - check console for results");
+      // Test using direct function
+      const response = await testEndpoint(API_ENDPOINTS.GENERATE_QNA, testData);
+      
+      if (response.data && response.data.success) {
+        setSuccessMessage("Test successful! Check the console for details.");
+      } else {
+        setError("Test received a response but without success flag.");
+      }
     } catch (error) {
-      console.error("Test API error:", error);
-      setError("Test failed - check console for details");
+      console.error("Test error:", error);
+      setError(`Test failed: ${error.message}`);
     } finally {
       setProcessingLoading(false);
     }
