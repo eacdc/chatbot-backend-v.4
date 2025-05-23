@@ -1151,23 +1151,31 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: "Raw text, bookId, and title are required" });
     }
 
-    // 1. Generate embedding for the raw text (knowledge base)
-    let rawTextEmbedding;
-    try {
-      const embeddingResponse = await openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: rawText,
-        encoding_format: "float"
-      });
-      
-      rawTextEmbedding = embeddingResponse.data[0].embedding;
-      console.log("Successfully generated embeddings for the raw text knowledge base");
-    } catch (error) {
-      console.error("Error generating raw text embeddings:", error);
-      return res.status(500).json({ error: "Failed to generate embeddings for knowledge base" });
+    // 1. Split raw text into chunks for embedding-based retrieval
+    const textChunks = splitTextIntoChunks(rawText, 1000, 200); // 1000 chars with 200 char overlap
+    console.log(`Split raw text into ${textChunks.length} chunks for embedding-based retrieval`);
+    
+    // 2. Generate embeddings for each chunk
+    const chunkEmbeddings = [];
+    for (let i = 0; i < textChunks.length; i++) {
+      try {
+        const embeddingResponse = await openai.embeddings.create({
+          model: "text-embedding-3-small",
+          input: textChunks[i],
+          encoding_format: "float"
+        });
+        
+        chunkEmbeddings.push({
+          text: textChunks[i],
+          embedding: embeddingResponse.data[0].embedding
+        });
+        console.log(`Generated embedding for chunk ${i+1}/${textChunks.length}`);
+      } catch (error) {
+        console.error(`Error generating embedding for chunk ${i+1}:`, error);
+      }
     }
 
-    // 2. Fetch the batch processing system prompt from the database
+    // 3. Fetch the batch processing system prompt from the database
     let systemPrompt;
     try {
       const promptDoc = await Prompt.findOne({ prompt_type: "batchProcessing", isActive: true });
@@ -1201,7 +1209,7 @@ Each question should be self-contained and not reference external figures or dia
 Provide one question per JSON object and ensure they cover different concepts.`;
     }
 
-    // 3. Send raw text to LLM with batch processing prompt to get questions
+    // 4. Send raw text to LLM with batch processing prompt to get questions
     const questionsResponse = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       temperature: 0.5,
@@ -1215,7 +1223,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
       return res.status(500).json({ error: "Failed to generate questions from content" });
     }
 
-    // 4. Extract questions from the response
+    // 5. Extract questions from the response
     const questionsText = questionsResponse.choices[0].message.content;
     console.log("Raw questions response:", questionsText);
 
@@ -1233,31 +1241,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
 
     console.log(`Found ${matches.length} potential question objects`);
 
-    // Split raw text into chunks for embedding-based retrieval
-    const textChunks = splitTextIntoChunks(rawText, 1000, 200); // 1000 chars with 200 char overlap
-    console.log(`Split raw text into ${textChunks.length} chunks for embedding-based retrieval`);
-    
-    // Generate embeddings for each chunk
-    const chunkEmbeddings = [];
-    for (let i = 0; i < textChunks.length; i++) {
-      try {
-        const embeddingResponse = await openai.embeddings.create({
-          model: "text-embedding-3-small",
-          input: textChunks[i],
-          encoding_format: "float"
-        });
-        
-        chunkEmbeddings.push({
-          text: textChunks[i],
-          embedding: embeddingResponse.data[0].embedding
-        });
-        console.log(`Generated embedding for chunk ${i+1}/${textChunks.length}`);
-      } catch (error) {
-        console.error(`Error generating embedding for chunk ${i+1}:`, error);
-      }
-    }
-
-    // 5. Process each question to analyze it using vector embeddings
+    // 6. Process each question to analyze it using vector embeddings
     const analyzedQuestions = [];
 
     for (let i = 0; i < matches.length; i++) {
@@ -1295,7 +1279,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
         
         console.log(`Retrieved ${relevantChunks.length > 0 ? '3' : '0'} most relevant text chunks for question ${i+1}`);
         
-        // 6. Use the relevant chunks for question analysis
+        // 7. Use the relevant chunks for question analysis
         const analysisResponse = await openai.chat.completions.create({
           model: "gpt-4-turbo",
           temperature: 0.2,
@@ -1338,7 +1322,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
           };
         }
         
-        // 7. Add the question with analysis data to the results
+        // Add the question with analysis data to the results
         analyzedQuestions.push({
           subtopic: questionObj.subtopic,
           question: questionObj.question,
@@ -1357,11 +1341,10 @@ Provide one question per JSON object and ensure they cover different concepts.`;
     res.json({
       success: true,
       message: `Successfully generated and analyzed ${analyzedQuestions.length} questions using vector embeddings`,
-      analyzedQuestions,
-      hasRawTextEmbedding: !!rawTextEmbedding
+      analyzedQuestions
     });
     
-    // Optionally save the chapter if requested
+    // 9. Optionally save the chapter if requested
     if (req.body.saveChapter === true) {
       try {
         // Create a new chapter with the analyzed questions
@@ -1370,8 +1353,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
           title,
           prompt: JSON.stringify(analyzedQuestions),
           rawText,
-          questionPrompt: analyzedQuestions,
-          rawTextEmbedding
+          questionPrompt: analyzedQuestions
         });
 
         // Save the chapter
