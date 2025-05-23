@@ -372,7 +372,7 @@ router.post("/analyze-question/:chapterId", async (req, res) => {
     }
     
     // Find the chapter
-    const chapter = await Chapter.findOne({ chapterId });
+    const chapter = await Chapter.findById(chapterId);
     
     if (!chapter) {
       return res.status(404).json({ error: "Chapter not found" });
@@ -383,26 +383,96 @@ router.post("/analyze-question/:chapterId", async (req, res) => {
       return res.status(400).json({ error: "Chapter doesn't have raw text for analysis" });
     }
     
-    // Use the raw text as context for question analysis
+    console.log(`Analyzing question for chapter "${chapter.title}" (ID: ${chapter._id})`);
+
+    // 1. Split raw text into smaller chunks for embedding-based retrieval
+    const textChunks = splitTextIntoChunks(chapter.rawText, 500, 100); // Smaller chunks (500 chars with 100 char overlap)
+    console.log(`Split chapter text into ${textChunks.length} chunks for embedding-based retrieval`);
+    
+    // 2. Generate embeddings for each chunk - process in batches to reduce memory usage
+    const chunkEmbeddings = [];
+    const BATCH_SIZE = 5; // Process 5 chunks at a time
+    
+    for (let i = 0; i < textChunks.length; i += BATCH_SIZE) {
+      const batchEnd = Math.min(i + BATCH_SIZE, textChunks.length);
+      console.log(`Processing embedding batch ${Math.floor(i/BATCH_SIZE) + 1}: chunks ${i+1} to ${batchEnd}`);
+      
+      // Process each chunk in the current batch
+      for (let j = i; j < batchEnd; j++) {
+        try {
+          const embeddingResponse = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: textChunks[j],
+            encoding_format: "float"
+          });
+          
+          chunkEmbeddings.push({
+            text: textChunks[j],
+            embedding: embeddingResponse.data[0].embedding
+          });
+          console.log(`Generated embedding for chunk ${j+1}/${textChunks.length}`);
+        } catch (error) {
+          console.error(`Error generating embedding for chunk ${j+1}:`, error);
+        }
+        
+        // Add a small delay between embedding requests to prevent rate limiting
+        if (j < batchEnd - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      // Force garbage collection between batches
+      if (i + BATCH_SIZE < textChunks.length) {
+        console.log(`Completed embedding batch ${Math.floor(i/BATCH_SIZE) + 1}, waiting before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        global.gc && global.gc(); // Trigger garbage collection if available
+      }
+    }
+    
+    // 3. Generate embedding for the question
+    console.log(`Generating embedding for question: "${question.substring(0, 50)}..."`);
+    const questionEmbeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: question,
+      encoding_format: "float"
+    });
+    
+    const questionEmbedding = questionEmbeddingResponse.data[0].embedding;
+    
+    // 4. Find the most relevant chunks using cosine similarity
+    const relevantChunks = chunkEmbeddings
+      .map(chunk => ({
+        text: chunk.text,
+        similarity: cosineSimilarity(questionEmbedding, chunk.embedding)
+      }))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 3) // Get top 3 most relevant chunks
+      .map(chunk => chunk.text)
+      .join("\n\n");
+    
+    console.log(`Retrieved ${relevantChunks ? '3' : '0'} most relevant text chunks for question analysis`);
+    
+    // 5. Use the relevant chunks for question analysis
     const analysisResponse = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       temperature: 0.2,
       messages: [
         {
           role: "system",
-          content: `You are an educational content analyzer. Given a question and the original text content, determine:
+          content: `You are an educational content analyzer. Given a question and relevant content, determine:
           1. The difficulty level (Easy, Medium, Hard)
-          2. Appropriate marks for this question (1-10)
+          2. Appropriate marks for this question (1-5)
           3. A tentative answer based on the content
           
-          Use ONLY the provided content to determine the answer. If the answer cannot be derived from the content, say "Cannot determine from provided content."
+          Use ONLY the provided content to determine the answer. If the answer cannot be derived from the provided content, say "Cannot determine from provided content."
           Format your response as JSON with properties: difficultyLevel, question_marks, tentativeAnswer`
         },
         {
           role: "user",
-          content: `CONTENT:\n${chapter.rawText}\n\nQUESTION: ${question}`
+          content: `CONTENT:\n${relevantChunks}\n\nQUESTION: ${question}`
         }
-      ]
+      ],
+      timeout: 15000 // 15 second timeout for this specific API call
     });
     
     const analysisContent = analysisResponse.choices[0].message.content;
@@ -1144,15 +1214,30 @@ router.post("/generate-embeddings", authenticateAdmin, async (req, res) => {
 
 // Generate QnA from raw text
 router.post("/generate-qna", authenticateAdmin, async (req, res) => {
+  // Set a timeout for the entire request
+  const requestTimeout = setTimeout(() => {
+    console.log("Request timeout reached - sending partial response");
+    if (!res.headersSent) {
+      res.status(202).json({
+        success: true,
+        message: "Processing took too long. Returning partial results.",
+        analyzedQuestions: [],
+        wasTextTruncated: true,
+        wasProcessingLimited: true
+      });
+    }
+  }, 60000); // 60-second timeout
+
   try {
     const { rawText, bookId, title, subject } = req.body;
 
     if (!rawText || !bookId || !title) {
+      clearTimeout(requestTimeout);
       return res.status(400).json({ error: "Raw text, bookId, and title are required" });
     }
 
     // Check if text is extremely large and truncate if necessary
-    const MAX_TEXT_LENGTH = 100000; // ~100KB limit for raw text
+    const MAX_TEXT_LENGTH = 50000; // ~50KB limit for raw text (reduced from 100KB)
     let processedText = rawText;
     let wasTextTruncated = false;
     
@@ -1162,17 +1247,17 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
       wasTextTruncated = true;
     }
 
-    // 1. Split raw text into chunks for embedding-based retrieval
-    const textChunks = splitTextIntoChunks(processedText, 800, 150); // Smaller chunks (800 chars with 150 char overlap)
+    // 1. Split raw text into smaller chunks for embedding-based retrieval
+    const textChunks = splitTextIntoChunks(processedText, 500, 100); // Smaller chunks (500 chars with 100 char overlap)
     console.log(`Split text into ${textChunks.length} chunks for embedding-based retrieval`);
     
     // 2. Generate embeddings for each chunk - process in batches to reduce memory usage
     const chunkEmbeddings = [];
-    const BATCH_SIZE = 10; // Process 10 chunks at a time
+    const BATCH_SIZE = 5; // Process 5 chunks at a time (reduced from 10)
     
     for (let i = 0; i < textChunks.length; i += BATCH_SIZE) {
       const batchEnd = Math.min(i + BATCH_SIZE, textChunks.length);
-      console.log(`Processing embedding batch ${i/BATCH_SIZE + 1}: chunks ${i+1} to ${batchEnd}`);
+      console.log(`Processing embedding batch ${Math.floor(i/BATCH_SIZE) + 1}: chunks ${i+1} to ${batchEnd}`);
       
       // Process each chunk in the current batch
       for (let j = i; j < batchEnd; j++) {
@@ -1194,14 +1279,14 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
         
         // Add a small delay between embedding requests to prevent rate limiting
         if (j < batchEnd - 1) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
       
       // Force garbage collection between batches by clearing references
       if (i + BATCH_SIZE < textChunks.length) {
-        console.log(`Completed embedding batch ${i/BATCH_SIZE + 1}, waiting before next batch...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log(`Completed embedding batch ${Math.floor(i/BATCH_SIZE) + 1}, waiting before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, 1500));
         global.gc && global.gc(); // Trigger garbage collection if available
       }
     }
@@ -1223,7 +1308,8 @@ Format each question in a JSON structure as follows:
 }
 
 Each question should be self-contained and not reference external figures or diagrams.
-Provide one question per JSON object and ensure they cover different concepts.`;
+Provide one question per JSON object and ensure they cover different concepts.
+IMPORTANT: Create no more than 8 questions total.`;
         console.warn("Warning: Batch Processing system prompt not found in database, using default");
       }
     } catch (error) {
@@ -1237,14 +1323,15 @@ Format each question in a JSON structure as follows:
 }
 
 Each question should be self-contained and not reference external figures or diagrams.
-Provide one question per JSON object and ensure they cover different concepts.`;
+Provide one question per JSON object and ensure they cover different concepts.
+IMPORTANT: Create no more than 8 questions total.`;
     }
 
     // 4. Send text to LLM with batch processing prompt to get questions
     // If text was truncated, add a note to the prompt
     let promptText = processedText;
     if (wasTextTruncated) {
-      promptText = `${processedText}\n\n[Note: This text was truncated from a larger document. Please generate questions based on the available content.]`;
+      promptText = `${processedText}\n\n[Note: This text was truncated from a larger document. Please generate questions based on the available content. IMPORTANT: Create no more than 8 questions total.]`;
     }
     
     const questionsResponse = await openai.chat.completions.create({
@@ -1253,10 +1340,12 @@ Provide one question per JSON object and ensure they cover different concepts.`;
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: promptText }
-      ]
+      ],
+      timeout: 30000 // 30 second timeout for this specific API call
     });
 
     if (!questionsResponse.choices || questionsResponse.choices.length === 0) {
+      clearTimeout(requestTimeout);
       return res.status(500).json({ error: "Failed to generate questions from content" });
     }
 
@@ -1269,6 +1358,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
     const matches = questionsText.match(jsonRegex);
 
     if (!matches || matches.length === 0) {
+      clearTimeout(requestTimeout);
       return res.status(500).json({ 
         error: "Failed to extract question objects from the response",
         rawResponse: questionsText
@@ -1281,7 +1371,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
     const analyzedQuestions = [];
     
     // Limit the number of questions to analyze to prevent memory issues
-    const MAX_QUESTIONS_TO_ANALYZE = 15;
+    const MAX_QUESTIONS_TO_ANALYZE = 8; // Reduced from 15 to 8
     const questionsToProcess = matches.slice(0, MAX_QUESTIONS_TO_ANALYZE);
     
     if (matches.length > MAX_QUESTIONS_TO_ANALYZE) {
@@ -1289,7 +1379,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
     }
 
     // Process questions in smaller batches to reduce memory pressure
-    const QUESTION_BATCH_SIZE = 3;
+    const QUESTION_BATCH_SIZE = 2; // Reduced from 3 to 2
     
     for (let batchStart = 0; batchStart < questionsToProcess.length; batchStart += QUESTION_BATCH_SIZE) {
       const batchEnd = Math.min(batchStart + QUESTION_BATCH_SIZE, questionsToProcess.length);
@@ -1324,11 +1414,11 @@ Provide one question per JSON object and ensure they cover different concepts.`;
               similarity: cosineSimilarity(questionEmbedding, chunk.embedding)
             }))
             .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, 3) // Get top 3 most relevant chunks
+            .slice(0, 2) // Get top 2 most relevant chunks (reduced from 3)
             .map(chunk => chunk.text)
             .join("\n\n");
           
-          console.log(`Retrieved ${relevantChunks.length > 0 ? '3' : '0'} most relevant text chunks for question ${i+1}`);
+          console.log(`Retrieved ${relevantChunks.length > 0 ? '2' : '0'} most relevant text chunks for question ${i+1}`);
           
           // 7. Use the relevant chunks for question analysis
           const analysisResponse = await openai.chat.completions.create({
@@ -1339,7 +1429,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
                 role: "system",
                 content: `You are an educational content analyzer. Given a question and relevant content, determine:
                 1. The difficulty level (Easy, Medium, Hard)
-                2. Appropriate marks for this question (1-10)
+                2. Appropriate marks for this question (1-5)
                 3. A tentative answer based on the content
                 
                 Use ONLY the provided content to determine the answer. If the answer cannot be derived from the provided content, say "Cannot determine from provided content."
@@ -1349,7 +1439,8 @@ Provide one question per JSON object and ensure they cover different concepts.`;
                 role: "user",
                 content: `CONTENT:\n${relevantChunks}\n\nQUESTION: ${questionObj.question}`
               }
-            ]
+            ],
+            timeout: 15000 // 15 second timeout for this specific API call
           });
           
           const analysisContent = analysisResponse.choices[0].message.content;
@@ -1385,7 +1476,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
           
           // Add a small delay between question analyses to prevent rate limiting
           if (i < batchEnd - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 800));
           }
           
         } catch (error) {
@@ -1396,10 +1487,13 @@ Provide one question per JSON object and ensure they cover different concepts.`;
       // Force garbage collection between batches
       if (batchEnd < questionsToProcess.length) {
         console.log(`Completed question batch ${Math.floor(batchStart/QUESTION_BATCH_SIZE) + 1}, waiting before next batch...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         global.gc && global.gc(); // Trigger garbage collection if available
       }
     }
+
+    // Clear the timeout since we're done processing
+    clearTimeout(requestTimeout);
 
     // 8. Return the analyzed questions to the frontend
     res.json({
@@ -1432,6 +1526,9 @@ Provide one question per JSON object and ensure they cover different concepts.`;
     }
     
   } catch (error) {
+    // Clear the timeout since we're handling the error
+    clearTimeout(requestTimeout);
+    
     console.error("Error in generate-qna:", error);
     res.status(500).json({ 
       error: "Failed to generate and analyze questions", 
