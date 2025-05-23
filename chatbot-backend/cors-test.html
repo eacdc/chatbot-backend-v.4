@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CORS Test</title>
+  <script>
+    // Test the local test server
+    async function testLocalServer() {
+      try {
+        const response = await fetch('http://localhost:5001/test');
+        const data = await response.json();
+        document.getElementById('local-result').textContent = JSON.stringify(data);
+      } catch (error) {
+        document.getElementById('local-result').textContent = 'Error: ' + error.message;
+      }
+    }
+
+    // Test the generate-qna endpoint on the local test server
+    async function testLocalGenerateQnA() {
+      try {
+        const response = await fetch('http://localhost:5001/api/chapters/generate-qna', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer test-token'
+          },
+          body: JSON.stringify({
+            rawText: 'This is a test',
+            bookId: '123',
+            title: 'Test Chapter'
+          })
+        });
+        const data = await response.json();
+        document.getElementById('local-qna-result').textContent = JSON.stringify(data);
+      } catch (error) {
+        document.getElementById('local-qna-result').textContent = 'Error: ' + error.message;
+      }
+    }
+
+    // Test the production server
+    async function testProductionServer() {
+      try {
+        const response = await fetch('https://chatbot-backend-v-4.onrender.com/healthcheck');
+        const data = await response.json();
+        document.getElementById('production-result').textContent = JSON.stringify(data);
+      } catch (error) {
+        document.getElementById('production-result').textContent = 'Error: ' + error.message;
+      }
+    }
+
+    // Test the generate-qna endpoint on the production server
+    async function testProductionGenerateQnA() {
+      try {
+        const response = await fetch('https://chatbot-backend-v-4.onrender.com/api/chapters/generate-qna', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer test-token'
+          },
+          body: JSON.stringify({
+            rawText: 'This is a test',
+            bookId: '123',
+            title: 'Test Chapter'
+          })
+        });
+        const data = await response.json();
+        document.getElementById('production-qna-result').textContent = JSON.stringify(data);
+      } catch (error) {
+        document.getElementById('production-qna-result').textContent = 'Error: ' + error.message;
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>CORS Test</h1>
+  
+  <h2>Local Test Server</h2>
+  <button onclick="testLocalServer()">Test Local Server</button>
+  <pre id="local-result">Results will appear here</pre>
+  
+  <h2>Local Generate QnA Test</h2>
+  <button onclick="testLocalGenerateQnA()">Test Local Generate QnA</button>
+  <pre id="local-qna-result">Results will appear here</pre>
+  
+  <h2>Production Server</h2>
+  <button onclick="testProductionServer()">Test Production Server</button>
+  <pre id="production-result">Results will appear here</pre>
+  
+  <h2>Production Generate QnA Test</h2>
+  <button onclick="testProductionGenerateQnA()">Test Production Generate QnA</button>
+  <pre id="production-qna-result">Results will appear here</pre>
+</body>
+</html> 
