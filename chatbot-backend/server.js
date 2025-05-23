@@ -1,3 +1,6 @@
+// Increase Node.js heap memory limit to 8GB
+process.env.NODE_OPTIONS = '--max-old-space-size=8192';
+
 require("dotenv").config(); // ✅ Load environment variables first
 
 const express = require("express");

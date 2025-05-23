@@ -1151,9 +1151,20 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: "Raw text, bookId, and title are required" });
     }
 
+    // Check if text is extremely large and truncate if necessary
+    const MAX_TEXT_LENGTH = 100000; // ~100KB limit for raw text
+    let processedText = rawText;
+    let wasTextTruncated = false;
+    
+    if (rawText.length > MAX_TEXT_LENGTH) {
+      console.log(`Text is too large (${rawText.length} chars). Truncating to ${MAX_TEXT_LENGTH} chars.`);
+      processedText = rawText.substring(0, MAX_TEXT_LENGTH);
+      wasTextTruncated = true;
+    }
+
     // 1. Split raw text into chunks for embedding-based retrieval
-    const textChunks = splitTextIntoChunks(rawText, 1000, 200); // 1000 chars with 200 char overlap
-    console.log(`Split raw text into ${textChunks.length} chunks for embedding-based retrieval`);
+    const textChunks = splitTextIntoChunks(processedText, 800, 150); // Smaller chunks (800 chars with 150 char overlap)
+    console.log(`Split text into ${textChunks.length} chunks for embedding-based retrieval`);
     
     // 2. Generate embeddings for each chunk
     const chunkEmbeddings = [];
@@ -1172,6 +1183,11 @@ router.post("/generate-qna", authenticateAdmin, async (req, res) => {
         console.log(`Generated embedding for chunk ${i+1}/${textChunks.length}`);
       } catch (error) {
         console.error(`Error generating embedding for chunk ${i+1}:`, error);
+      }
+      
+      // Add a small delay between embedding requests to prevent rate limiting
+      if (i < textChunks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
 
@@ -1209,13 +1225,19 @@ Each question should be self-contained and not reference external figures or dia
 Provide one question per JSON object and ensure they cover different concepts.`;
     }
 
-    // 4. Send raw text to LLM with batch processing prompt to get questions
+    // 4. Send text to LLM with batch processing prompt to get questions
+    // If text was truncated, add a note to the prompt
+    let promptText = processedText;
+    if (wasTextTruncated) {
+      promptText = `${processedText}\n\n[Note: This text was truncated from a larger document. Please generate questions based on the available content.]`;
+    }
+    
     const questionsResponse = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       temperature: 0.5,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: rawText }
+        { role: "user", content: promptText }
       ]
     });
 
@@ -1243,11 +1265,19 @@ Provide one question per JSON object and ensure they cover different concepts.`;
 
     // 6. Process each question to analyze it using vector embeddings
     const analyzedQuestions = [];
+    
+    // Limit the number of questions to analyze to prevent memory issues
+    const MAX_QUESTIONS_TO_ANALYZE = 15;
+    const questionsToProcess = matches.slice(0, MAX_QUESTIONS_TO_ANALYZE);
+    
+    if (matches.length > MAX_QUESTIONS_TO_ANALYZE) {
+      console.log(`Limiting analysis to first ${MAX_QUESTIONS_TO_ANALYZE} questions to prevent memory issues`);
+    }
 
-    for (let i = 0; i < matches.length; i++) {
+    for (let i = 0; i < questionsToProcess.length; i++) {
       try {
         // Parse the question object
-        const cleanedJson = matches[i].trim().replace(/,\s*$/, '');
+        const cleanedJson = questionsToProcess[i].trim().replace(/,\s*$/, '');
         const questionObj = JSON.parse(cleanedJson);
         
         if (!questionObj.subtopic || !questionObj.question) {
@@ -1255,7 +1285,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
           continue;
         }
 
-        console.log(`Analyzing question ${i+1}/${matches.length}: ${questionObj.question.substring(0, 50)}...`);
+        console.log(`Analyzing question ${i+1}/${questionsToProcess.length}: ${questionObj.question.substring(0, 50)}...`);
         
         // Generate embedding for the question
         const questionEmbeddingResponse = await openai.embeddings.create({
@@ -1332,6 +1362,11 @@ Provide one question per JSON object and ensure they cover different concepts.`;
           questionId: `QID-${Date.now()}-${i}`
         });
         
+        // Add a small delay between question analyses to prevent rate limiting
+        if (i < questionsToProcess.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
       } catch (error) {
         console.error(`Error processing question ${i+1}:`, error);
       }
@@ -1341,7 +1376,8 @@ Provide one question per JSON object and ensure they cover different concepts.`;
     res.json({
       success: true,
       message: `Successfully generated and analyzed ${analyzedQuestions.length} questions using vector embeddings`,
-      analyzedQuestions
+      analyzedQuestions,
+      wasTextTruncated
     });
     
     // 9. Optionally save the chapter if requested
@@ -1352,7 +1388,7 @@ Provide one question per JSON object and ensure they cover different concepts.`;
           bookId,
           title,
           prompt: JSON.stringify(analyzedQuestions),
-          rawText,
+          rawText: processedText, // Save the potentially truncated text
           questionPrompt: analyzedQuestions
         });
 
