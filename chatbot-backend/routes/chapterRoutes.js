@@ -289,17 +289,36 @@ async function processBatchText(req, res) {
     try {
       // Combine all responses
       const combinedPrompt = Object.values(collatedResponses).join("\n\n");
+      console.log(`Combined all responses into text of length: ${combinedPrompt.length}`);
       
       // Check if the combined text appears to contain JSON formatted questions
-      if (combinedPrompt.includes('"Q":') && combinedPrompt.includes('"question":')) {
+      const hasQField = combinedPrompt.includes('"Q":');
+      const hasQuestionField = combinedPrompt.includes('"question":');
+      console.log(`Text contains Q field: ${hasQField}, question field: ${hasQuestionField}`);
+      
+      if (hasQField && hasQuestionField) {
         try {
           console.log("Detected question format in the batch output - attempting to structure as question array");
           
           // Extract JSON objects from the text
           const questionJsonObjects = combinedPrompt.match(/\{[\s\S]*?"Q"[\s\S]*?"question"[\s\S]*?\}/g);
+          console.log(`Regex match result: ${questionJsonObjects ? `Found ${questionJsonObjects.length} matches` : 'No matches found'}`);
           
           if (questionJsonObjects && questionJsonObjects.length > 0) {
             console.log(`Found ${questionJsonObjects.length} potential question objects in the text`);
+            
+            // Log a sample of the first match for debugging
+            if (questionJsonObjects.length > 0) {
+              console.log(`Sample first match: ${questionJsonObjects[0].substring(0, 200)}...`);
+              
+              try {
+                const sampleParsed = JSON.parse(questionJsonObjects[0]);
+                console.log(`Sample parsed successfully: Q=${sampleParsed.Q}, question=${sampleParsed.question?.substring(0, 50)}...`);
+              } catch (parseError) {
+                console.error(`Could not parse sample match as JSON: ${parseError.message}`);
+                console.log(`Raw sample for inspection: ${JSON.stringify(questionJsonObjects[0])}`);
+              }
+            }
             
             // Parse each JSON object
             const structuredQuestions = [];
@@ -467,15 +486,20 @@ async function processBatchText(req, res) {
           console.error("Error attempting to format as questions:", formatError);
           // Continue with normal processing if question formatting fails
         }
+      } else {
+        // If no questions are detected or if the regex failed to find matches
+        console.log("No question format detected in the batch output or regex failed to find matches");
+        console.log("First 500 characters of output for inspection:");
+        console.log(combinedPrompt.substring(0, 500));
+        
+        // Standard response format - only reaches here if we didn't return from question processing
+        return res.json({ 
+          success: true, 
+          message: "Text processed successfully",
+          combinedPrompt: combinedPrompt,
+          processedText: combinedPrompt // Include for backward compatibility
+        });
       }
-      
-      // Standard response format - only reaches here if we didn't return from question processing
-      return res.json({ 
-        success: true, 
-        message: "Text processed successfully",
-        combinedPrompt: combinedPrompt,
-        processedText: combinedPrompt // Include for backward compatibility
-      });
     } catch (error) {
       console.error("Error processing responses:", error);
       res.status(500).json({ 
