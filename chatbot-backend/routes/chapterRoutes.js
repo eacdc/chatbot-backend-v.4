@@ -296,12 +296,12 @@ async function processBatchText(req, res) {
       const hasQuestionField = combinedPrompt.includes('"question":');
       console.log(`Text contains Q field: ${hasQField}, question field: ${hasQuestionField}`);
       
-      if (hasQField && hasQuestionField) {
+      if (hasQuestionField) {
         try {
           console.log("Detected question format in the batch output - attempting to structure as question array");
           
-          // Extract JSON objects from the text
-          const questionJsonObjects = combinedPrompt.match(/\{[\s\S]*?"Q"[\s\S]*?"question"[\s\S]*?\}/g);
+          // Extract JSON objects with question field (modified regex to not require Q field)
+          const questionJsonObjects = combinedPrompt.match(/\{[\s\S]*?"question"[\s\S]*?\}/g);
           console.log(`Regex match result: ${questionJsonObjects ? `Found ${questionJsonObjects.length} matches` : 'No matches found'}`);
           
           if (questionJsonObjects && questionJsonObjects.length > 0) {
@@ -313,7 +313,7 @@ async function processBatchText(req, res) {
               
               try {
                 const sampleParsed = JSON.parse(questionJsonObjects[0]);
-                console.log(`Sample parsed successfully: Q=${sampleParsed.Q}, question=${sampleParsed.question?.substring(0, 50)}...`);
+                console.log(`Sample parsed successfully: subtopic=${sampleParsed.subtopic}, question=${sampleParsed.question?.substring(0, 50)}...`);
               } catch (parseError) {
                 console.error(`Could not parse sample match as JSON: ${parseError.message}`);
                 console.log(`Raw sample for inspection: ${JSON.stringify(questionJsonObjects[0])}`);
@@ -360,8 +360,23 @@ async function processBatchText(req, res) {
                 const cleanedJson = jsonStr.trim().replace(/,\s*$/, '');
                 const questionObj = JSON.parse(cleanedJson);
                 
-                // Validate the required fields
-                if (questionObj.Q !== undefined && questionObj.question) {
+                // Check if the question has the required field
+                if (questionObj.question) {
+                  // Extract question number if present in the question text
+                  let questionNumber = index + 1; // Default to index+1
+                  const numberMatch = questionObj.question.match(/^\s*(?:Choose|Select|Answer)?\s*(?:the\s+(?:correct\s+)?option\s+to\s+fill\s+in\s+the\s+blanks\.\s*)?(\d+)[\.:\)\s]/i);
+                  
+                  if (numberMatch && numberMatch[1]) {
+                    questionNumber = parseInt(numberMatch[1], 10);
+                    console.log(`Extracted question number ${questionNumber} from question text`);
+                  }
+                  
+                  // Add Q field if missing
+                  if (!questionObj.Q) {
+                    questionObj.Q = questionNumber;
+                    console.log(`Added Q field with value ${questionNumber} to question at index ${index}`);
+                  }
+                  
                   // Track this validation
                   pendingValidations++;
                   
