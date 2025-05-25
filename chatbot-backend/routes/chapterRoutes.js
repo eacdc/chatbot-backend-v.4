@@ -339,7 +339,8 @@ async function processBatchText(req, res) {
                     combinedPrompt: JSON.stringify(structuredQuestions),
                     isQuestionFormat: true,
                     questionArray: structuredQuestions,
-                    totalQuestions: structuredQuestions.length
+                    totalQuestions: structuredQuestions.length,
+                    nextSteps: "To save these questions to a chapter, send a POST request to /api/chapters/update-chapter-questions/:chapterId with the 'questions' array in the request body."
                   });
                 } else {
                   // If no questions were kept after validation, return standard format
@@ -1076,6 +1077,58 @@ Do not include any explanation, commentary, or formatting outside the array.`;
     };
   }
 }
+
+// Add chapter questions from processed JSON array
+router.post("/update-chapter-questions/:chapterId", authenticateAdmin, async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { questions } = req.body;
+
+    if (!questions || !Array.isArray(questions)) {
+      return res.status(400).json({ error: "Valid questions array is required" });
+    }
+
+    console.log(`Updating chapter ${chapterId} with ${questions.length} questions`);
+    
+    // Find the chapter
+    const chapter = await Chapter.findById(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ error: "Chapter not found" });
+    }
+
+    // Process the question objects to ensure they have all required fields
+    const processedQuestions = questions.map((q, index) => ({
+      questionId: q.questionId || `QID-${chapter._id}-${index}-${Date.now()}`,
+      Q: q.Q,
+      question: q.question,
+      question_marks: parseInt(q.question_marks || 1, 10),
+      subtopic: q.subtopic || "General",
+      tentativeAnswer: q.tentativeAnswer || "",
+      difficultyLevel: q.difficultyLevel || "Medium"
+    }));
+
+    // Update the chapter's questionPrompt array
+    chapter.questionPrompt = processedQuestions;
+    
+    // Also update the prompt field with the JSON string for compatibility
+    chapter.prompt = JSON.stringify(processedQuestions);
+    
+    // Save the updated chapter
+    await chapter.save();
+    
+    console.log(`Successfully updated chapter ${chapterId} with ${processedQuestions.length} questions`);
+    
+    res.json({
+      success: true,
+      message: `Successfully updated chapter with ${processedQuestions.length} questions`,
+      questions: processedQuestions
+    });
+    
+  } catch (error) {
+    console.error("Error updating chapter questions:", error);
+    res.status(500).json({ error: "Failed to update chapter questions", message: error.message });
+  }
+});
 
 module.exports = { 
   textToEmbeddings, 
