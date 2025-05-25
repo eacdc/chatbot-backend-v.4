@@ -351,36 +351,84 @@ async function processBatchText(req, res) {
                     try {
                       // Check if the question should be kept
                       const validationResult = await validateQuestionWithOpenAI(questionObj.question);
-                      const response = await answerQuestion(questionObj.question,embeddings);
-                      const questionAnalysis = JSON.parse(response.answer);
+                      console.log(`Question validation result: ${validationResult}`);
+                      
+                      // Process the question to get answer, difficulty, and marks
+                      console.log(`Getting analysis for question: "${questionObj.question.substring(0, 50)}..."`);
+                      
+                      let questionAnalysis;
+                      try {
+                        const response = await answerQuestion(questionObj.question, embeddings);
+                        console.log(`Raw answer response: ${response.answer}`);
+                        
+                        try {
+                          questionAnalysis = JSON.parse(response.answer);
+                          console.log(`Successfully parsed questionAnalysis: ${JSON.stringify(questionAnalysis)}`);
+                        } catch (parseError) {
+                          console.error(`Error parsing response.answer: ${parseError.message}`);
+                          console.error(`Raw response.answer content: "${response.answer}"`);
+                          
+                          // Try to clean the answer for parsing
+                          const cleanedAnswer = response.answer.trim()
+                            .replace(/^```json/, '').replace(/```$/, '') // Remove code blocks
+                            .replace(/^```/, '').replace(/```$/, '')      // Remove other code blocks
+                            .trim();
+                            
+                          console.log(`Attempting to parse cleaned answer: "${cleanedAnswer}"`);
+                          
+                          try {
+                            questionAnalysis = JSON.parse(cleanedAnswer);
+                            console.log(`Successfully parsed cleaned answer into questionAnalysis`);
+                          } catch (secondParseError) {
+                            console.error(`Failed to parse cleaned answer: ${secondParseError.message}`);
+                            // Set a default value
+                            questionAnalysis = ["Unable to parse answer", "Medium", 1];
+                            console.log(`Using default questionAnalysis: ${JSON.stringify(questionAnalysis)}`);
+                          }
+                        }
+                      } catch (analysisError) {
+                        console.error(`Error getting question analysis: ${analysisError.message}`);
+                        questionAnalysis = ["Error analyzing question", "Medium", 1];
+                      }
+                      
+                      console.log(`Final questionAnalysis: ${JSON.stringify(questionAnalysis)}`);
+                      
                       if (validationResult === "keep") {
-                  // Add default values for missing fields
-                  structuredQuestions.push({
-                    Q: questionObj.Q,
-                    question: questionObj.question,
-                    tentativeAnswer: questionAnalysis[0],
-                    difficultyLevel: questionAnalysis[1],
-                    question_marks: questionAnalysis[2] || 1
-                  });
-                  successCount++;
+                        // Add default values for missing fields
+                        console.log(`Adding question to structuredQuestions array`);
+                        structuredQuestions.push({
+                          Q: questionObj.Q,
+                          question: questionObj.question,
+                          tentativeAnswer: questionAnalysis[0],
+                          difficultyLevel: questionAnalysis[1],
+                          question_marks: questionAnalysis[2] || 1
+                        });
+                        successCount++;
                       } else {
                         console.log(`Skipping question at index ${index} based on validation`);
                         errorCount++;
                       }
                     } catch (error) {
-                      console.error(`Error validating question at index ${index}:`, error);
+                      console.error(`Error in question processing at index ${index}:`, error);
+                      
                       // Default to keeping the question if validation fails
+                      console.log(`Using fallback values for question at index ${index}`);
+                      
+                      // Create safe questionAnalysis with defaults if it's not defined
+                      const safeQuestionAnalysis = Array.isArray(questionAnalysis) ? questionAnalysis : ["No answer available", "Medium", 1];
+                      
                       structuredQuestions.push({
                         Q: questionObj.Q,
                         question: questionObj.question,
-                        tentativeAnswer: questionAnalysis[0],
-                        difficultyLevel: questionAnalysis[1],
-                        question_marks: questionAnalysis[2] || 1
+                        tentativeAnswer: safeQuestionAnalysis[0] || "No answer available",
+                        difficultyLevel: safeQuestionAnalysis[1] || "Medium",
+                        question_marks: safeQuestionAnalysis[2] || 1
                       });
                       successCount++;
                     } finally {
                       // Mark this validation as complete
                       pendingValidations--;
+                      console.log(`Validation complete. Remaining validations: ${pendingValidations}`);
                       // Check if all processing is complete and send response if needed
                       finishProcessing();
                     }
@@ -619,37 +667,56 @@ async function textToEmbeddings(text, options = {}) {
     openaiClient = openai
   } = options;
 
-  const chunks = chunkText(text, chunkSize, overlap);
-  const embeddings = [];
+  console.log(`Starting textToEmbeddings with text length: ${text.length}, chunkSize: ${chunkSize}, overlap: ${overlap}`);
   
-  for (let i = 0; i < chunks.length; i += batchSize) {
-    const batch = chunks.slice(i, i + batchSize);
-    
-    try {
-      const response = await openaiClient.embeddings.create({
-        model: model,
-        input: batch,
-      });
-      
-      batch.forEach((chunk, batchIndex) => {
-        embeddings.push({
-          text: chunk,
-          embedding: response.data[batchIndex].embedding,
-          index: i + batchIndex,
-          chunkSize: chunk.length
-        });
-      });
-      
-      if (i + batchSize < chunks.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      
-    } catch (error) {
-      throw new Error(`Failed to create embeddings for batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
-    }
+  if (!text || text.length === 0) {
+    console.error("Error: Empty text provided to textToEmbeddings");
+    return [];
   }
-  
-  return embeddings;
+
+  try {
+    const chunks = chunkText(text, chunkSize, overlap);
+    console.log(`Created ${chunks.length} text chunks for embedding`);
+    
+    const embeddings = [];
+    
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const batch = chunks.slice(i, i + batchSize);
+      console.log(`Processing embedding batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}`);
+      
+      try {
+        const response = await openaiClient.embeddings.create({
+          model: model,
+          input: batch,
+        });
+        
+        console.log(`Successfully received embeddings for batch ${Math.floor(i / batchSize) + 1}`);
+        
+        batch.forEach((chunk, batchIndex) => {
+          embeddings.push({
+            text: chunk,
+            embedding: response.data[batchIndex].embedding,
+            index: i + batchIndex,
+            chunkSize: chunk.length
+          });
+        });
+        
+        if (i + batchSize < chunks.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+      } catch (error) {
+        console.error(`Failed to create embeddings for batch ${Math.floor(i / batchSize) + 1}:`, error);
+        throw new Error(`Failed to create embeddings for batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
+      }
+    }
+    
+    console.log(`Successfully generated ${embeddings.length} embeddings`);
+    return embeddings;
+  } catch (error) {
+    console.error("Error in textToEmbeddings:", error);
+    throw error;
+  }
 }
 
 /**
@@ -660,6 +727,13 @@ async function textToEmbeddings(text, options = {}) {
  * @returns {Array<string>} Array of text chunks
  */
 function chunkText(text, maxSize, overlap) {
+  console.log(`Starting chunkText with text length: ${text.length}, maxSize: ${maxSize}, overlap: ${overlap}`);
+  
+  if (!text || text.length === 0) {
+    console.warn("Warning: Empty text provided to chunkText");
+    return [];
+  }
+  
   const chunks = [];
   let start = 0;
   
@@ -677,18 +751,25 @@ function chunkText(text, maxSize, overlap) {
       
       if (lastSentenceEnd > -1) {
         end = searchStart + lastSentenceEnd + 1;
+        console.log(`Found sentence boundary at position ${end}`);
+      } else {
+        console.log(`No sentence boundary found, using max chunk size at position ${end}`);
       }
     }
     
     const chunk = text.substring(start, end).trim();
     if (chunk.length > 0) {
       chunks.push(chunk);
+      console.log(`Added chunk ${chunks.length} with length ${chunk.length}`);
+    } else {
+      console.warn(`Empty chunk detected at position ${start}-${end}, skipping`);
     }
     
     start = end - overlap;
     if (start >= end) start = end;
   }
   
+  console.log(`chunkText finished, created ${chunks.length} chunks`);
   return chunks;
 }
 
@@ -699,6 +780,16 @@ function chunkText(text, maxSize, overlap) {
  * @returns {number} Similarity score between 0 and 1
  */
 function cosineSimilarity(a, b) {
+  if (!a || !b || !Array.isArray(a) || !Array.isArray(b)) {
+    console.error(`Error in cosineSimilarity: Invalid input vectors. a length: ${a?.length}, b length: ${b?.length}`);
+    return 0;
+  }
+  
+  if (a.length !== b.length) {
+    console.error(`Error in cosineSimilarity: Vector dimensions do not match. a length: ${a.length}, b length: ${b.length}`);
+    return 0;
+  }
+  
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;
@@ -709,7 +800,14 @@ function cosineSimilarity(a, b) {
     normB += b[i] * b[i];
   }
   
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  if (normA === 0 || normB === 0) {
+    console.warn("Warning in cosineSimilarity: One or both vectors have zero magnitude");
+    return 0;
+  }
+  
+  const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  console.log(`Calculated similarity: ${similarity.toFixed(4)}`);
+  return similarity;
 }
 
 /**
@@ -720,30 +818,73 @@ function cosineSimilarity(a, b) {
  * @returns {Promise<Array>} Ranked array of relevant chunks
  */
 async function findRelevantKnowledge(question, knowledgeEmbeddings, options = {}) {
+  console.log(`Starting findRelevantKnowledge for question: "${question.substring(0, 50)}..."`);
+  
+  if (!question || !knowledgeEmbeddings) {
+    console.error(`Error in findRelevantKnowledge: Invalid inputs. Question empty: ${!question}, Knowledge embeddings empty: ${!knowledgeEmbeddings || !Array.isArray(knowledgeEmbeddings) || knowledgeEmbeddings.length === 0}`);
+    return [];
+  }
+  
   const {
     topK = 3,
     model = 'text-embedding-3-small',
     openaiClient = openai
   } = options;
 
-  // Get embedding for the question
-  const questionResponse = await openaiClient.embeddings.create({
-    model: model,
-    input: [question],
-  });
-  
-  const questionEmbedding = questionResponse.data[0].embedding;
-  
-  // Calculate similarities and rank
-  const similarities = knowledgeEmbeddings.map(item => ({
-    ...item,
-    similarity: cosineSimilarity(questionEmbedding, item.embedding)
-  }));
-  
-  // Sort by similarity (highest first) and return top K
-  return similarities
-    .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, topK);
+  console.log(`Finding relevant knowledge with parameters: topK=${topK}, model=${model}`);
+  console.log(`Knowledge base size: ${knowledgeEmbeddings.length} embeddings`);
+
+  try {
+    // Get embedding for the question
+    console.log("Generating embedding for question...");
+    const questionResponse = await openaiClient.embeddings.create({
+      model: model,
+      input: [question],
+    });
+    
+    if (!questionResponse || !questionResponse.data || questionResponse.data.length === 0) {
+      console.error("Error: Empty response from OpenAI embeddings API");
+      return [];
+    }
+    
+    console.log("Successfully generated question embedding");
+    const questionEmbedding = questionResponse.data[0].embedding;
+    
+    if (!questionEmbedding || !Array.isArray(questionEmbedding)) {
+      console.error(`Error: Invalid question embedding returned. Type: ${typeof questionEmbedding}`);
+      return [];
+    }
+    
+    // Calculate similarities and rank
+    console.log("Calculating similarities between question and knowledge base...");
+    const similarities = knowledgeEmbeddings.map((item, index) => {
+      if (!item || !item.embedding || !Array.isArray(item.embedding)) {
+        console.error(`Error: Invalid embedding at index ${index}`);
+        return { ...item, similarity: 0 };
+      }
+      
+      const similarity = cosineSimilarity(questionEmbedding, item.embedding);
+      return {
+        ...item,
+        similarity
+      };
+    });
+    
+    // Sort by similarity (highest first) and return top K
+    const sortedResults = similarities
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, topK);
+    
+    console.log(`Found ${sortedResults.length} relevant knowledge chunks`);
+    sortedResults.forEach((result, idx) => {
+      console.log(`Top result ${idx + 1}: similarity=${result.similarity.toFixed(4)}, text="${result.text.substring(0, 50)}..."`);
+    });
+    
+    return sortedResults;
+  } catch (error) {
+    console.error("Error in findRelevantKnowledge:", error);
+    throw error;
+  }
 }
 
 /**
@@ -754,27 +895,44 @@ async function findRelevantKnowledge(question, knowledgeEmbeddings, options = {}
  * @returns {Promise<Object>} Answer with sources and context
  */
 async function answerQuestion(question, knowledgeEmbeddings, options = {}) {
+  console.log(`Starting answerQuestion for question: "${question.substring(0, 50)}..."`);
+  
+  if (!question) {
+    console.error("Error in answerQuestion: Empty question provided");
+    return { answer: "[]", relevantChunks: [], context: "" };
+  }
+  
+  if (!knowledgeEmbeddings || !Array.isArray(knowledgeEmbeddings) || knowledgeEmbeddings.length === 0) {
+    console.error(`Error in answerQuestion: Invalid knowledge embeddings. Type: ${typeof knowledgeEmbeddings}, Is Array: ${Array.isArray(knowledgeEmbeddings)}, Length: ${knowledgeEmbeddings?.length || 0}`);
+    return { answer: "[]", relevantChunks: [], context: "" };
+  }
+  
   const {
     topK = 3,
     model = 'gpt-4',
     openaiClient = openai
   } = options;
 
-  // Find relevant knowledge chunks
-  const relevantChunks = await findRelevantKnowledge(question, knowledgeEmbeddings, { topK, openaiClient });
-  
-  // Combine relevant text as context
-  const context = relevantChunks
-    .map(chunk => chunk.text)
-    .join('\n\n');
-  
-  // Generate answer using GPT
-  const response = await openaiClient.chat.completions.create({
-    model: model,
-    messages: [
-      {
-        role: 'system',
-        content: `You are an assistant that receives a user's question and returns an array with exactly three elements in this order:
+  try {
+    // Find relevant knowledge chunks
+    console.log("Finding relevant knowledge chunks...");
+    const relevantChunks = await findRelevantKnowledge(question, knowledgeEmbeddings, { topK, openaiClient });
+    
+    if (!relevantChunks || relevantChunks.length === 0) {
+      console.warn("Warning: No relevant knowledge chunks found");
+      return { answer: '["No relevant information found", "Easy", 1]', relevantChunks: [], context: "" };
+    }
+    
+    // Combine relevant text as context
+    const context = relevantChunks
+      .map(chunk => chunk.text)
+      .join('\n\n');
+    
+    console.log(`Created context with ${context.length} characters from ${relevantChunks.length} chunks`);
+    
+    // Generate answer using GPT
+    console.log("Sending request to OpenAI for question answering...");
+    const systemPrompt = `You are an assistant that receives a user's question and returns an array with exactly three elements in this order:
 
 A tentative answer to the question (as a string).
 
@@ -791,25 +949,91 @@ Only use below knowledge base for answering, don't create answer on your own:
 Knowledge Base:
 ${context}
 
-Do not include any explanation, commentary, or formatting outside the array.`
-      },
-      {
-        role: 'user',
-        content: question
+Do not include any explanation, commentary, or formatting outside the array.`;
+
+    console.log(`System prompt length: ${systemPrompt.length} characters`);
+    
+    const response = await openaiClient.chat.completions.create({
+      model: model,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: question
+        }
+      ],
+      temperature: 0.0,
+      max_tokens: 500
+    });
+    
+    if (!response || !response.choices || response.choices.length === 0) {
+      console.error("Error: Empty or invalid response from OpenAI");
+      return { answer: '["Error getting answer", "Easy", 1]', relevantChunks: [], context: "" };
+    }
+    
+    const answer = response.choices[0].message.content;
+    console.log(`Received answer from OpenAI: "${answer}"`);
+    
+    // Validate the answer format
+    try {
+      const parsedAnswer = JSON.parse(answer);
+      console.log(`Successfully parsed answer JSON. Array length: ${parsedAnswer.length}, Elements: [${parsedAnswer.map((el, i) => `${i}: ${typeof el} (${el})`).join(', ')}]`);
+      
+      // Verify array structure
+      if (!Array.isArray(parsedAnswer) || parsedAnswer.length !== 3) {
+        console.error(`Error: Expected array of length 3, got ${Array.isArray(parsedAnswer) ? parsedAnswer.length : typeof parsedAnswer}`);
       }
-    ],
-    temperature: 0.0,
-    max_tokens: 500
-  });
-  
-  return {
-    answer: response.choices[0].message.content,
-    relevantChunks: relevantChunks.map(chunk => ({
-      text: chunk.text,
-      similarity: chunk.similarity
-    })),
-    context: context
-  };
+      
+      if (typeof parsedAnswer[0] !== 'string') {
+        console.error(`Error: First element should be string, got ${typeof parsedAnswer[0]}`);
+      }
+      
+      if (typeof parsedAnswer[1] !== 'string' || !['Easy', 'Medium', 'Hard'].includes(parsedAnswer[1])) {
+        console.error(`Error: Second element should be difficulty string, got ${typeof parsedAnswer[1]} with value "${parsedAnswer[1]}"`);
+      }
+      
+      if (typeof parsedAnswer[2] !== 'number' && !/^\d+$/.test(parsedAnswer[2])) {
+        console.error(`Error: Third element should be a number, got ${typeof parsedAnswer[2]} with value "${parsedAnswer[2]}"`);
+      }
+    } catch (parseError) {
+      console.error(`Error parsing answer as JSON: ${parseError.message}`);
+      console.error(`Raw answer content: "${answer}"`);
+      
+      // Try to fix common JSON formatting issues
+      const cleanedAnswer = answer.trim()
+        .replace(/^```json/, '').replace(/```$/, '') // Remove code blocks
+        .replace(/^```/, '').replace(/```$/, '')      // Remove other code blocks
+        .trim();
+        
+      console.log(`Cleaned answer for parsing attempt: "${cleanedAnswer}"`);
+      
+      try {
+        const parsedCleanedAnswer = JSON.parse(cleanedAnswer);
+        console.log(`Successfully parsed cleaned answer: ${JSON.stringify(parsedCleanedAnswer)}`);
+      } catch (secondParseError) {
+        console.error(`Still failed to parse cleaned answer: ${secondParseError.message}`);
+      }
+    }
+    
+    return {
+      answer: answer,
+      relevantChunks: relevantChunks.map(chunk => ({
+        text: chunk.text,
+        similarity: chunk.similarity
+      })),
+      context: context
+    };
+  } catch (error) {
+    console.error("Error in answerQuestion:", error);
+    return { 
+      answer: '["Error processing question", "Easy", 1]',
+      relevantChunks: [], 
+      context: "" 
+    };
+  }
 }
 
 module.exports = { 
