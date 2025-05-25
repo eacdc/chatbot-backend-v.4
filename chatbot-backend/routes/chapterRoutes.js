@@ -977,7 +977,7 @@ A tentative answer to the question (as a string).
 
 The difficulty level of the question, strictly one of: "Easy", "Medium", or "Hard".
 
-Marks assigned to the question (as an integer), based on your judgment of the question's depth, complexity, and required effort—not by fixed rules.
+Marks assigned to the question (as an integer between 1 to 5), based on your judgment of the question's depth, complexity, and required effort—not by fixed rules.
 
 Return the result strictly in this array format in answer found in knowledge base else return "No Answer" :
 
