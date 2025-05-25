@@ -194,6 +194,7 @@ async function processBatchText(req, res) {
     console.log(`Processing text with batching. Text length: ${rawText.length} characters`);
     
     // Split text into smaller parts (min 20 parts with min 1000 words each) at sentence boundaries
+    const embeddings = await textToEmbeddings(rawText);
     const textParts = splitTextIntoSentenceParts(rawText, 20);
     console.log(`Split text into ${textParts.length} parts`);
     
@@ -350,14 +351,16 @@ async function processBatchText(req, res) {
                     try {
                       // Check if the question should be kept
                       const validationResult = await validateQuestionWithOpenAI(questionObj.question);
+                      const response = await answerQuestion(questionObj.question,embeddings);
+                      const questionAnalysis = JSON.parse(response.answer);
                       if (validationResult === "keep") {
                   // Add default values for missing fields
                   structuredQuestions.push({
                     Q: questionObj.Q,
                     question: questionObj.question,
-                    question_answered: questionObj.question_answered || false,
-                    question_marks: questionObj.question_marks || 1,
-                    marks_gained: questionObj.marks_gained || 0
+                    tentativeAnswer: questionAnalysis[0],
+                    difficultyLevel: questionAnalysis[1],
+                    question_marks: questionAnalysis[2] || 1
                   });
                   successCount++;
                       } else {
@@ -370,9 +373,9 @@ async function processBatchText(req, res) {
                       structuredQuestions.push({
                         Q: questionObj.Q,
                         question: questionObj.question,
-                        question_answered: questionObj.question_answered || false,
-                        question_marks: questionObj.question_marks || 1,
-                        marks_gained: questionObj.marks_gained || 0
+                        tentativeAnswer: questionAnalysis[0],
+                        difficultyLevel: questionAnalysis[1],
+                        question_marks: questionAnalysis[2] || 1
                       });
                       successCount++;
                     } finally {
@@ -600,4 +603,218 @@ given to you, then you can rephrase the question to make it complete. Keep the t
   }
 }
 
+
+/**
+ * Converts raw text into chunked embeddings for knowledge base
+ * @param {string} text - Raw text to process
+ * @param {Object} options - Configuration options
+ * @returns {Promise<Array>} Array of embedding objects
+ */
+async function textToEmbeddings(text, options = {}) {
+  const {
+    chunkSize = 1000,
+    overlap = 100,
+    model = 'text-embedding-3-small',
+    batchSize = 10,
+    openaiClient = openai
+  } = options;
+
+  const chunks = chunkText(text, chunkSize, overlap);
+  const embeddings = [];
+  
+  for (let i = 0; i < chunks.length; i += batchSize) {
+    const batch = chunks.slice(i, i + batchSize);
+    
+    try {
+      const response = await openaiClient.embeddings.create({
+        model: model,
+        input: batch,
+      });
+      
+      batch.forEach((chunk, batchIndex) => {
+        embeddings.push({
+          text: chunk,
+          embedding: response.data[batchIndex].embedding,
+          index: i + batchIndex,
+          chunkSize: chunk.length
+        });
+      });
+      
+      if (i + batchSize < chunks.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+    } catch (error) {
+      throw new Error(`Failed to create embeddings for batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
+    }
+  }
+  
+  return embeddings;
+}
+
+/**
+ * Splits text into chunks with intelligent sentence boundaries
+ * @param {string} text - Text to chunk
+ * @param {number} maxSize - Maximum chunk size
+ * @param {number} overlap - Overlap between chunks
+ * @returns {Array<string>} Array of text chunks
+ */
+function chunkText(text, maxSize, overlap) {
+  const chunks = [];
+  let start = 0;
+  
+  while (start < text.length) {
+    let end = start + maxSize;
+    
+    if (end < text.length) {
+      const searchStart = Math.max(end - 200, start);
+      const segment = text.substring(searchStart, end);
+      const lastSentenceEnd = Math.max(
+        segment.lastIndexOf('. '),
+        segment.lastIndexOf('? '),
+        segment.lastIndexOf('! ')
+      );
+      
+      if (lastSentenceEnd > -1) {
+        end = searchStart + lastSentenceEnd + 1;
+      }
+    }
+    
+    const chunk = text.substring(start, end).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
+    
+    start = end - overlap;
+    if (start >= end) start = end;
+  }
+  
+  return chunks;
+}
+
+/**
+ * Calculates cosine similarity between two embedding vectors
+ * @param {Array<number>} a - First embedding vector
+ * @param {Array<number>} b - Second embedding vector
+ * @returns {number} Similarity score between 0 and 1
+ */
+function cosineSimilarity(a, b) {
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+/**
+ * Finds most relevant knowledge chunks for a given question
+ * @param {string} question - Question to search for
+ * @param {Array} knowledgeEmbeddings - Knowledge base embeddings
+ * @param {Object} options - Search options
+ * @returns {Promise<Array>} Ranked array of relevant chunks
+ */
+async function findRelevantKnowledge(question, knowledgeEmbeddings, options = {}) {
+  const {
+    topK = 3,
+    model = 'text-embedding-3-small',
+    openaiClient = openai
+  } = options;
+
+  // Get embedding for the question
+  const questionResponse = await openaiClient.embeddings.create({
+    model: model,
+    input: [question],
+  });
+  
+  const questionEmbedding = questionResponse.data[0].embedding;
+  
+  // Calculate similarities and rank
+  const similarities = knowledgeEmbeddings.map(item => ({
+    ...item,
+    similarity: cosineSimilarity(questionEmbedding, item.embedding)
+  }));
+  
+  // Sort by similarity (highest first) and return top K
+  return similarities
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, topK);
+}
+
+/**
+ * Generates an answer to a question using knowledge base context
+ * @param {string} question - Question to answer
+ * @param {Array} knowledgeEmbeddings - Knowledge base embeddings
+ * @param {Object} options - Answer generation options
+ * @returns {Promise<Object>} Answer with sources and context
+ */
+async function answerQuestion(question, knowledgeEmbeddings, options = {}) {
+  const {
+    topK = 3,
+    model = 'gpt-4',
+    openaiClient = openai
+  } = options;
+
+  // Find relevant knowledge chunks
+  const relevantChunks = await findRelevantKnowledge(question, knowledgeEmbeddings, { topK, openaiClient });
+  
+  // Combine relevant text as context
+  const context = relevantChunks
+    .map(chunk => chunk.text)
+    .join('\n\n');
+  
+  // Generate answer using GPT
+  const response = await openaiClient.chat.completions.create({
+    model: model,
+    messages: [
+      {
+        role: 'system',
+        content: `You are an assistant that receives a user's question and returns an array with exactly three elements in this order:
+
+A tentative answer to the question (as a string).
+
+The difficulty level of the question, strictly one of: "Easy", "Medium", or "Hard".
+
+Marks assigned to the question (as an integer), based on your judgment of the question's depth, complexity, and required effort—not by fixed rules.
+
+Return the result strictly in this array format in answer found in knowledge base else return "No Answer" :
+
+["Tentative answer", "Difficulty", Marks]
+
+Only use below knowledge base for answering, don't create answer on your own:
+
+Knowledge Base:
+${context}
+
+Do not include any explanation, commentary, or formatting outside the array.`
+      },
+      {
+        role: 'user',
+        content: question
+      }
+    ],
+    temperature: 0.0,
+    max_tokens: 500
+  });
+  
+  return {
+    answer: response.choices[0].message.content,
+    relevantChunks: relevantChunks.map(chunk => ({
+      text: chunk.text,
+      similarity: chunk.similarity
+    })),
+    context: context
+  };
+}
+
+module.exports = { 
+  textToEmbeddings, 
+  findRelevantKnowledge, 
+  answerQuestion 
+};
 module.exports = router;
