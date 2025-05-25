@@ -433,6 +433,7 @@ async function processBatchText(req, res) {
                         structuredQuestions.push({
                           Q: questionObj.Q,
                           question: questionObj.question,
+                          subtopic: questionObj.subtopic || "General",
                           tentativeAnswer: questionAnalysis[0],
                           difficultyLevel: questionAnalysis[1],
                           question_marks: questionAnalysis[2] || 1
@@ -454,6 +455,7 @@ async function processBatchText(req, res) {
                       structuredQuestions.push({
                         Q: questionObj.Q,
                         question: questionObj.question,
+                        subtopic: questionObj.subtopic || "General",
                         tentativeAnswer: safeQuestionAnalysis[0] || "No answer available",
                         difficultyLevel: safeQuestionAnalysis[1] || "Medium",
                         question_marks: safeQuestionAnalysis[2] || 1
