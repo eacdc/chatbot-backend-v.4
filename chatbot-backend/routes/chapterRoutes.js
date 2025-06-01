@@ -454,7 +454,7 @@ async function processBatchText(req, res) {
                           question: questionObj.question,
                           subtopic: questionObj.subtopic || "General",
                           question_type: questionObj.question_type || "multiple choice",
-                          tentativeAnswer: questionObj.question_type === "short answer" || questionObj.question_type === "Descriptive" ? questionAnalysis[0] : "Not Required",
+                          tentativeAnswer: questionObj.question_type === "short answer" || questionObj.question_type === "descriptive" ? questionAnalysis[0] : "Not Required",
                           difficultyLevel: questionAnalysis[1],
                           question_marks: questionAnalysis[2] || 1
                         });
@@ -477,7 +477,7 @@ async function processBatchText(req, res) {
                         question: questionObj.question,
                         subtopic: questionObj.subtopic || "General",
                         question_type: questionObj.question_type || "multiple choice",
-                        tentativeAnswer: questionObj.question_type === "short answer" || questionObj.question_type === "Descriptive" ? questionAnalysis[0] : "Not Required",
+                        tentativeAnswer: questionObj.question_type === "short answer" || questionObj.question_type === "descriptive" ? questionAnalysis[0] : "Not Required",
                         difficultyLevel: safeQuestionAnalysis[1] || "Medium",
                         question_marks: safeQuestionAnalysis[2] || 1
                       });
