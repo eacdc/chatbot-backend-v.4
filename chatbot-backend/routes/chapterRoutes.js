@@ -184,7 +184,7 @@ router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
 // Shared batch text processing function
 async function processBatchText(req, res) {
   try {
-    const { rawText } = req.body;
+    const { rawText, subject, chapterTitle } = req.body;
 
     if (!rawText) {
       return res.status(400).json({ error: "Raw text is required" });
@@ -192,6 +192,7 @@ async function processBatchText(req, res) {
     
     // Log processing attempt
     console.log(`Processing text with batching. Text length: ${rawText.length} characters`);
+    console.log(`Subject: ${subject || 'Not provided'}, Chapter: ${chapterTitle || 'Not provided'}`);
     
     // Split text into smaller parts (min 20 parts with min 1000 words each) at sentence boundaries
     const embeddings = await textToEmbeddings(rawText);
@@ -205,6 +206,17 @@ async function processBatchText(req, res) {
       if (promptDoc) {
         systemPrompt = promptDoc.prompt;
         console.log("Successfully loaded Batch Processing prompt from database");
+        
+        // Replace variables in the prompt if subject and chapter are provided
+        if (subject) {
+          systemPrompt = systemPrompt.replace(/<Subject>/g, subject);
+        }
+        
+        if (chapterTitle) {
+          systemPrompt = systemPrompt.replace(/<Chapter>/g, chapterTitle);
+        }
+        
+        console.log("Replaced variables in prompt template");
       } else {
         // Fallback to default prompt
         systemPrompt = "";
@@ -313,7 +325,7 @@ async function processBatchText(req, res) {
               
               try {
                 const sampleParsed = JSON.parse(questionJsonObjects[0]);
-                console.log(`Sample parsed successfully: subtopic=${sampleParsed.subtopic}, question=${sampleParsed.question?.substring(0, 50)}..., question type=${sampleParsed["question type"] || "N/A"}`);
+                console.log(`Sample parsed successfully: subtopic=${sampleParsed.subtopic}, question=${sampleParsed.question?.substring(0, 50)}..., question type=${sampleParsed["question type"] || sampleParsed.question_type || "N/A"}`);
               } catch (parseError) {
                 console.error(`Could not parse sample match as JSON: ${parseError.message}`);
                 console.log(`Raw sample for inspection: ${JSON.stringify(questionJsonObjects[0])}`);
@@ -378,6 +390,12 @@ async function processBatchText(req, res) {
                     console.log(`Added Q field with value ${questionNumber} to question at index ${index}`);
                   }
                   
+                  // Normalize question type field
+                  if (questionObj["question type"] && !questionObj.question_type) {
+                    questionObj.question_type = questionObj["question type"];
+                    console.log(`Normalized "question type" to question_type: ${questionObj.question_type}`);
+                  }
+                  
                   // Track this validation
                   pendingValidations++;
                   
@@ -435,8 +453,8 @@ async function processBatchText(req, res) {
                           Q: questionObj.Q,
                           question: questionObj.question,
                           subtopic: questionObj.subtopic || "General",
-                          "question type": questionObj["question type"] || "multiple-choice",
-                          tentativeAnswer: questionAnalysis[0],
+                          question_type: questionObj.question_type || "multiple choice",
+                          tentativeAnswer: questionObj.question_type === "short answer" || questionObj.question_type === "Descriptive" ? questionAnalysis[0] : "Not Required",
                           difficultyLevel: questionAnalysis[1],
                           question_marks: questionAnalysis[2] || 1
                         });
@@ -458,8 +476,8 @@ async function processBatchText(req, res) {
                         Q: questionObj.Q,
                         question: questionObj.question,
                         subtopic: questionObj.subtopic || "General",
-                        "question type": questionObj["question type"] || "multiple-choice",
-                        tentativeAnswer: safeQuestionAnalysis[0] || "No answer available",
+                        question_type: questionObj.question_type || "multiple choice",
+                        tentativeAnswer: questionObj.question_type === "short answer" || questionObj.question_type === "Descriptive" ? questionAnalysis[0] : "Not Required",
                         difficultyLevel: safeQuestionAnalysis[1] || "Medium",
                         question_marks: safeQuestionAnalysis[2] || 1
                       });
