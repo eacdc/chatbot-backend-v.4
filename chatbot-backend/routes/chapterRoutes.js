@@ -313,7 +313,7 @@ async function processBatchText(req, res) {
               
               try {
                 const sampleParsed = JSON.parse(questionJsonObjects[0]);
-                console.log(`Sample parsed successfully: subtopic=${sampleParsed.subtopic}, question=${sampleParsed.question?.substring(0, 50)}...`);
+                console.log(`Sample parsed successfully: subtopic=${sampleParsed.subtopic}, question=${sampleParsed.question?.substring(0, 50)}..., question type=${sampleParsed["question type"] || "N/A"}`);
               } catch (parseError) {
                 console.error(`Could not parse sample match as JSON: ${parseError.message}`);
                 console.log(`Raw sample for inspection: ${JSON.stringify(questionJsonObjects[0])}`);
@@ -435,6 +435,7 @@ async function processBatchText(req, res) {
                           Q: questionObj.Q,
                           question: questionObj.question,
                           subtopic: questionObj.subtopic || "General",
+                          "question type": questionObj["question type"] || "multiple-choice",
                           tentativeAnswer: questionAnalysis[0],
                           difficultyLevel: questionAnalysis[1],
                           question_marks: questionAnalysis[2] || 1
@@ -457,6 +458,7 @@ async function processBatchText(req, res) {
                         Q: questionObj.Q,
                         question: questionObj.question,
                         subtopic: questionObj.subtopic || "General",
+                        "question type": questionObj["question type"] || "multiple-choice",
                         tentativeAnswer: safeQuestionAnalysis[0] || "No answer available",
                         difficultyLevel: safeQuestionAnalysis[1] || "Medium",
                         question_marks: safeQuestionAnalysis[2] || 1
@@ -1103,6 +1105,7 @@ router.post("/update-chapter-questions/:chapterId", authenticateAdmin, async (re
       question: q.question,
       question_marks: parseInt(q.question_marks || 1, 10),
       subtopic: q.subtopic || "General",
+      "question type": q["question type"] || "multiple-choice",
       tentativeAnswer: q.tentativeAnswer || "",
       difficultyLevel: q.difficultyLevel || "Medium"
     }));
