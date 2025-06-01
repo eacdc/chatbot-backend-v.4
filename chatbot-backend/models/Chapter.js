@@ -7,7 +7,7 @@ const questionSchema = new mongoose.Schema({
   question: { type: String, required: true },
   question_marks: { type: Number, default: 1 },
   subtopic: { type: String, default: "General" },
-  "question type": { type: String, default: "multiple-choice" },
+  question_type: { type: String, default: "multiple-choice" },
   tentativeAnswer: { type: String, default: "" },
   difficultyLevel: { type: String, enum: ["Easy", "Medium", "Hard"], default: "Medium" }
 });
@@ -166,7 +166,7 @@ chapterSchema.pre("save", async function (next) {
           question: q.question,
           question_marks: parseInt(q.question_marks || 3, 10),
           subtopic: q.subtopic || "General",
-          "question type": q["question type"] || "multiple-choice",
+          question_type: q.question_type || "multiple-choice",
           tentativeAnswer: q.tentativeAnswer || "",
           difficultyLevel: q.difficultyLevel || "Medium"
         }));
@@ -206,7 +206,7 @@ chapterSchema.pre("save", async function (next) {
                     question: questionObj.question,
                     question_marks: parseInt(questionObj.question_marks || 3, 10),
                     subtopic: questionObj.subtopic || "General",
-                    "question type": questionObj["question type"] || "multiple-choice",
+                    question_type: questionObj.question_type || "multiple-choice",
                     tentativeAnswer: questionObj.tentativeAnswer || "",
                     difficultyLevel: questionObj.difficultyLevel || "Medium"
                   });
