@@ -9,6 +9,8 @@ const authenticateUser = require("../middleware/authMiddleware");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 const Book = require("../models/Book");
 const Prompt = require("../models/Prompt");
+const fs = require('fs');
+const path = require('path');
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -181,7 +183,7 @@ router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
   return await processBatchText(req, res);
 });
 
-// Shared batch text processing function
+// Shared batch text processing function/****************** */
 async function processBatchText(req, res) {
   try {
     const { rawText, subject, chapterTitle } = req.body;
@@ -195,7 +197,7 @@ async function processBatchText(req, res) {
     console.log(`Subject: ${subject || 'Not provided'}, Chapter: ${chapterTitle || 'Not provided'}`);
     
     // Split text into smaller parts (min 20 parts with min 1000 words each) at sentence boundaries
-    const embeddings = await textToEmbeddings(rawText);
+    const vectorBase = await saveTextToVectorStore(rawText);
     const textParts = splitTextIntoSentenceParts(rawText, 20);
     console.log(`Split text into ${textParts.length} parts`);
     
@@ -411,7 +413,27 @@ async function processBatchText(req, res) {
                       
                       let questionAnalysis;
                       try {
-                        const response = await answerQuestion(questionObj.question, embeddings);
+                        const question_one = questionObj.question;
+                        const final_question = `You are an assistant that receives a user's question and returns an array with exactly three elements in this order:
+
+A tentative answer to the question (as a string).
+
+The difficulty level of the question, strictly one of: "Easy", "Medium", or "Hard".
+
+Marks assigned to the question (as an integer between 1 to 5), based on your judgment of the question's depth, complexity, and required effort—not by fixed rules.
+
+Return the result strictly in this array format in answer found in knowledge base else return "No Answer" :
+
+["Tentative answer", "Difficulty", Marks]
+
+below is the question:
+
+question:
+${question_one}
+
+Do not include any explanation, commentary, or formatting outside the array.`
+                        const response = await searchVectorStoreForAnswer(vectorBase.vectorStoreId, final_question);
+                        // const response = await answerQuestion(questionObj.question, embeddings);
                         console.log(`Raw answer response: ${response.answer}`);
                         
                         try {
@@ -713,447 +735,204 @@ given to you, then you can rephrase the question to make it complete. Keep the t
   }
 }
 
-
 /**
- * Converts raw text into chunked embeddings for knowledge base
- * @param {string} text - Raw text to process
- * @param {Object} options - Configuration options
- * @returns {Promise<Array>} Array of embedding objects
+ * Function 1: Save raw text to vector store as knowledge base
+ * @param {string} rawText - The text content to save to vector store
+ * @param {string} vectorStoreName - Name for the vector store (optional)
+ * @param {Object} attributes - Optional attributes for filtering (optional)
+ * @returns {Object} - Object containing vector store ID and file ID
  */
-async function textToEmbeddings(text, options = {}) {
-  const {
-    chunkSize = 1000,
-    overlap = 100,
-    model = 'text-embedding-3-small',
-    batchSize = 10,
-    openaiClient = openai
-  } = options;
-
-  console.log(`Starting textToEmbeddings with text length: ${text.length}, chunkSize: ${chunkSize}, overlap: ${overlap}`);
-  
-  if (!text || text.length === 0) {
-    console.error("Error: Empty text provided to textToEmbeddings");
-    return [];
-  }
-
-  try {
-    const chunks = chunkText(text, chunkSize, overlap);
-    console.log(`Created ${chunks.length} text chunks for embedding`);
-    
-    const embeddings = [];
-    
-    for (let i = 0; i < chunks.length; i += batchSize) {
-      const batch = chunks.slice(i, i + batchSize);
-      console.log(`Processing embedding batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}`);
-      
-      try {
-        const response = await openaiClient.embeddings.create({
-          model: model,
-          input: batch,
-        });
-        
-        console.log(`Successfully received embeddings for batch ${Math.floor(i / batchSize) + 1}`);
-        
-        batch.forEach((chunk, batchIndex) => {
-          embeddings.push({
-            text: chunk,
-            embedding: response.data[batchIndex].embedding,
-            index: i + batchIndex,
-            chunkSize: chunk.length
-          });
-        });
-        
-        if (i + batchSize < chunks.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-      } catch (error) {
-        console.error(`Failed to create embeddings for batch ${Math.floor(i / batchSize) + 1}:`, error);
-        throw new Error(`Failed to create embeddings for batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
-      }
-    }
-    
-    console.log(`Successfully generated ${embeddings.length} embeddings`);
-    return embeddings;
-  } catch (error) {
-    console.error("Error in textToEmbeddings:", error);
-    throw error;
-  }
-}
-
-/**
- * Splits text into chunks with intelligent sentence boundaries
- * @param {string} text - Text to chunk
- * @param {number} maxSize - Maximum chunk size
- * @param {number} overlap - Overlap between chunks
- * @returns {Array<string>} Array of text chunks
- */
-function chunkText(text, maxSize, overlap) {
-  console.log(`Starting chunkText with text length: ${text.length}, maxSize: ${maxSize}, overlap: ${overlap}`);
-  
-  if (!text || text.length === 0) {
-    console.warn("Warning: Empty text provided to chunkText");
-    return [];
-  }
-  
-  const chunks = [];
-  let start = 0;
-  
-  while (start < text.length) {
-    let end = start + maxSize;
-    
-    if (end < text.length) {
-      const searchStart = Math.max(end - 200, start);
-      const segment = text.substring(searchStart, end);
-      const lastSentenceEnd = Math.max(
-        segment.lastIndexOf('. '),
-        segment.lastIndexOf('? '),
-        segment.lastIndexOf('! ')
-      );
-      
-      if (lastSentenceEnd > -1) {
-        end = searchStart + lastSentenceEnd + 1;
-        console.log(`Found sentence boundary at position ${end}`);
-      } else {
-        console.log(`No sentence boundary found, using max chunk size at position ${end}`);
-      }
-    }
-    
-    const chunk = text.substring(start, end).trim();
-    if (chunk.length > 0) {
-      chunks.push(chunk);
-      console.log(`Added chunk ${chunks.length} with length ${chunk.length}`);
-    } else {
-      console.warn(`Empty chunk detected at position ${start}-${end}, skipping`);
-    }
-    
-    start = end - overlap;
-    if (start >= end) start = end;
-  }
-  
-  console.log(`chunkText finished, created ${chunks.length} chunks`);
-  return chunks;
-}
-
-/**
- * Calculates cosine similarity between two embedding vectors
- * @param {Array<number>} a - First embedding vector
- * @param {Array<number>} b - Second embedding vector
- * @returns {number} Similarity score between 0 and 1
- */
-function cosineSimilarity(a, b) {
-  if (!a || !b || !Array.isArray(a) || !Array.isArray(b)) {
-    console.error(`Error in cosineSimilarity: Invalid input vectors. a length: ${a?.length}, b length: ${b?.length}`);
-    return 0;
-  }
-  
-  if (a.length !== b.length) {
-    console.error(`Error in cosineSimilarity: Vector dimensions do not match. a length: ${a.length}, b length: ${b.length}`);
-    return 0;
-  }
-  
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  
-  if (normA === 0 || normB === 0) {
-    console.warn("Warning in cosineSimilarity: One or both vectors have zero magnitude");
-    return 0;
-  }
-  
-  const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-  console.log(`Calculated similarity: ${similarity.toFixed(4)}`);
-  return similarity;
-}
-
-/**
- * Finds most relevant knowledge chunks for a given question
- * @param {string} question - Question to search for
- * @param {Array} knowledgeEmbeddings - Knowledge base embeddings
- * @param {Object} options - Search options
- * @returns {Promise<Array>} Ranked array of relevant chunks
- */
-async function findRelevantKnowledge(question, knowledgeEmbeddings, options = {}) {
-  console.log(`Starting findRelevantKnowledge for question: "${question.substring(0, 50)}..."`);
-  
-  if (!question || !knowledgeEmbeddings) {
-    console.error(`Error in findRelevantKnowledge: Invalid inputs. Question empty: ${!question}, Knowledge embeddings empty: ${!knowledgeEmbeddings || !Array.isArray(knowledgeEmbeddings) || knowledgeEmbeddings.length === 0}`);
-    return [];
-  }
-  
-  const {
-    topK = 3,
-    model = 'text-embedding-3-small',
-    openaiClient = openai
-  } = options;
-
-  console.log(`Finding relevant knowledge with parameters: topK=${topK}, model=${model}`);
-  console.log(`Knowledge base size: ${knowledgeEmbeddings.length} embeddings`);
-
-  try {
-    // Get embedding for the question
-    console.log("Generating embedding for question...");
-    const questionResponse = await openaiClient.embeddings.create({
-      model: model,
-      input: [question],
-    });
-    
-    if (!questionResponse || !questionResponse.data || questionResponse.data.length === 0) {
-      console.error("Error: Empty response from OpenAI embeddings API");
-      return [];
-    }
-    
-    console.log("Successfully generated question embedding");
-    const questionEmbedding = questionResponse.data[0].embedding;
-    
-    if (!questionEmbedding || !Array.isArray(questionEmbedding)) {
-      console.error(`Error: Invalid question embedding returned. Type: ${typeof questionEmbedding}`);
-      return [];
-    }
-    
-    // Calculate similarities and rank
-    console.log("Calculating similarities between question and knowledge base...");
-    const similarities = knowledgeEmbeddings.map((item, index) => {
-      if (!item || !item.embedding || !Array.isArray(item.embedding)) {
-        console.error(`Error: Invalid embedding at index ${index}`);
-        return { ...item, similarity: 0 };
-      }
-      
-      const similarity = cosineSimilarity(questionEmbedding, item.embedding);
-      return {
-        ...item,
-        similarity
-      };
-    });
-    
-    // Sort by similarity (highest first) and return top K
-    const sortedResults = similarities
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, topK);
-    
-    console.log(`Found ${sortedResults.length} relevant knowledge chunks`);
-    sortedResults.forEach((result, idx) => {
-      console.log(`Top result ${idx + 1}: similarity=${result.similarity.toFixed(4)}, text="${result.text.substring(0, 50)}..."`);
-    });
-    
-    return sortedResults;
-  } catch (error) {
-    console.error("Error in findRelevantKnowledge:", error);
-    throw error;
-  }
-}
-
-/**
- * Generates an answer to a question using knowledge base context
- * @param {string} question - Question to answer
- * @param {Array} knowledgeEmbeddings - Knowledge base embeddings
- * @param {Object} options - Answer generation options
- * @returns {Promise<Object>} Answer with sources and context
- */
-async function answerQuestion(question, knowledgeEmbeddings, options = {}) {
-  console.log(`Starting answerQuestion for question: "${question.substring(0, 50)}..."`);
-  
-  if (!question) {
-    console.error("Error in answerQuestion: Empty question provided");
-    return { answer: "[]", relevantChunks: [], context: "" };
-  }
-  
-  if (!knowledgeEmbeddings || !Array.isArray(knowledgeEmbeddings) || knowledgeEmbeddings.length === 0) {
-    console.error(`Error in answerQuestion: Invalid knowledge embeddings. Type: ${typeof knowledgeEmbeddings}, Is Array: ${Array.isArray(knowledgeEmbeddings)}, Length: ${knowledgeEmbeddings?.length || 0}`);
-    return { answer: "[]", relevantChunks: [], context: "" };
-  }
-  
-  const {
-    topK = 3,
-    model = 'gpt-4',
-    openaiClient = openai
-  } = options;
-
-  try {
-    // Find relevant knowledge chunks
-    console.log("Finding relevant knowledge chunks...");
-    const relevantChunks = await findRelevantKnowledge(question, knowledgeEmbeddings, { topK, openaiClient });
-    
-    if (!relevantChunks || relevantChunks.length === 0) {
-      console.warn("Warning: No relevant knowledge chunks found");
-      return { answer: '["No relevant information found", "Easy", 1]', relevantChunks: [], context: "" };
-    }
-    
-    // Combine relevant text as context
-    const context = relevantChunks
-      .map(chunk => chunk.text)
-      .join('\n\n');
-    
-    console.log(`Created context with ${context.length} characters from ${relevantChunks.length} chunks`);
-    
-    // Generate answer using GPT
-    console.log("Sending request to OpenAI for question answering...");
-    const systemPrompt = `You are an assistant that receives a user's question and returns an array with exactly three elements in this order:
-
-A tentative answer to the question (as a string).
-
-The difficulty level of the question, strictly one of: "Easy", "Medium", or "Hard".
-
-Marks assigned to the question (as an integer between 1 to 5), based on your judgment of the question's depth, complexity, and required effort—not by fixed rules.
-
-Return the result strictly in this array format in answer found in knowledge base else return "No Answer" :
-
-["Tentative answer", "Difficulty", Marks]
-
-Only use below knowledge base for answering, don't create answer on your own:
-
-Knowledge Base:
-${context}
-
-Do not include any explanation, commentary, or formatting outside the array.`;
-
-    console.log(`System prompt length: ${systemPrompt.length} characters`);
-    
-    const response = await openaiClient.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: question
-        }
-      ],
-      temperature: 0.0,
-      max_tokens: 500
-    });
-    
-    if (!response || !response.choices || response.choices.length === 0) {
-      console.error("Error: Empty or invalid response from OpenAI");
-      return { answer: '["Error getting answer", "Easy", 1]', relevantChunks: [], context: "" };
-    }
-    
-    const answer = response.choices[0].message.content;
-    console.log(`Received answer from OpenAI: "${answer}"`);
-    
-    // Validate the answer format
+async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base', attributes = {}) {
     try {
-      const parsedAnswer = JSON.parse(answer);
-      console.log(`Successfully parsed answer JSON. Array length: ${parsedAnswer.length}, Elements: [${parsedAnswer.map((el, i) => `${i}: ${typeof el} (${el})`).join(', ')}]`);
-      
-      // Verify array structure
-      if (!Array.isArray(parsedAnswer) || parsedAnswer.length !== 3) {
-        console.error(`Error: Expected array of length 3, got ${Array.isArray(parsedAnswer) ? parsedAnswer.length : typeof parsedAnswer}`);
-      }
-      
-      if (typeof parsedAnswer[0] !== 'string') {
-        console.error(`Error: First element should be string, got ${typeof parsedAnswer[0]}`);
-      }
-      
-      if (typeof parsedAnswer[1] !== 'string' || !['Easy', 'Medium', 'Hard'].includes(parsedAnswer[1])) {
-        console.error(`Error: Second element should be difficulty string, got ${typeof parsedAnswer[1]} with value "${parsedAnswer[1]}"`);
-      }
-      
-      if (typeof parsedAnswer[2] !== 'number' && !/^\d+$/.test(parsedAnswer[2])) {
-        console.error(`Error: Third element should be a number, got ${typeof parsedAnswer[2]} with value "${parsedAnswer[2]}"`);
-      }
-    } catch (parseError) {
-      console.error(`Error parsing answer as JSON: ${parseError.message}`);
-      console.error(`Raw answer content: "${answer}"`);
-      
-      // Try to fix common JSON formatting issues
-      const cleanedAnswer = answer.trim()
-        .replace(/^```json/, '').replace(/```$/, '') // Remove code blocks
-        .replace(/^```/, '').replace(/```$/, '')      // Remove other code blocks
-        .trim();
+        console.log(`Saving text to vector store. Text length: ${rawText.length} characters, Store name: "${vectorStoreName}"`);
         
-      console.log(`Cleaned answer for parsing attempt: "${cleanedAnswer}"`);
-      
-      try {
-        const parsedCleanedAnswer = JSON.parse(cleanedAnswer);
-        console.log(`Successfully parsed cleaned answer: ${JSON.stringify(parsedCleanedAnswer)}`);
-      } catch (secondParseError) {
-        console.error(`Still failed to parse cleaned answer: ${secondParseError.message}`);
-      }
+        // Create a temporary text file from raw text
+        const tempFileName = `temp_knowledge_${Date.now()}.txt`;
+        const tempFilePath = path.join(__dirname, tempFileName);
+        
+        console.log(`Creating temporary file at: ${tempFilePath}`);
+        
+        // Write raw text to temporary file
+        fs.writeFileSync(tempFilePath, rawText, 'utf8');
+        console.log(`Wrote ${rawText.length} characters to temporary file`);
+        
+        // Create vector store
+        console.log(`Creating vector store with name: "${vectorStoreName}"`);
+        const vectorStore = await openai.vectorStores.create({
+            name: vectorStoreName,
+        });
+        
+        console.log(`Created vector store: ${vectorStore.id}`);
+        
+        // Upload file to vector store
+        console.log(`Uploading file to vector store ${vectorStore.id}`);
+        const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll({
+            vectorStoreId: vectorStore.id,
+            file: fs.createReadStream(tempFilePath),
+            ...(Object.keys(attributes).length > 0 && { attributes })
+        });
+        
+        console.log(`Successfully uploaded file to vector store: ${vectorStoreFile.id}`);
+        
+        // Clean up temporary file
+        console.log(`Cleaning up temporary file: ${tempFilePath}`);
+        fs.unlinkSync(tempFilePath);
+        
+        const result = {
+            success: true,
+            vectorStoreId: vectorStore.id,
+            fileId: vectorStoreFile.id,
+            message: 'Text successfully saved to vector store'
+        };
+        
+        console.log(`Vector store operation complete: ${JSON.stringify(result)}`);
+        return result;
+        
+    } catch (error) {
+        console.error('Error saving text to vector store:', error);
+        
+        // Clean up temporary file if it exists
+        const tempFileName = `temp_knowledge_${Date.now()}.txt`;
+        const tempFilePath = path.join(__dirname, tempFileName);
+        if (fs.existsSync(tempFilePath)) {
+            console.log(`Cleaning up temporary file after error: ${tempFilePath}`);
+            fs.unlinkSync(tempFilePath);
+        }
+        
+        return {
+            success: false,
+            error: error.message
+        };
     }
-    
-    return {
-      answer: answer,
-      relevantChunks: relevantChunks.map(chunk => ({
-        text: chunk.text,
-        similarity: chunk.similarity
-      })),
-      context: context
-    };
-  } catch (error) {
-    console.error("Error in answerQuestion:", error);
-    return { 
-      answer: '["Error processing question", "Easy", 1]',
-      relevantChunks: [], 
-      context: "" 
-    };
-  }
 }
 
-// Add chapter questions from processed JSON array
-router.post("/update-chapter-questions/:chapterId", authenticateAdmin, async (req, res) => {
-  try {
-    const { chapterId } = req.params;
-    const { questions } = req.body;
-
-    if (!questions || !Array.isArray(questions)) {
-      return res.status(400).json({ error: "Valid questions array is required" });
+/**
+ * Function 2: Search vector store and return synthesized answer
+ * @param {string} vectorStoreId - The ID of the vector store to search
+ * @param {string} userQuestion - The question to search for
+ * @param {Object} options - Optional search parameters
+ * @returns {Object} - Object containing the answer and metadata
+ */
+async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options = {}) {
+    try {
+        console.log(`Searching vector store ${vectorStoreId} for question: "${userQuestion.substring(0, 100)}..."`);
+        
+        const {
+            maxResults = 10,
+            scoreThreshold = 0.3,
+            rewriteQuery = true,
+            attributeFilter = null
+        } = options;
+        
+        // Log search parameters
+        console.log(`Search parameters: maxResults=${maxResults}, scoreThreshold=${scoreThreshold}, rewriteQuery=${rewriteQuery}`);
+        
+        // Perform semantic search on vector store
+        const searchParams = {
+            vectorStoreId: vectorStoreId,
+            query: userQuestion,
+            maxNumResults: maxResults,
+            rewriteQuery: rewriteQuery
+        };
+        
+        // Add optional parameters
+        if (scoreThreshold) {
+            searchParams.rankingOptions = {
+                scoreThreshold: scoreThreshold
+            };
+        }
+        
+        if (attributeFilter) {
+            searchParams.attributeFilter = attributeFilter;
+        }
+        
+        console.log(`Executing vector store search with params: ${JSON.stringify(searchParams, null, 2)}`);
+        const results = await openai.vectorStores.search(searchParams);
+        
+        // Check if we have any results
+        if (!results.data || results.data.length === 0) {
+            console.log(`No results found in vector store for query`);
+            return { 
+                answer: "I couldn't find any relevant information to answer your question.",
+                sources: [],
+                totalResults: 0
+            };
+        }
+        
+        console.log(`Found ${results.data.length} results in vector store`);
+        
+        // Extract text content from all results
+        const textSources = results.data
+            .map(result => 
+                result.content
+                    .map(content => content.text)
+                    .join('\n')
+            )
+            .join('\n\n');
+        
+        console.log(`Extracted ${textSources.length} characters of source text for answer synthesis`);
+        
+        // Synthesize response using GPT model
+        console.log(`Generating synthesized answer using GPT-4`);
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4",
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a helpful assistant. Produce a concise and accurate answer to the user's query based only on the provided sources. If the sources don't contain enough information to answer the question, say so clearly."
+                },
+                {
+                    role: "user",
+                    content: `Sources:\n${textSources}\n\nQuestion: ${userQuestion}\n\nPlease provide a clear and concise answer based on the sources above.`
+                }
+            ],
+            temperature: 0.0, // Low temperature for more consistent responses
+            max_tokens: 500
+        });
+        
+        const answerText = completion.choices[0].message.content;
+        
+        console.log(`Generated answer (${answerText.length} chars): "${answerText.substring(0, 100)}..."`);
+        
+        // Return object with answer and metadata
+        return {
+            answer: answerText,
+            sources: results.data.map(r => ({
+                score: r.score,
+                text: r.content.map(c => c.text).join('\n')
+            })),
+            totalResults: results.data.length
+        };
+        
+    } catch (error) {
+        console.error('Error searching vector store:', error);
+        return {
+            answer: `Error occurred while searching: ${error.message}`,
+            sources: [],
+            totalResults: 0,
+            error: error.message
+        };
     }
+}
 
-    console.log(`Updating chapter ${chapterId} with ${questions.length} questions`);
-    
-    // Find the chapter
-    const chapter = await Chapter.findById(chapterId);
-    if (!chapter) {
-      return res.status(404).json({ error: "Chapter not found" });
-    }
+// Helper function to format search results (optional utility)
+function formatSearchResults(results) {
+    return results.data.map((result, index) => {
+        return `Source ${index + 1} (Score: ${result.score.toFixed(2)}):\n${
+            result.content.map(c => c.text).join('\n')
+        }\n`;
+    }).join('\n');
+}
 
-    // Process the question objects to ensure they have all required fields
-    const processedQuestions = questions.map((q, index) => ({
-      questionId: q.questionId || `QID-${chapter._id}-${index}-${Date.now()}`,
-      Q: q.Q,
-      question: q.question,
-      question_marks: parseInt(q.question_marks || 1, 10),
-      subtopic: q.subtopic || "General",
-      "question type": q["question type"] || "multiple-choice",
-      tentativeAnswer: q.tentativeAnswer || "",
-      difficultyLevel: q.difficultyLevel || "Medium"
-    }));
+// Example usage functions
 
-    // Update the chapter's questionPrompt array
-    chapter.questionPrompt = processedQuestions;
-    
-    // Also update the prompt field with the JSON string for compatibility
-    chapter.prompt = JSON.stringify(processedQuestions);
-    
-    // Save the updated chapter
-    await chapter.save();
-    
-    console.log(`Successfully updated chapter ${chapterId} with ${processedQuestions.length} questions`);
-    
-    res.json({
-      success: true,
-      message: `Successfully updated chapter with ${processedQuestions.length} questions`,
-      questions: processedQuestions
-    });
-    
-  } catch (error) {
-    console.error("Error updating chapter questions:", error);
-    res.status(500).json({ error: "Failed to update chapter questions", message: error.message });
-  }
-});
-
-module.exports = { 
-  textToEmbeddings, 
-  findRelevantKnowledge, 
-  answerQuestion 
+module.exports = {
+    saveTextToVectorStore,
+    searchVectorStoreForAnswer,
+    formatSearchResults
 };
+
+// Uncomment to run example
+// example();
+
 module.exports = router;
