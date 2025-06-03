@@ -201,6 +201,17 @@ async function processBatchText(req, res) {
     const textParts = splitTextIntoSentenceParts(rawText, 20);
     console.log(`Split text into ${textParts.length} parts`);
     
+    // Check if vector base was created successfully
+    if (!vectorBase || !vectorBase.success || !vectorBase.vectorStoreId) {
+      console.error("Failed to create vector store for text processing");
+      return res.status(500).json({ 
+        error: "Failed to create vector store for text", 
+        message: vectorBase?.error || "Unknown error"
+      });
+    }
+    
+    console.log(`Successfully created vector store with ID: ${vectorBase.vectorStoreId}`);
+    
     // Fetch the system prompt from the database
     let systemPrompt;
     try {
@@ -815,6 +826,17 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
  */
 async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options = {}) {
     try {
+        // Check if vectorStoreId is valid
+        if (!vectorStoreId) {
+            console.error('Error: vectorStoreId is undefined or null');
+            return {
+                answer: "Error: Vector store ID is missing. Cannot perform search.",
+                sources: [],
+                totalResults: 0,
+                error: "Missing vectorStoreId parameter"
+            };
+        }
+        
         console.log(`Searching vector store ${vectorStoreId} for question: "${userQuestion.substring(0, 100)}..."`);
         
         const {
@@ -847,7 +869,20 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         }
         
         console.log(`Executing vector store search with params: ${JSON.stringify(searchParams, null, 2)}`);
-        const results = await openai.vectorStores.search(searchParams);
+        
+        let results;
+        try {
+            results = await openai.vectorStores.search(searchParams);
+            console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
+        } catch (searchError) {
+            console.error(`OpenAI vector store search error: ${searchError.message}`);
+            return {
+                answer: `["Error occurred while searching: ${searchError.message}", "Medium", 1]`,
+                sources: [],
+                totalResults: 0,
+                error: searchError.message
+            };
+        }
         
         // Check if we have any results
         if (!results.data || results.data.length === 0) {
@@ -907,7 +942,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
     } catch (error) {
         console.error('Error searching vector store:', error);
         return {
-            answer: `Error occurred while searching: ${error.message}`,
+            answer: `["Error occurred while searching: ${error.message}", "Medium", 1]`,
             sources: [],
             totalResults: 0,
             error: error.message
