@@ -794,10 +794,10 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                 }
             );
             
-            console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
+            console.log(`Successfully added file to vector store: ${fileResponse.id}`);
             
-            // Poll for status
-            let fileStatus = vectorStoreFile.status;
+            // Poll for status - make sure we're using the correct parameters
+            let fileStatus = vectorStoreFile.status || "in_progress";
             let attempts = 0;
             const maxAttempts = 10;
             
@@ -805,10 +805,12 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                 await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
                 
                 try {
+                    // Use the proper parameter format for file retrieval
                     const fileStatusResponse = await openai.vectorStores.files.retrieve(
-                        vectorStore.id,
-                        vectorStoreFile.id
+                        vectorStore.id,  // Make sure we're passing the vector store ID correctly
+                        vectorStoreFile.id  // Use the file ID from the vector store
                     );
+                    
                     fileStatus = fileStatusResponse.status;
                     console.log(`File processing status: ${fileStatus}`);
                 } catch (pollError) {
@@ -825,7 +827,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             const result = {
                 success: true,
                 vectorStoreId: vectorStore.id,
-                fileId: vectorStoreFile.id,
+                fileId: fileResponse.id, // Use fileResponse.id consistently
                 message: 'Text successfully saved to vector store'
             };
             
