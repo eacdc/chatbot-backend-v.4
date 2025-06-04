@@ -11,7 +11,56 @@ const Book = require("../models/Book");
 const Prompt = require("../models/Prompt");
 const fs = require('fs');
 const path = require('path');
-const fetch = require('node-fetch'); // Add fetch for direct API calls
+const https = require('https');
+
+// Helper function to make HTTPS requests
+function makeHttpsRequest(url, options = {}) {
+    return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const requestOptions = {
+            hostname: urlObj.hostname,
+            port: urlObj.port || 443,
+            path: urlObj.pathname + urlObj.search,
+            method: options.method || 'GET',
+            headers: options.headers || {}
+        };
+
+        const req = https.request(requestOptions, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                try {
+                    const jsonData = JSON.parse(data);
+                    resolve({
+                        ok: res.statusCode >= 200 && res.statusCode < 300,
+                        status: res.statusCode,
+                        json: () => Promise.resolve(jsonData),
+                        text: () => Promise.resolve(data)
+                    });
+                } catch (error) {
+                    resolve({
+                        ok: res.statusCode >= 200 && res.statusCode < 300,
+                        status: res.statusCode,
+                        json: () => Promise.reject(new Error('Invalid JSON')),
+                        text: () => Promise.resolve(data)
+                    });
+                }
+            });
+        });
+
+        req.on('error', (error) => {
+            reject(error);
+        });
+
+        if (options.body) {
+            req.write(options.body);
+        }
+
+        req.end();
+    });
+}
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -819,7 +868,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                     // Use direct REST API call since SDK may have inconsistent behavior
                     try {
                         // Make a direct API call to get the file status
-                        const retrieveResult = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStore.id}/files/${vectorStoreFile.id}`, {
+                        const retrieveResult = await makeHttpsRequest(`https://api.openai.com/v1/vector_stores/${vectorStore.id}/files/${vectorStoreFile.id}`, {
                             method: 'GET',
                             headers: {
                                 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -939,7 +988,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         let results;
         try {
             // Use direct REST API call for more reliable results
-            const searchResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`, {
+            const searchResponse = await makeHttpsRequest(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
