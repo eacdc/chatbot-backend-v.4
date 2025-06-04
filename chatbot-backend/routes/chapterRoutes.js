@@ -485,31 +485,31 @@ async function processBatchText(req, res) {
                       
                       let questionAnalysis;
                       try {
-                        const question_one = questionObj.question;
-                        const final_question = `You are an assistant that receives a user's question and returns an array with exactly three elements in this order:
+//                         const question_one = questionObj.question;
+//                         const final_question = `You are an assistant that receives a user's question and returns an array with exactly three elements in this order:
 
-A tentative answer to the question (as a string).
+// A tentative answer to the question (as a string).
 
-The difficulty level of the question, strictly one of: "Easy", "Medium", or "Hard".
+// The difficulty level of the question, strictly one of: "Easy", "Medium", or "Hard".
 
-Marks assigned to the question (as an integer between 1 to 5), based on your judgment of the question's depth, complexity, and required effort—not by fixed rules.
+// Marks assigned to the question (as an integer between 1 to 5), based on your judgment of the question's depth, complexity, and required effort—not by fixed rules.
 
-Return the result strictly in this array format in answer found in knowledge base else return "No Answer" :
+// Return the result strictly in this array format in answer found in knowledge base else return "No Answer" :
 
-["Tentative answer", "Difficulty", Marks]
+// ["Tentative answer", "Difficulty", Marks]
 
-below is the question:
+// below is the question:
 
-question:
-${question_one}
+// question:
+// ${question_one}
 
-Do not include any explanation, commentary, or formatting outside the array.`
+// Do not include any explanation, commentary, or formatting outside the array.`
                         
                         // Add additional delay before vector store search
                         const searchDelay = Math.random() * 2000 + 1000; // Random delay between 1-3 seconds
                         await new Promise(resolve => setTimeout(resolve, searchDelay));
                         
-                        const response = await searchVectorStoreForAnswer(vectorBase.vectorStoreId, final_question);
+                        const response = await searchVectorStoreForAnswer(vectorBase.vectorStoreId, questionObj.question);
                         // const response = await answerQuestion(questionObj.question, embeddings);
                         console.log(`Raw answer response: ${response.answer}`);
                         
@@ -1119,7 +1119,8 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         // Synthesize response using GPT-4 with reduced max_tokens
         console.log(`Generating synthesized answer using GPT-4`);
         const completion = await openai.chat.completions.create({
-            model: "gpt-4",
+            model: "gpt-4.1",
+            temperature: 0,
             messages: [
                 {
                     role: "system",
