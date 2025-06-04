@@ -815,28 +815,20 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                     console.log(`Vector store ID being used: "${vectorStore.id}"`);
                     console.log(`Vector store file ID being used: "${vectorStoreFile.id}"`);
                     
-                    // Use the proper parameter format for file retrieval
-                    let retrieveResult;
+                    // Use the correct parameter format for file retrieval
                     try {
-                        // Try with string parameters
-                        retrieveResult = await openai.vectorStores.files.retrieve(
-                            String(vectorStore.id),
-                            String(vectorStoreFile.id)
+                        const retrieveResult = await openai.vectorStores.files.retrieve(
+                            vectorStore.id,
+                            vectorStoreFile.id
                         );
-                    } catch (error) {
-                        console.error(`Error with string parameters: ${error.message}`);
                         
-                        // Try with named parameters
-                        console.log("Trying with named parameters instead");
-                        retrieveResult = await openai.vectorStores.files.retrieve({
-                            vector_store_id: vectorStore.id,
-                            file_id: vectorStoreFile.id
-                        });
+                        console.log(`Retrieve result: ${JSON.stringify(retrieveResult)}`);
+                        fileStatus = retrieveResult.status;
+                        console.log(`File processing status: ${fileStatus}`);
+                    } catch (retrieveError) {
+                        console.error(`Error retrieving file status: ${retrieveError.message}`);
+                        // Continue with the loop despite the error
                     }
-                    
-                    console.log(`Retrieve result: ${JSON.stringify(retrieveResult)}`);
-                    fileStatus = retrieveResult.status;
-                    console.log(`File processing status: ${fileStatus}`);
                 } catch (pollError) {
                     console.error(`Error polling file status: ${pollError.message}`);
                     // Continue with the loop despite the error
@@ -936,7 +928,18 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         let results;
         try {
-            results = await openai.vectorStores.search(searchParams);
+            // Update to use the correct parameter format for the search API
+            results = await openai.vectorStores.search(vectorStoreId, {
+                query: userQuestion,
+                max_num_results: maxResults,
+                rewrite_query: rewriteQuery,
+                ...(scoreThreshold && { 
+                    ranking_options: {
+                        score_threshold: scoreThreshold 
+                    } 
+                }),
+                ...(attributeFilter && { filters: attributeFilter })
+            });
             console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
         } catch (searchError) {
             console.error(`OpenAI vector store search error: ${searchError.message}`);
