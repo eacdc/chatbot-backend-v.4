@@ -888,15 +888,15 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         // Perform semantic search on vector store
         const searchParams = {
-            vectorStoreId: vectorStoreId,
+            vector_store_id: vectorStoreId, // Corrected to use snake_case for API
             query: userQuestion,
-            maxNumResults: maxResults,
-            rewriteQuery: rewriteQuery
+            max_num_results: maxResults,
+            rewrite_query: rewriteQuery
         };
         
         // Add optional parameters
         if (scoreThreshold) {
-            searchParams.rankingOptions = {
+            searchParams.ranking_options = {
                 scoreThreshold: scoreThreshold
             };
         }
