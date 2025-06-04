@@ -11,6 +11,7 @@ const Book = require("../models/Book");
 const Prompt = require("../models/Prompt");
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch'); // Add fetch for direct API calls
 
 if (!process.env.OPENAI_API_KEY) {
     console.error("ERROR: Missing OpenAI API Key in environment variables.");
@@ -815,15 +816,24 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                     console.log(`Vector store ID being used: "${vectorStore.id}"`);
                     console.log(`Vector store file ID being used: "${vectorStoreFile.id}"`);
                     
-                    // Use the correct parameter format for file retrieval
+                    // Use direct REST API call since SDK may have inconsistent behavior
                     try {
-                        const retrieveResult = await openai.vectorStores.files.retrieve(
-                            vectorStore.id,
-                            vectorStoreFile.id
-                        );
+                        // Make a direct API call to get the file status
+                        const retrieveResult = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStore.id}/files/${vectorStoreFile.id}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
                         
-                        console.log(`Retrieve result: ${JSON.stringify(retrieveResult)}`);
-                        fileStatus = retrieveResult.status;
+                        if (!retrieveResult.ok) {
+                            throw new Error(`HTTP error ${retrieveResult.status}: ${await retrieveResult.text()}`);
+                        }
+                        
+                        const resultData = await retrieveResult.json();
+                        console.log(`Retrieve result: ${JSON.stringify(resultData)}`);
+                        fileStatus = resultData.status;
                         console.log(`File processing status: ${fileStatus}`);
                     } catch (retrieveError) {
                         console.error(`Error retrieving file status: ${retrieveError.message}`);
@@ -928,18 +938,31 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         let results;
         try {
-            // Update to use the correct parameter format for the search API
-            results = await openai.vectorStores.search(vectorStoreId, {
-                query: userQuestion,
-                max_num_results: maxResults,
-                rewrite_query: rewriteQuery,
-                ...(scoreThreshold && { 
-                    ranking_options: {
-                        score_threshold: scoreThreshold 
-                    } 
-                }),
-                ...(attributeFilter && { filters: attributeFilter })
+            // Use direct REST API call for more reliable results
+            const searchResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    query: userQuestion,
+                    max_num_results: maxResults,
+                    rewrite_query: rewriteQuery,
+                    ...(scoreThreshold && { 
+                        ranking_options: {
+                            score_threshold: scoreThreshold 
+                        } 
+                    }),
+                    ...(attributeFilter && { filters: attributeFilter })
+                })
             });
+            
+            if (!searchResponse.ok) {
+                throw new Error(`HTTP error ${searchResponse.status}: ${await searchResponse.text()}`);
+            }
+            
+            results = await searchResponse.json();
             console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
         } catch (searchError) {
             console.error(`OpenAI vector store search error: ${searchError.message}`);
