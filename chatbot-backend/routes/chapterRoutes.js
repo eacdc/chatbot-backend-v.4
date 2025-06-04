@@ -298,6 +298,13 @@ async function processBatchText(req, res) {
       try {
         console.log(`Processing part ${i+1}/${textParts.length}`);
         
+        // Memory monitoring every 10 parts
+        if (i % 10 === 0 && global.gc) {
+          global.gc();
+          const memUsage = process.memoryUsage();
+          console.log(`Memory usage: RSS: ${(memUsage.rss / 1024 / 1024).toFixed(2)}MB, Heap Total: ${(memUsage.heapTotal / 1024 / 1024).toFixed(2)}MB, Heap Used: ${(memUsage.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+        }
+        
         // Construct messages for OpenAI
         const messagesForOpenAI = [
           { role: "system", content: systemPrompt },
@@ -497,29 +504,32 @@ Do not include any explanation, commentary, or formatting outside the array.`
                         // const response = await answerQuestion(questionObj.question, embeddings);
                         console.log(`Raw answer response: ${response.answer}`);
                         
-                        try {
-                          questionAnalysis = JSON.parse(response.answer);
-                          console.log(`Successfully parsed questionAnalysis: ${JSON.stringify(questionAnalysis)}`);
-                        } catch (parseError) {
-                          console.error(`Error parsing response.answer: ${parseError.message}`);
-                          console.error(`Raw response.answer content: "${response.answer}"`);
-                          
-                          // Try to clean the answer for parsing
-                          const cleanedAnswer = response.answer.trim()
-                            .replace(/^```json/, '').replace(/```$/, '') // Remove code blocks
-                            .replace(/^```/, '').replace(/```$/, '')      // Remove other code blocks
-                            .trim();
-                            
-                          console.log(`Attempting to parse cleaned answer: "${cleanedAnswer}"`);
-                          
+                        // Handle different response formats
+                        let answerText = response.answer;
+                        
+                        // Check if it's already in the expected format
+                        if (answerText.startsWith('[') && answerText.endsWith(']')) {
                           try {
-                            questionAnalysis = JSON.parse(cleanedAnswer);
-                            console.log(`Successfully parsed cleaned answer into questionAnalysis`);
-                          } catch (secondParseError) {
-                            console.error(`Failed to parse cleaned answer: ${secondParseError.message}`);
-                            // Set a default value
+                            questionAnalysis = JSON.parse(answerText);
+                            console.log(`Successfully parsed questionAnalysis: ${JSON.stringify(questionAnalysis)}`);
+                          } catch (parseError) {
+                            console.error(`Error parsing JSON response: ${parseError.message}`);
+                            // Create fallback response
                             questionAnalysis = ["Unable to parse answer", "Medium", 1];
-                            console.log(`Using default questionAnalysis: ${JSON.stringify(questionAnalysis)}`);
+                          }
+                        } else {
+                          // Handle plain text responses or error messages
+                          console.log(`Received non-JSON response, creating structured format`);
+                          
+                          // Extract meaningful information from plain text
+                          if (answerText.toLowerCase().includes('no') && answerText.toLowerCase().includes('information')) {
+                            questionAnalysis = ["No Answer", "Medium", 1];
+                          } else if (answerText.toLowerCase().includes('error')) {
+                            questionAnalysis = ["Unable to determine", "Medium", 1];
+                          } else {
+                            // Try to use the text as answer
+                            let cleanAnswer = answerText.replace(/[^\w\s\.\,\!\?]/g, '').substring(0, 100);
+                            questionAnalysis = [cleanAnswer || "No Answer", "Medium", 1];
                           }
                         }
                       } catch (analysisError) {
@@ -945,7 +955,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         if (!vectorStoreId) {
             console.error('Error: vectorStoreId is undefined or null');
             return {
-                answer: "Error: Vector store ID is missing. Cannot perform search.",
+                answer: '["No vector store available", "Medium", 1]',
                 sources: [],
                 totalResults: 0,
                 error: "Missing vectorStoreId parameter"
@@ -955,7 +965,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         console.log(`Searching vector store ${vectorStoreId} for question: "${userQuestion.substring(0, 100)}..."`);
         
         const {
-            maxResults = 10,
+            maxResults = 5, // Reduced from 10 to limit context
             scoreThreshold = 0.3,
             rewriteQuery = true,
             attributeFilter = null
@@ -964,70 +974,70 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         // Log search parameters
         console.log(`Search parameters: maxResults=${maxResults}, scoreThreshold=${scoreThreshold}, rewriteQuery=${rewriteQuery}`);
         
-        // Perform semantic search on vector store
-        const searchParams = {
-            vector_store_id: vectorStoreId, // Corrected to use snake_case for API
-            query: userQuestion,
-            max_num_results: maxResults,
-            rewrite_query: rewriteQuery
-        };
-        
-        // Add optional parameters
-        if (scoreThreshold) {
-            searchParams.ranking_options = {
-                scoreThreshold: scoreThreshold
-            };
-        }
-        
-        if (attributeFilter) {
-            searchParams.attributeFilter = attributeFilter;
-        }
-        
-        console.log(`Executing vector store search with params: ${JSON.stringify(searchParams, null, 2)}`);
-        
         let results;
-        try {
-            // Use direct REST API call for more reliable results
-            const searchResponse = await makeHttpsRequest(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    query: userQuestion,
-                    max_num_results: maxResults,
-                    rewrite_query: rewriteQuery,
-                    ...(scoreThreshold && { 
-                        ranking_options: {
-                            score_threshold: scoreThreshold 
-                        } 
-                    }),
-                    ...(attributeFilter && { filters: attributeFilter })
-                })
-            });
-            
-            if (!searchResponse.ok) {
-                throw new Error(`HTTP error ${searchResponse.status}: ${await searchResponse.text()}`);
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        // Retry loop for handling 500 errors
+        while (retryCount < maxRetries) {
+            try {
+                // Use direct REST API call for more reliable results
+                const searchResponse = await makeHttpsRequest(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: userQuestion,
+                        max_num_results: maxResults,
+                        rewrite_query: rewriteQuery,
+                        ...(scoreThreshold && { 
+                            ranking_options: {
+                                score_threshold: scoreThreshold 
+                            } 
+                        }),
+                        ...(attributeFilter && { filters: attributeFilter })
+                    })
+                });
+                
+                if (!searchResponse.ok) {
+                    if (searchResponse.status === 500 && retryCount < maxRetries - 1) {
+                        console.log(`Vector store search returned 500 error, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                        retryCount++;
+                        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // exponential backoff
+                        continue;
+                    }
+                    throw new Error(`HTTP error ${searchResponse.status}: ${await searchResponse.text()}`);
+                }
+                
+                results = await searchResponse.json();
+                console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
+                break; // Success, exit retry loop
+                
+            } catch (searchError) {
+                if (retryCount < maxRetries - 1 && (searchError.message.includes('500') || searchError.message.includes('server_error'))) {
+                    console.log(`Vector store search error, retrying... (attempt ${retryCount + 1}/${maxRetries}): ${searchError.message}`);
+                    retryCount++;
+                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // exponential backoff
+                    continue;
+                }
+                
+                console.error(`OpenAI vector store search error: ${searchError.message}`);
+                return {
+                    answer: '["Vector store search failed", "Medium", 1]',
+                    sources: [],
+                    totalResults: 0,
+                    error: searchError.message
+                };
             }
-            
-            results = await searchResponse.json();
-            console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
-        } catch (searchError) {
-            console.error(`OpenAI vector store search error: ${searchError.message}`);
-            return {
-                answer: `["Error occurred while searching: ${searchError.message}", "Medium", 1]`,
-                sources: [],
-                totalResults: 0,
-                error: searchError.message
-            };
         }
         
         // Check if we have any results
         if (!results.data || results.data.length === 0) {
             console.log(`No results found in vector store for query`);
             return { 
-                answer: "I couldn't find any relevant information to answer your question.",
+                answer: '["No relevant information found", "Medium", 1]',
                 sources: [],
                 totalResults: 0
             };
@@ -1035,8 +1045,8 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         console.log(`Found ${results.data.length} results in vector store`);
         
-        // Extract text content from all results
-        const textSources = results.data
+        // Extract text content from all results with length limits
+        let textSources = results.data
             .map(result => 
                 result.content
                     .map(content => content.text)
@@ -1044,24 +1054,30 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             )
             .join('\n\n');
         
+        // Limit context to prevent token overflow - keep only first 5000 chars
+        if (textSources.length > 5000) {
+            textSources = textSources.substring(0, 5000) + "...[truncated]";
+            console.log(`Truncated source text to 5000 characters to avoid token limits`);
+        }
+        
         console.log(`Extracted ${textSources.length} characters of source text for answer synthesis`);
         
-        // Synthesize response using GPT model
+        // Synthesize response using GPT-4 with reduced max_tokens
         console.log(`Generating synthesized answer using GPT-4`);
         const completion = await openai.chat.completions.create({
             model: "gpt-4",
             messages: [
                 {
                     role: "system",
-                    content: "You are a helpful assistant. Produce a concise and accurate answer to the user's query based only on the provided sources. If the sources don't contain enough information to answer the question, say so clearly."
+                    content: "You are a helpful assistant. Provide a concise answer in this exact JSON array format: [\"answer\", \"difficulty\", marks]. The answer should be a string, difficulty should be Easy/Medium/Hard, and marks should be 1-5."
                 },
                 {
                     role: "user",
-                    content: `Sources:\n${textSources}\n\nQuestion: ${userQuestion}\n\nPlease provide a clear and concise answer based on the sources above.`
+                    content: `Sources:\n${textSources}\n\nQuestion: ${userQuestion}\n\nProvide answer as: ["answer text", "difficulty", marks]`
                 }
             ],
-            temperature: 0.0, // Low temperature for more consistent responses
-            max_tokens: 500
+            temperature: 0.0,
+            max_tokens: 300 // Reduced from 500 to ensure we stay within limits
         });
         
         const answerText = completion.choices[0].message.content;
@@ -1073,7 +1089,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             answer: answerText,
             sources: results.data.map(r => ({
                 score: r.score,
-                text: r.content.map(c => c.text).join('\n')
+                text: r.content.map(c => c.text).join('\n').substring(0, 500) // Limit source text
             })),
             totalResults: results.data.length
         };
@@ -1081,7 +1097,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
     } catch (error) {
         console.error('Error searching vector store:', error);
         return {
-            answer: `["Error occurred while searching: ${error.message}", "Medium", 1]`,
+            answer: '["Error occurred during search", "Medium", 1]',
             sources: [],
             totalResults: 0,
             error: error.message
