@@ -775,53 +775,17 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         
         console.log(`Created vector store: ${vectorStore.id}`);
         
-        // Upload file to vector store - fix for API format
+        // Upload file to vector store - using the correct JavaScript object syntax
         console.log(`Uploading file to vector store ${vectorStore.id}`);
         
         try {
-            // Open the file as a readable stream
-            const fileStream = fs.createReadStream(tempFilePath);
+            // Using the format directly from OpenAI documentation but with correct JavaScript syntax
+            const vectorStoreFile = await openai.vectorStores.files.upload_and_poll({
+                vector_store_id: vectorStore.id,
+                file: fs.createReadStream(tempFilePath)
+            });
             
-            // Upload file with the correct parameter format
-            const vectorStoreFile = await openai.vectorStores.files.create(
-                vectorStore.id,
-                { 
-                    file: fileStream,
-                    purpose: "vector_search"
-                }
-            );
-            
-            console.log(`File upload initiated. Waiting for processing: ${vectorStoreFile.id}`);
-            
-            // Poll for file status if needed
-            let fileStatus = vectorStoreFile.status;
-            let attempts = 0;
-            const maxAttempts = 10;
-            
-            while (fileStatus !== "completed" && fileStatus !== "failed" && attempts < maxAttempts) {
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-                
-                try {
-                    const fileStatusResponse = await openai.vectorStores.files.retrieve(
-                        vectorStore.id,
-                        vectorStoreFile.id
-                    );
-                    fileStatus = fileStatusResponse.status;
-                    console.log(`File processing status: ${fileStatus}`);
-                } catch (pollError) {
-                    console.error(`Error polling file status: ${pollError.message}`);
-                }
-                
-                attempts++;
-            }
-            
-            if (fileStatus === "completed") {
-                console.log(`Successfully uploaded and processed file to vector store: ${vectorStoreFile.id}`);
-            } else if (fileStatus === "failed") {
-                throw new Error("File processing failed");
-            } else {
-                console.log(`File processing status after ${maxAttempts} attempts: ${fileStatus}`);
-            }
+            console.log(`Successfully uploaded file to vector store: ${vectorStoreFile.id}`);
             
             // Clean up temporary file
             console.log(`Cleaning up temporary file: ${tempFilePath}`);
