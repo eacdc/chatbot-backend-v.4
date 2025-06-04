@@ -469,13 +469,13 @@ async function processBatchText(req, res) {
                   // Track this validation
                   pendingValidations++;
                   
-                  // Add delay between vector store requests to avoid rate limiting
-                  const requestDelay = Math.random() * 1000 + 500; // Random delay between 500-1500ms
-                  await new Promise(resolve => setTimeout(resolve, requestDelay));
-                  
                   // Run the validation asynchronously
                   (async () => {
                     try {
+                      // Add delay between vector store requests to avoid rate limiting
+                      const requestDelay = Math.random() * 1000 + 500; // Random delay between 500-1500ms
+                      await new Promise(resolve => setTimeout(resolve, requestDelay));
+                      
                       // Check if the question should be kept
                       const validationResult = await validateQuestionWithOpenAI(questionObj.question);
                       console.log(`Question validation result: ${validationResult}`);
