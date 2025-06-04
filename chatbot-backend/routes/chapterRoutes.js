@@ -774,6 +774,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         });
         
         console.log(`Created vector store: ${vectorStore.id}`);
+        console.log(`Vector store object: ${JSON.stringify(vectorStore)}`);
         
         try {
             // First, upload the file to OpenAI Files API
@@ -784,6 +785,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             });
             
             console.log(`File uploaded to OpenAI files API with ID: ${fileResponse.id}`);
+            console.log(`File response object: ${JSON.stringify(fileResponse)}`);
             
             // Now add the file to the vector store using the file ID
             console.log(`Adding file to vector store ${vectorStore.id}`);
@@ -797,9 +799,51 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             console.log(`Successfully added file to vector store: ${fileResponse.id}`);
             console.log(`Vector store file object: ${JSON.stringify(vectorStoreFile)}`);
             
-            // Let's skip the polling for now as it's causing issues
-            // The file is still successfully added to the vector store
-            console.log(`Skipping file status polling - the file has been added to the vector store`);
+            // Poll for status - with detailed logging
+            let fileStatus = vectorStoreFile.status || "in_progress";
+            console.log(`Initial file status: ${fileStatus}`);
+            
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            while (fileStatus !== "completed" && fileStatus !== "failed" && attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+                
+                try {
+                    // Log all parameters being passed to the retrieve function
+                    console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
+                    console.log(`Vector store ID being used: "${vectorStore.id}"`);
+                    console.log(`Vector store file ID being used: "${vectorStoreFile.id}"`);
+                    
+                    // Use the proper parameter format for file retrieval
+                    let retrieveResult;
+                    try {
+                        // Try with string parameters
+                        retrieveResult = await openai.vectorStores.files.retrieve(
+                            String(vectorStore.id),
+                            String(vectorStoreFile.id)
+                        );
+                    } catch (error) {
+                        console.error(`Error with string parameters: ${error.message}`);
+                        
+                        // Try with named parameters
+                        console.log("Trying with named parameters instead");
+                        retrieveResult = await openai.vectorStores.files.retrieve({
+                            vector_store_id: vectorStore.id,
+                            file_id: vectorStoreFile.id
+                        });
+                    }
+                    
+                    console.log(`Retrieve result: ${JSON.stringify(retrieveResult)}`);
+                    fileStatus = retrieveResult.status;
+                    console.log(`File processing status: ${fileStatus}`);
+                } catch (pollError) {
+                    console.error(`Error polling file status: ${pollError.message}`);
+                    // Continue with the loop despite the error
+                }
+                
+                attempts++;
+            }
             
             // Clean up temporary file
             console.log(`Cleaning up temporary file: ${tempFilePath}`);
