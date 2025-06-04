@@ -767,7 +767,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         fs.writeFileSync(tempFilePath, rawText, 'utf8');
         console.log(`Wrote ${rawText.length} characters to temporary file`);
         
-        // Create vector store
+        // Create vector store - now directly in openai, not in beta
         console.log(`Creating vector store with name: "${vectorStoreName}"`);
         const vectorStore = await openai.vectorStores.create({
             name: vectorStoreName,
@@ -775,17 +775,48 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         
         console.log(`Created vector store: ${vectorStore.id}`);
         
-        // Upload file to vector store - using the correct JavaScript object syntax
-        console.log(`Uploading file to vector store ${vectorStore.id}`);
-        
         try {
-            // Using the format directly from OpenAI documentation but with correct JavaScript syntax
-            const vectorStoreFile = await openai.vectorStores.files.upload_and_poll({
-                vector_store_id: vectorStore.id,
-                file: fs.createReadStream(tempFilePath)
+            // First, upload the file to OpenAI Files API
+            console.log(`Uploading file to OpenAI files API`);
+            const fileResponse = await openai.files.create({
+                file: fs.createReadStream(tempFilePath),
+                purpose: "vector_search"
             });
             
-            console.log(`Successfully uploaded file to vector store: ${vectorStoreFile.id}`);
+            console.log(`File uploaded to OpenAI files API with ID: ${fileResponse.id}`);
+            
+            // Now add the file to the vector store using the file ID
+            console.log(`Adding file to vector store ${vectorStore.id}`);
+            const vectorStoreFile = await openai.vectorStores.files.create(
+                vectorStore.id,
+                {
+                    file_id: fileResponse.id
+                }
+            );
+            
+            console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
+            
+            // Poll for status
+            let fileStatus = vectorStoreFile.status;
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            while (fileStatus !== "completed" && fileStatus !== "failed" && attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+                
+                try {
+                    const fileStatusResponse = await openai.vectorStores.files.retrieve(
+                        vectorStore.id,
+                        vectorStoreFile.id
+                    );
+                    fileStatus = fileStatusResponse.status;
+                    console.log(`File processing status: ${fileStatus}`);
+                } catch (pollError) {
+                    console.error(`Error polling file status: ${pollError.message}`);
+                }
+                
+                attempts++;
+            }
             
             // Clean up temporary file
             console.log(`Cleaning up temporary file: ${tempFilePath}`);
