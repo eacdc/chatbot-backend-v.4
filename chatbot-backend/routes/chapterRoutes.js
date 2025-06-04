@@ -780,7 +780,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             console.log(`Uploading file to OpenAI files API`);
             const fileResponse = await openai.files.create({
                 file: fs.createReadStream(tempFilePath),
-                purpose: "vector_search"
+                purpose: "assistants"
             });
             
             console.log(`File uploaded to OpenAI files API with ID: ${fileResponse.id}`);
