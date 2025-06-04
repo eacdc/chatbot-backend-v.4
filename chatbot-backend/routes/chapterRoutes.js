@@ -775,29 +775,37 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         
         console.log(`Created vector store: ${vectorStore.id}`);
         
-        // Upload file to vector store
+        // Upload file to vector store - using FormData approach for file upload
         console.log(`Uploading file to vector store ${vectorStore.id}`);
-        const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll({
-            vectorStoreId: vectorStore.id,
-            file: fs.createReadStream(tempFilePath),
-            ...(Object.keys(attributes).length > 0 && { attributes })
-        });
         
-        console.log(`Successfully uploaded file to vector store: ${vectorStoreFile.id}`);
+        // Create a file object that the API will accept
+        const fileStream = fs.createReadStream(tempFilePath);
         
-        // Clean up temporary file
-        console.log(`Cleaning up temporary file: ${tempFilePath}`);
-        fs.unlinkSync(tempFilePath);
-        
-        const result = {
-            success: true,
-            vectorStoreId: vectorStore.id,
-            fileId: vectorStoreFile.id,
-            message: 'Text successfully saved to vector store'
-        };
-        
-        console.log(`Vector store operation complete: ${JSON.stringify(result)}`);
-        return result;
+        try {
+            const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
+                vectorStore.id,
+                { file: fileStream }
+            );
+            
+            console.log(`Successfully uploaded file to vector store: ${vectorStoreFile.id}`);
+            
+            // Clean up temporary file
+            console.log(`Cleaning up temporary file: ${tempFilePath}`);
+            fs.unlinkSync(tempFilePath);
+            
+            const result = {
+                success: true,
+                vectorStoreId: vectorStore.id,
+                fileId: vectorStoreFile.id,
+                message: 'Text successfully saved to vector store'
+            };
+            
+            console.log(`Vector store operation complete: ${JSON.stringify(result)}`);
+            return result;
+        } catch (uploadError) {
+            console.error(`Error during file upload: ${uploadError.message}`);
+            throw uploadError;
+        }
         
     } catch (error) {
         console.error('Error saving text to vector store:', error);
