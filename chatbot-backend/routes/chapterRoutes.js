@@ -469,6 +469,10 @@ async function processBatchText(req, res) {
                   // Track this validation
                   pendingValidations++;
                   
+                  // Add delay between vector store requests to avoid rate limiting
+                  const requestDelay = Math.random() * 1000 + 500; // Random delay between 500-1500ms
+                  await new Promise(resolve => setTimeout(resolve, requestDelay));
+                  
                   // Run the validation asynchronously
                   (async () => {
                     try {
@@ -500,6 +504,11 @@ question:
 ${question_one}
 
 Do not include any explanation, commentary, or formatting outside the array.`
+                        
+                        // Add additional delay before vector store search
+                        const searchDelay = Math.random() * 2000 + 1000; // Random delay between 1-3 seconds
+                        await new Promise(resolve => setTimeout(resolve, searchDelay));
+                        
                         const response = await searchVectorStoreForAnswer(vectorBase.vectorStoreId, final_question);
                         // const response = await answerQuestion(questionObj.question, embeddings);
                         console.log(`Raw answer response: ${response.answer}`);
@@ -962,6 +971,37 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             };
         }
         
+        // First, check if the vector store is ready and has files
+        try {
+            console.log(`Checking vector store status: ${vectorStoreId}`);
+            const vectorStore = await openai.vectorStores.retrieve(vectorStoreId);
+            
+            if (vectorStore.status !== 'completed') {
+                console.log(`Vector store status is ${vectorStore.status}, not ready for search`);
+                return {
+                    answer: '["Vector store not ready", "Medium", 1]',
+                    sources: [],
+                    totalResults: 0,
+                    error: `Vector store status: ${vectorStore.status}`
+                };
+            }
+            
+            if (vectorStore.file_counts.completed === 0) {
+                console.log(`Vector store has no completed files`);
+                return {
+                    answer: '["No files in vector store", "Medium", 1]',
+                    sources: [],
+                    totalResults: 0,
+                    error: "Vector store has no files"
+                };
+            }
+            
+            console.log(`Vector store ready with ${vectorStore.file_counts.completed} files`);
+        } catch (statusError) {
+            console.error(`Error checking vector store status: ${statusError.message}`);
+            // Continue with search attempt anyway
+        }
+        
         console.log(`Searching vector store ${vectorStoreId} for question: "${userQuestion.substring(0, 100)}..."`);
         
         const {
@@ -977,10 +1017,20 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         let results;
         let retryCount = 0;
         const maxRetries = 3;
+        let searchSuccessful = false;
         
         // Retry loop for handling 500 errors
-        while (retryCount < maxRetries) {
+        while (retryCount < maxRetries && !searchSuccessful) {
             try {
+                console.log(`Vector store search attempt ${retryCount + 1}/${maxRetries}`);
+                
+                // Add delay between retries to avoid overwhelming the API
+                if (retryCount > 0) {
+                    const delay = Math.min(2000 * Math.pow(2, retryCount - 1), 10000); // exponential backoff, max 10s
+                    console.log(`Waiting ${delay}ms before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+                
                 // Use direct REST API call for more reliable results
                 const searchResponse = await makeHttpsRequest(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`, {
                     method: 'POST',
@@ -1002,10 +1052,9 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                 });
                 
                 if (!searchResponse.ok) {
-                    if (searchResponse.status === 500 && retryCount < maxRetries - 1) {
-                        console.log(`Vector store search returned 500 error, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                    if (searchResponse.status === 500) {
+                        console.log(`Vector store search returned 500 error (attempt ${retryCount + 1}/${maxRetries})`);
                         retryCount++;
-                        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // exponential backoff
                         continue;
                     }
                     throw new Error(`HTTP error ${searchResponse.status}: ${await searchResponse.text()}`);
@@ -1013,24 +1062,29 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                 
                 results = await searchResponse.json();
                 console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
-                break; // Success, exit retry loop
+                searchSuccessful = true;
                 
             } catch (searchError) {
-                if (retryCount < maxRetries - 1 && (searchError.message.includes('500') || searchError.message.includes('server_error'))) {
-                    console.log(`Vector store search error, retrying... (attempt ${retryCount + 1}/${maxRetries}): ${searchError.message}`);
+                if (searchError.message.includes('500') || searchError.message.includes('server_error')) {
+                    console.log(`Vector store search error (attempt ${retryCount + 1}/${maxRetries}): ${searchError.message}`);
                     retryCount++;
-                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // exponential backoff
                     continue;
                 }
                 
                 console.error(`OpenAI vector store search error: ${searchError.message}`);
-                return {
-                    answer: '["Vector store search failed", "Medium", 1]',
-                    sources: [],
-                    totalResults: 0,
-                    error: searchError.message
-                };
+                break; // Non-retryable error
             }
+        }
+        
+        // If all retries failed, provide a fallback response
+        if (!searchSuccessful) {
+            console.log(`All vector store search attempts failed, providing fallback response`);
+            return {
+                answer: '["Vector store search temporarily unavailable", "Medium", 1]',
+                sources: [],
+                totalResults: 0,
+                error: "Vector store search failed after retries"
+            };
         }
         
         // Check if we have any results
