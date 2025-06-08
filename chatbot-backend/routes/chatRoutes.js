@@ -408,7 +408,7 @@ Return only the JSON object. Do not include anything else.`,
                     .replace("{{GRADE}}", bookGrade || "appropriate grade")
                     .replace("{{CHAPTER_TITLE}}", chapterTitle || "this chapter")
                     .replace("{{QUESTION}}", currentQuestion ? currentQuestion.question : "review questions")
-                    .replace("{{QUESTION_ID}}", currentQuestion ? currentQuestion.questionId : "Q1")
+                    // .replace("{{QUESTION_ID}}", currentQuestion ? currentQuestion.questionId : "Q1")
                     .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1)
                     .replace("{{PREVIOUS_QUESTION_MARKS}}", previousQuestion ? previousQuestion.question_marks || 1 : 1)
                     .replace("{{PREVIOUS_QUESTION}}", previousQuestion ? previousQuestion.question : "No previous question")
@@ -429,6 +429,33 @@ Return only the JSON object. Do not include anything else.`,
                 console.log(`📊 oldchat_ai prompt replacement - CURRENT_SUBTOPIC: ${currentQuestion ? (currentQuestion.subtopic || 'General') : 'General'}`);
                 console.log(`📊 oldchat_ai prompt replacement - CURRENT_DIFFICULTY: ${currentQuestion ? (currentQuestion.difficultyLevel || 'Not specified') : 'Not specified'}`);
                 console.log(`📊 oldchat_ai prompt replacement - CURRENT_QUESTION_TYPE: ${currentQuestion ? (currentQuestion.question_type || 'General') : 'General'}`);
+                
+                // Enhanced debugging - log complete question objects and their key properties
+                console.log(`🔍 PLACEHOLDER DEBUG - Previous Question Object:`, {
+                    questionId: previousQuestion?.questionId,
+                    tentativeAnswer: previousQuestion?.tentativeAnswer,
+                    difficultyLevel: previousQuestion?.difficultyLevel,
+                    subtopic: previousQuestion?.subtopic,
+                    question_type: previousQuestion?.question_type,
+                    hasObject: !!previousQuestion
+                });
+                
+                console.log(`🔍 PLACEHOLDER DEBUG - Current Question Object:`, {
+                    questionId: currentQuestion?.questionId,
+                    tentativeAnswer: currentQuestion?.tentativeAnswer,
+                    difficultyLevel: currentQuestion?.difficultyLevel,
+                    subtopic: currentQuestion?.subtopic,
+                    question_type: currentQuestion?.question_type,
+                    hasObject: !!currentQuestion
+                });
+                
+                // Log each placeholder value as it's being used
+                console.log(`🔧 PLACEHOLDER VALUES BEING USED:`);
+                console.log(`  - {{tentative_answer}}: "${previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided"}"`);
+                console.log(`  - {{previous_question_difficulty_level}}: "${previousQuestion ? (previousQuestion.difficultyLevel || "Not specified") : "Not specified"}"`);
+                console.log(`  - {{subtopic}}: "${currentQuestion ? (currentQuestion.subtopic || "General") : "General"}"`);
+                console.log(`  - {{difficulty_level}}: "${currentQuestion ? (currentQuestion.difficultyLevel || "Not specified") : "Not specified"}"`);
+                console.log(`  - {{question_type}}: "${currentQuestion ? (currentQuestion.question_type || "General") : "General"}"`);
                 
             } else if (classification === "newchat_ai") {
                 // Get the newchat_ai prompt template
