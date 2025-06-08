@@ -602,6 +602,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
                 try {
                     // Attempt the request
+                    console.log(`📊 messagesForOpenAI: ${JSON.stringify(messagesForOpenAI)}`);
                     const response = await openaiSelector.chat.completions.create({
                         model: "gpt-4.1", // For DeepSeek API we use this model
                         messages: messagesForOpenAI,
