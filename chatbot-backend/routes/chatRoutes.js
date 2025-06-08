@@ -236,7 +236,7 @@ Return only the JSON object. Do not include anything else.`,
                 // Special case for assessment or explanation mode
                 if (questionModeEnabled && classification === "oldchat_ai" || classification === "newchat_ai") {
                     
-                    // For assessment mode, we want to select a specific question
+                    // For assessment mode, we want to select a specific question based on subtopic progression
                     // Check if the user has answered any questions yet for this chapter
                     const answeredQuestionIds = [];
                     try {
@@ -247,31 +247,144 @@ Return only the JSON object. Do not include anything else.`,
                         // If there's an error, assume no questions answered
                     }
                     
-                    // Filter for unanswered questions
-                    const unansweredQuestions = chapter.questionPrompt.filter(q => !answeredQuestionIds.includes(q.questionId));
-                    
-                    let questionPrompt;
-                    let randomIndex;
-                    
-                    if (unansweredQuestions.length > 0) {
-                        // Randomly select an unanswered question
-                        randomIndex = Math.floor(Math.random() * unansweredQuestions.length);
-                        questionPrompt = unansweredQuestions[randomIndex];
-                        console.log(`Selected question: ID=${questionPrompt.questionId}, Q="${questionPrompt.question ? questionPrompt.question.substring(0, 50) + '...' : 'No question text'}"`);
-                    } else {
-                        // If all questions are answered, randomly select any question
-                        randomIndex = Math.floor(Math.random() * chapter.questionPrompt.length);
-                        questionPrompt = chapter.questionPrompt[randomIndex];
-                        console.log(`All questions answered. Selected random question: ID=${questionPrompt.questionId}, Q="${questionPrompt.question ? questionPrompt.question.substring(0, 50) + '...' : 'No question text'}"`);
+                    // Get or initialize progression tracking from chat metadata
+                    if (!chat.metadata) {
+                        chat.metadata = {};
                     }
                     
-                    currentQuestion = questionPrompt;
-                    currentScore = questionPrompt.question_marks || 1;
+                    if (!chat.metadata.progressionTracker) {
+                        chat.metadata.progressionTracker = {
+                            currentDifficulty: "Easy",
+                            subtopicsCompleted: {
+                                Easy: [],
+                                Medium: [],
+                                Hard: []
+                            }
+                        };
+                    }
                     
-                    // Log the question marks that will be used
-                    console.log(`📊 Question marks for ${classification}: ${currentQuestion.question_marks || 1}`);
-                    if (previousQuestion) {
-                        console.log(`📊 Previous question marks: ${previousQuestion.question_marks || 1}`);
+                    const progressionTracker = chat.metadata.progressionTracker;
+                    
+                    // Get all unique subtopics from chapter questions
+                    const allSubtopics = [...new Set(chapter.questionPrompt.map(q => q.subtopic).filter(s => s))];
+                    console.log(`Available subtopics: ${allSubtopics.join(', ')}`);
+                    
+                    // Function to select question based on progression rules
+                    function selectQuestionByProgression() {
+                        const currentDifficulty = progressionTracker.currentDifficulty;
+                        console.log(`Current difficulty level: ${currentDifficulty}`);
+                        
+                        // Filter questions by current difficulty level
+                        const questionsAtCurrentDifficulty = chapter.questionPrompt.filter(q => 
+                            q.difficultyLevel === currentDifficulty && 
+                            !answeredQuestionIds.includes(q.questionId)
+                        );
+                        
+                        if (questionsAtCurrentDifficulty.length === 0) {
+                            console.log(`No unanswered questions at ${currentDifficulty} difficulty`);
+                            return null;
+                        }
+                        
+                        // Get subtopics that haven't been completed at current difficulty
+                        const completedSubtopics = progressionTracker.subtopicsCompleted[currentDifficulty];
+                        const remainingSubtopics = allSubtopics.filter(subtopic => 
+                            !completedSubtopics.includes(subtopic)
+                        );
+                        
+                        console.log(`Completed subtopics at ${currentDifficulty}: ${completedSubtopics.join(', ')}`);
+                        console.log(`Remaining subtopics at ${currentDifficulty}: ${remainingSubtopics.join(', ')}`);
+                        
+                        let selectedQuestion = null;
+                        
+                        if (remainingSubtopics.length > 0) {
+                            // Select a random subtopic from remaining ones
+                            const randomSubtopicIndex = Math.floor(Math.random() * remainingSubtopics.length);
+                            const targetSubtopic = remainingSubtopics[randomSubtopicIndex];
+                            
+                            console.log(`Targeting subtopic: ${targetSubtopic}`);
+                            
+                            // Find questions from the target subtopic at current difficulty
+                            const subtopicQuestions = questionsAtCurrentDifficulty.filter(q => 
+                                q.subtopic === targetSubtopic
+                            );
+                            
+                            if (subtopicQuestions.length > 0) {
+                                // Select a random question from the target subtopic
+                                const randomQuestionIndex = Math.floor(Math.random() * subtopicQuestions.length);
+                                selectedQuestion = subtopicQuestions[randomQuestionIndex];
+                                
+                                // Mark this subtopic as completed for current difficulty
+                                if (!completedSubtopics.includes(targetSubtopic)) {
+                                    progressionTracker.subtopicsCompleted[currentDifficulty].push(targetSubtopic);
+                                    console.log(`Marked subtopic "${targetSubtopic}" as completed for ${currentDifficulty} difficulty`);
+                                }
+                            }
+                        } else {
+                            // All subtopics completed at current difficulty, advance to next difficulty
+                            if (currentDifficulty === "Easy") {
+                                progressionTracker.currentDifficulty = "Medium";
+                                console.log(`Advanced to Medium difficulty`);
+                                return selectQuestionByProgression(); // Recursive call with new difficulty
+                            } else if (currentDifficulty === "Medium") {
+                                progressionTracker.currentDifficulty = "Hard";
+                                console.log(`Advanced to Hard difficulty`);
+                                return selectQuestionByProgression(); // Recursive call with new difficulty
+                            } else {
+                                // All difficulties completed, select any remaining question
+                                const allUnansweredQuestions = chapter.questionPrompt.filter(q => 
+                                    !answeredQuestionIds.includes(q.questionId)
+                                );
+                                
+                                if (allUnansweredQuestions.length > 0) {
+                                    const randomIndex = Math.floor(Math.random() * allUnansweredQuestions.length);
+                                    selectedQuestion = allUnansweredQuestions[randomIndex];
+                                    console.log(`All progression completed, selected random remaining question`);
+                                }
+                            }
+                        }
+                        
+                        return selectedQuestion;
+                    }
+                    
+                    // Select question using progression logic
+                    let questionPrompt = selectQuestionByProgression();
+                    
+                    // Fallback: if no question selected by progression, select any unanswered question
+                    if (!questionPrompt) {
+                        const unansweredQuestions = chapter.questionPrompt.filter(q => 
+                            !answeredQuestionIds.includes(q.questionId)
+                        );
+                        
+                        if (unansweredQuestions.length > 0) {
+                            const randomIndex = Math.floor(Math.random() * unansweredQuestions.length);
+                            questionPrompt = unansweredQuestions[randomIndex];
+                            console.log(`Fallback: Selected random unanswered question`);
+                        } else {
+                            // If all questions are answered, randomly select any question
+                            const randomIndex = Math.floor(Math.random() * chapter.questionPrompt.length);
+                            questionPrompt = chapter.questionPrompt[randomIndex];
+                            console.log(`All questions answered. Selected random question for review`);
+                        }
+                    }
+                    
+                    if (questionPrompt) {
+                        currentQuestion = questionPrompt;
+                        currentScore = questionPrompt.question_marks || 1;
+                        
+                        console.log(`Selected question: ID=${questionPrompt.questionId}`);
+                        console.log(`Question: "${questionPrompt.question ? questionPrompt.question.substring(0, 50) + '...' : 'No question text'}"`);
+                        console.log(`Subtopic: ${questionPrompt.subtopic || 'No subtopic'}`);
+                        console.log(`Difficulty: ${questionPrompt.difficultyLevel || 'No difficulty'}`);
+                        console.log(`Marks: ${questionPrompt.question_marks || 1}`);
+                        
+                        // Save progression tracker back to chat metadata
+                        chat.metadata.progressionTracker = progressionTracker;
+                        
+                        // Log the question marks that will be used
+                        console.log(`📊 Question marks for ${classification}: ${currentQuestion.question_marks || 1}`);
+                        if (previousQuestion) {
+                            console.log(`📊 Previous question marks: ${previousQuestion.question_marks || 1}`);
+                        }
                     }
                     
                 } else if (classification === "explanation_ai") {
@@ -922,13 +1035,71 @@ router.get("/history/:userId", authenticateUser, async (req, res) => {
     }
 });
 
-// Reset question status for a chapter
+// Get progression status for a chapter
+router.get("/progression-status/:chapterId", authenticateUser, async (req, res) => {
+    try {
+        const { chapterId } = req.params;
+        const userId = req.user.userId;
+        
+        console.log(`Fetching progression status for chapter ${chapterId} and user ${userId}`);
+        
+        // Find the chat document to get progression tracker
+        const chat = await Chat.findOne({ userId, chapterId });
+        
+        if (!chat || !chat.metadata || !chat.metadata.progressionTracker) {
+            return res.json({
+                hasProgression: false,
+                currentDifficulty: "Easy",
+                subtopicsCompleted: {
+                    Easy: [],
+                    Medium: [],
+                    Hard: []
+                },
+                allSubtopics: []
+            });
+        }
+        
+        // Get chapter details to find all subtopics
+        const chapter = await Chapter.findById(chapterId);
+        const allSubtopics = chapter && chapter.questionPrompt ? 
+            [...new Set(chapter.questionPrompt.map(q => q.subtopic).filter(s => s))] : [];
+        
+        const progressionTracker = chat.metadata.progressionTracker;
+        
+        return res.json({
+            hasProgression: true,
+            currentDifficulty: progressionTracker.currentDifficulty,
+            subtopicsCompleted: progressionTracker.subtopicsCompleted,
+            allSubtopics: allSubtopics,
+            progressSummary: {
+                easy: {
+                    completed: progressionTracker.subtopicsCompleted.Easy.length,
+                    total: allSubtopics.length
+                },
+                medium: {
+                    completed: progressionTracker.subtopicsCompleted.Medium.length,
+                    total: allSubtopics.length
+                },
+                hard: {
+                    completed: progressionTracker.subtopicsCompleted.Hard.length,
+                    total: allSubtopics.length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error("Error fetching progression status:", error);
+        res.status(500).json({ error: "Failed to fetch progression status" });
+    }
+});
+
+// Reset question status and progression for a chapter
 router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) => {
     try {
         const { chapterId } = req.params;
         const userId = req.user.userId;
         
-        // console.log removed;
+        console.log(`Resetting questions and progression for chapter ${chapterId} and user ${userId}`);
         
         // Find the chapter to reset
         const chapter = await Chapter.findById(chapterId);
@@ -962,16 +1133,52 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
                 questionPrompt: resetQuestions
             });
             
-            // Also update the user's chat history to reflect reset
+            // Reset chat messages and progression tracker
             existingChat.messages = [];
+            existingChat.metadata = {
+                answeredQuestions: [],
+                totalMarks: 0,
+                earnedMarks: 0,
+                progressionTracker: {
+                    currentDifficulty: "Easy",
+                    subtopicsCompleted: {
+                        Easy: [],
+                        Medium: [],
+                        Hard: []
+                    }
+                }
+            };
             await existingChat.save();
             
-            // console.log removed;
-            res.json({ success: true, message: `Progress reset for ${resetQuestions.length} questions` });
+            // Clear any stored previous questions for this user-chapter combination
+            const userChapterKey = `${userId}-${chapterId}`;
+            if (previousQuestionsMap.has(userChapterKey)) {
+                previousQuestionsMap.delete(userChapterKey);
+                console.log(`Cleared previous question mapping for ${userChapterKey}`);
+            }
+            
+            // Delete all QnA records for this user and chapter
+            try {
+                await QnALists.deleteMany({ studentId: userId, chapterId: chapterId });
+                console.log(`Deleted QnA records for user ${userId} and chapter ${chapterId}`);
+            } catch (qnaError) {
+                console.error("Error deleting QnA records:", qnaError);
+            }
+            
+            console.log(`Reset progress: ${resetQuestions.length} questions, chat history, and progression tracker`);
+            res.json({ 
+                success: true, 
+                message: `Progress reset for ${resetQuestions.length} questions`,
+                progressionReset: true
+            });
         } else {
             // No chat history found, nothing to reset
-            // console.log removed;
-            res.json({ success: true, message: "No progress to reset" });
+            console.log(`No existing progress found for user ${userId} and chapter ${chapterId}`);
+            res.json({ 
+                success: true, 
+                message: "No progress to reset",
+                progressionReset: false
+            });
         }
     } catch (error) {
         console.error("Error resetting question status:", error);
