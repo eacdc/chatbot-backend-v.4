@@ -413,7 +413,7 @@ Return only the JSON object. Do not include anything else.`,
                     .replace(/\{\{PREVIOUS_QUESTION\}\}/g, previousQuestion ? previousQuestion.question : "No previous question")
                     .replace(/\{\{user answer\}\}/g, message || "No answer provided")
                     .replace(/\{\{tentative_answer\}\}/g, previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided")
-                    .replace(/\{\{previous_question_difficulty_level\}\}/g, previousQuestion ? (previousQuestion.difficultyLevel || "Not specified") : "Not specified")
+                    .replace(/\{\{previous_question_type\}\}/g, previousQuestion ? (previousQuestion.question_type || "Not specified") : "Not specified")
                     .replace(/\{\{subtopic\}\}/g, currentQuestion ? (currentQuestion.subtopic || "General") : "General")
                     .replace(/\{\{difficulty_level\}\}/g, currentQuestion ? (currentQuestion.difficultyLevel || "Not specified") : "Not specified")
                     .replace(/\{\{question_type\}\}/g, currentQuestion ? (currentQuestion.question_type || "General") : "General");
