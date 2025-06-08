@@ -412,13 +412,23 @@ Return only the JSON object. Do not include anything else.`,
                     .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1)
                     .replace("{{PREVIOUS_QUESTION_MARKS}}", previousQuestion ? previousQuestion.question_marks || 1 : 1)
                     .replace("{{PREVIOUS_QUESTION}}", previousQuestion ? previousQuestion.question : "No previous question")
-                    .replace("{{user answer}}", message || "No answer provided");
+                    .replace("{{user answer}}", message || "No answer provided")
+                    .replace("{{tentative_answer}}", previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided")
+                    .replace("{{previous_question_difficulty_level}}", previousQuestion ? (previousQuestion.difficultyLevel || "Not specified") : "Not specified")
+                    .replace("{{subtopic}}", currentQuestion ? (currentQuestion.subtopic || "General") : "General")
+                    .replace("{{difficulty_level}}", currentQuestion ? (currentQuestion.difficultyLevel || "Not specified") : "Not specified")
+                    .replace("{{question_type}}", currentQuestion ? (currentQuestion.question_type || "General") : "General");
                 
                 // Log the marks values used in the prompt
                 console.log(`📊 oldchat_ai prompt replacement - QUESTION_MARKS: ${currentQuestion ? currentQuestion.question_marks || 1 : 1}`);
                 console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_QUESTION_MARKS: ${previousQuestion ? previousQuestion.question_marks || 1 : 1}`);
                 console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_QUESTION: ${previousQuestion ? previousQuestion.question?.substring(0, 50) + '...' : 'No previous question'}`);
                 console.log(`📊 oldchat_ai prompt replacement - USER_ANSWER: ${message?.substring(0, 50) + '...' || 'No answer provided'}`);
+                console.log(`📊 oldchat_ai prompt replacement - TENTATIVE_ANSWER: ${previousQuestion ? (previousQuestion.tentativeAnswer?.substring(0, 50) + '...' || 'Not provided') : 'Not provided'}`);
+                console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_DIFFICULTY: ${previousQuestion ? (previousQuestion.difficultyLevel || 'Not specified') : 'Not specified'}`);
+                console.log(`📊 oldchat_ai prompt replacement - CURRENT_SUBTOPIC: ${currentQuestion ? (currentQuestion.subtopic || 'General') : 'General'}`);
+                console.log(`📊 oldchat_ai prompt replacement - CURRENT_DIFFICULTY: ${currentQuestion ? (currentQuestion.difficultyLevel || 'Not specified') : 'Not specified'}`);
+                console.log(`📊 oldchat_ai prompt replacement - CURRENT_QUESTION_TYPE: ${currentQuestion ? (currentQuestion.question_type || 'General') : 'General'}`);
                 
             } else if (classification === "newchat_ai") {
                 // Get the newchat_ai prompt template
