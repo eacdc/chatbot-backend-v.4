@@ -404,20 +404,19 @@ Return only the JSON object. Do not include anything else.`,
                 
                 // Replace placeholders with actual values
                 systemPrompt = oldChatPrompt
-                    .replace("{{SUBJECT}}", bookSubject || "general subject")
-                    .replace("{{GRADE}}", bookGrade || "appropriate grade")
-                    .replace("{{CHAPTER_TITLE}}", chapterTitle || "this chapter")
-                    .replace("{{QUESTION}}", currentQuestion ? currentQuestion.question : "review questions")
-                    // .replace("{{QUESTION_ID}}", currentQuestion ? currentQuestion.questionId : "Q1")
-                    .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1)
-                    .replace("{{PREVIOUS_QUESTION_MARKS}}", previousQuestion ? previousQuestion.question_marks || 1 : 1)
-                    .replace("{{PREVIOUS_QUESTION}}", previousQuestion ? previousQuestion.question : "No previous question")
-                    .replace("{{user answer}}", message || "No answer provided")
-                    .replace("{{tentative_answer}}", previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided")
-                    .replace("{{previous_question_difficulty_level}}", previousQuestion ? (previousQuestion.difficultyLevel || "Not specified") : "Not specified")
-                    .replace("{{subtopic}}", currentQuestion ? (currentQuestion.subtopic || "General") : "General")
-                    .replace("{{difficulty_level}}", currentQuestion ? (currentQuestion.difficultyLevel || "Not specified") : "Not specified")
-                    .replace("{{question_type}}", currentQuestion ? (currentQuestion.question_type || "General") : "General");
+                    .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
+                    .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
+                    .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
+                    .replace(/\{\{QUESTION\}\}/g, currentQuestion ? currentQuestion.question : "review questions")
+                    .replace(/\{\{QUESTION_MARKS\}\}/g, currentQuestion ? currentQuestion.question_marks || 1 : 1)
+                    .replace(/\{\{PREVIOUS_QUESTION_MARKS\}\}/g, previousQuestion ? previousQuestion.question_marks || 1 : 1)
+                    .replace(/\{\{PREVIOUS_QUESTION\}\}/g, previousQuestion ? previousQuestion.question : "No previous question")
+                    .replace(/\{\{user answer\}\}/g, message || "No answer provided")
+                    .replace(/\{\{tentative_answer\}\}/g, previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided")
+                    .replace(/\{\{previous_question_difficulty_level\}\}/g, previousQuestion ? (previousQuestion.difficultyLevel || "Not specified") : "Not specified")
+                    .replace(/\{\{subtopic\}\}/g, currentQuestion ? (currentQuestion.subtopic || "General") : "General")
+                    .replace(/\{\{difficulty_level\}\}/g, currentQuestion ? (currentQuestion.difficultyLevel || "Not specified") : "Not specified")
+                    .replace(/\{\{question_type\}\}/g, currentQuestion ? (currentQuestion.question_type || "General") : "General");
                 
                 // Log the marks values used in the prompt
                 console.log(`📊 oldchat_ai prompt replacement - QUESTION_MARKS: ${currentQuestion ? currentQuestion.question_marks || 1 : 1}`);
@@ -463,12 +462,12 @@ Return only the JSON object. Do not include anything else.`,
                 
                 // Replace placeholders with actual values
                 systemPrompt = newChatPrompt
-                    .replace("{{SUBJECT}}", bookSubject || "general subject")
-                    .replace("{{GRADE}}", bookGrade || "appropriate grade")
-                    .replace("{{CHAPTER_TITLE}}", chapterTitle || "this chapter")
-                    .replace("{{QUESTION}}", currentQuestion ? currentQuestion.question : "review questions")
-                    .replace("{{QUESTION_ID}}", currentQuestion ? currentQuestion.questionId : "Q1")
-                    .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1);
+                    .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
+                    .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
+                    .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
+                    .replace(/\{\{QUESTION\}\}/g, currentQuestion ? currentQuestion.question : "review questions")
+                    .replace(/\{\{QUESTION_ID\}\}/g, currentQuestion ? currentQuestion.questionId : "Q1")
+                    .replace(/\{\{QUESTION_MARKS\}\}/g, currentQuestion ? currentQuestion.question_marks || 1 : 1);
                 
                 // Log the marks values used in the prompt
                 console.log(`📊 newchat_ai prompt replacement - QUESTION_MARKS: ${currentQuestion ? currentQuestion.question_marks || 1 : 1}`);
@@ -482,18 +481,18 @@ Return only the JSON object. Do not include anything else.`,
                 
                 // Replace placeholders with actual values
                 systemPrompt = closureChatPrompt
-                    .replace("{{SUBJECT}}", bookSubject || "general subject")
-                    .replace("{{GRADE}}", bookGrade || "appropriate grade")
-                    .replace("{{CHAPTER_TITLE}}", chapterTitle || "this chapter")
-                    .replace("{{TOTAL_QUESTIONS}}", statsForClosure.totalQuestions)
-                    .replace("{{ANSWERED_QUESTIONS}}", statsForClosure.answeredQuestions)
-                    .replace("{{TOTAL_MARKS}}", statsForClosure.totalMarks)
-                    .replace("{{EARNED_MARKS}}", statsForClosure.earnedMarks)
-                    .replace("{{PERCENTAGE}}", Math.round(statsForClosure.percentage))
-                    .replace("{{CORRECT_ANSWERS}}", statsForClosure.correctAnswers)
-                    .replace("{{PARTIAL_ANSWERS}}", statsForClosure.partialAnswers)
-                    .replace("{{INCORRECT_ANSWERS}}", statsForClosure.incorrectAnswers)
-                    .replace("{{TIME_SPENT}}", statsForClosure.timeSpentMinutes);
+                    .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
+                    .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
+                    .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
+                    .replace(/\{\{TOTAL_QUESTIONS\}\}/g, statsForClosure.totalQuestions)
+                    .replace(/\{\{ANSWERED_QUESTIONS\}\}/g, statsForClosure.answeredQuestions)
+                    .replace(/\{\{TOTAL_MARKS\}\}/g, statsForClosure.totalMarks)
+                    .replace(/\{\{EARNED_MARKS\}\}/g, statsForClosure.earnedMarks)
+                    .replace(/\{\{PERCENTAGE\}\}/g, Math.round(statsForClosure.percentage))
+                    .replace(/\{\{CORRECT_ANSWERS\}\}/g, statsForClosure.correctAnswers)
+                    .replace(/\{\{PARTIAL_ANSWERS\}\}/g, statsForClosure.partialAnswers)
+                    .replace(/\{\{INCORRECT_ANSWERS\}\}/g, statsForClosure.incorrectAnswers)
+                    .replace(/\{\{TIME_SPENT\}\}/g, statsForClosure.timeSpentMinutes);
                 
             } else if (classification === "explanation_ai") {
                 // Get the explanation_ai prompt template
@@ -501,20 +500,20 @@ Return only the JSON object. Do not include anything else.`,
                 
                 // Replace placeholders with actual values
                 systemPrompt = explanationPrompt
-                    .replace("{{SUBJECT}}", bookSubject || "general subject")
-                    .replace("{{GRADE}}", bookGrade || "appropriate grade")
-                    .replace("{{CHAPTER_TITLE}}", chapterTitle || "this chapter")
-                    .replace("{{CHAPTER_CONTENT}}", chapter.prompt || "No specific content available for this chapter.");
+                    .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
+                    .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
+                    .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
+                    .replace(/\{\{CHAPTER_CONTENT\}\}/g, chapter.prompt || "No specific content available for this chapter.");
             } else {
                 // Default to explanation prompt for unrecognized classifications
                 const explanationPrompt = await Prompt.getPromptByType("explanation_ai");
                 
                 // Replace placeholders with actual values
                 systemPrompt = explanationPrompt
-                    .replace("{{SUBJECT}}", bookSubject || "general subject")
-                    .replace("{{GRADE}}", bookGrade || "appropriate grade")
-                    .replace("{{CHAPTER_TITLE}}", chapterTitle || "this chapter")
-                    .replace("{{CHAPTER_CONTENT}}", chapter.prompt || "No specific content available for this chapter.");
+                    .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
+                    .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
+                    .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
+                    .replace(/\{\{CHAPTER_CONTENT\}\}/g, chapter.prompt || "No specific content available for this chapter.");
             }
             
             // Add formatting instructions
@@ -561,10 +560,10 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 
                 // Replace placeholders with actual values
                 systemPrompt = explanationPrompt
-                    .replace("{{SUBJECT}}", bookSubject || "general subject")
-                    .replace("{{GRADE}}", bookGrade || "appropriate grade")
-                    .replace("{{CHAPTER_TITLE}}", chapterTitle || "this chapter")
-                    .replace("{{CHAPTER_CONTENT}}", chapter.prompt || "No specific content available for this chapter.");
+                    .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
+                    .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
+                    .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
+                    .replace(/\{\{CHAPTER_CONTENT\}\}/g, chapter.prompt || "No specific content available for this chapter.");
                 
                 // Add formatting instructions
                 systemPrompt += `\n\nPlease format your response using Markdown for clarity. Use **bold** for important points, *italics* for emphasis, and - for bullet points when listing items.
