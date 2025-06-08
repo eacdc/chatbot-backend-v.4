@@ -1124,7 +1124,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             messages: [
                 {
                     role: "system",
-                    content: "You are a helpful assistant. Provide a concise answer in this exact JSON array format: [\"answer\", \"difficulty\", marks]. The answer should be a string, difficulty should be Easy/Medium/Hard, and marks should be 1-5."
+                    content: "You are a helpful assistant. Provide a concise answer in this exact JSON array format: [\"answer\", \"difficulty\", marks]. The answer should be a string with less than 25 words, difficulty should be Easy/Medium/Hard, and marks should be 1-5."
                 },
                 {
                     role: "user",
