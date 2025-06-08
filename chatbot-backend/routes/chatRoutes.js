@@ -410,11 +410,15 @@ Return only the JSON object. Do not include anything else.`,
                     .replace("{{QUESTION}}", currentQuestion ? currentQuestion.question : "review questions")
                     .replace("{{QUESTION_ID}}", currentQuestion ? currentQuestion.questionId : "Q1")
                     .replace("{{QUESTION_MARKS}}", currentQuestion ? currentQuestion.question_marks || 1 : 1)
-                    .replace("{{PREVIOUS_QUESTION_MARKS}}", previousQuestion ? previousQuestion.question_marks || 1 : 1);
+                    .replace("{{PREVIOUS_QUESTION_MARKS}}", previousQuestion ? previousQuestion.question_marks || 1 : 1)
+                    .replace("{{PREVIOUS_QUESTION}}", previousQuestion ? previousQuestion.question : "No previous question")
+                    .replace("{{user answer}}", message || "No answer provided");
                 
                 // Log the marks values used in the prompt
                 console.log(`📊 oldchat_ai prompt replacement - QUESTION_MARKS: ${currentQuestion ? currentQuestion.question_marks || 1 : 1}`);
                 console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_QUESTION_MARKS: ${previousQuestion ? previousQuestion.question_marks || 1 : 1}`);
+                console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_QUESTION: ${previousQuestion ? previousQuestion.question?.substring(0, 50) + '...' : 'No previous question'}`);
+                console.log(`📊 oldchat_ai prompt replacement - USER_ANSWER: ${message?.substring(0, 50) + '...' || 'No answer provided'}`);
                 
             } else if (classification === "newchat_ai") {
                 // Get the newchat_ai prompt template
