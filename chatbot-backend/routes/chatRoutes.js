@@ -662,7 +662,10 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
 
             // Extract the bot message
             const botMessage = openaiResponse.choices[0].message.content;
-            console.log(`Bot reply ${botMessage}`);
+            console.log(`🤖 Bot reply (first 100 chars): ${botMessage.substring(0, 100)}...`);
+            console.log(`📏 Bot reply full length: ${botMessage.length} characters`);
+            console.log(`📄 Bot reply full content:\n${botMessage}`);
+            console.log(`📄 Bot reply JSON stringify: ${JSON.stringify(botMessage)}`);
 
             // Save the message to chat history, managing history based on agent type
         chat.messages.push({ role: "user", content: message });
@@ -674,6 +677,9 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             chat.lastActive = Date.now();
             
         await chat.save();
+            
+            console.log(`💾 Saved assistant message to DB (length: ${botMessage.length})`);
+            console.log(`💾 Last saved message content: ${chat.messages[chat.messages.length - 1].content.substring(0, 100)}...`);
             
             // If in question mode and classification is oldchat_ai, process scores and update questions
             if (questionModeEnabled && (classification === "oldchat_ai")) {
@@ -740,8 +746,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // Log the marksAwarded value before sending the response
             console.log(`Final score to be returned: marksAwarded=${marksAwarded}, classification=${classification}`);
             
-            // Return the response
-            return res.json({
+            // Prepare the response object
+            const responseObject = {
                 message: botMessage,
                 questionId: currentQuestion ? currentQuestion.questionId : null,
                 fullQuestion: currentQuestion,
@@ -752,7 +758,15 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     maxMarks: (previousQuestion && classification === "oldchat_ai") ? (previousQuestion.question_marks || 1) : null,
                     previousQuestion: previousQuestion ? previousQuestion.question : null
                 }
-            });
+            };
+            
+            console.log(`🚀 Response being sent to frontend:`);
+            console.log(`🚀 Message length: ${responseObject.message.length}`);
+            console.log(`🚀 Message content (first 200 chars): ${responseObject.message.substring(0, 200)}...`);
+            console.log(`🚀 Full response object:`, JSON.stringify(responseObject, null, 2));
+            
+            // Return the response
+            return res.json(responseObject);
         } catch (chapterError) {
             console.error("Error fetching chapter:", chapterError);
             if (chapterError.name === 'CastError') {
