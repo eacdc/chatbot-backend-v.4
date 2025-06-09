@@ -704,14 +704,11 @@ export default function ChatbotLayout({ children }) {
           }
         });
         
-        // Check if there's score information and append it to the message
+        // Use the AI response as-is since it's already properly formatted for audio responses too
         let botContent = chatResponse.data.message;
         
-        // Add score information if present
-        if (chatResponse.data.score && chatResponse.data.score.marksAwarded !== null) {
-          const scoreInfo = `\n\n**Score: ${chatResponse.data.score.marksAwarded}/${chatResponse.data.score.maxMarks}**`;
-          botContent += scoreInfo;
-        }
+        // Don't add duplicate score information - the AI response already includes it
+        // The backend AI formats the complete response including score, explanation, and next question
         
         // Handle the chat response
         const botResponse = { role: "assistant", content: botContent };
@@ -719,14 +716,11 @@ export default function ChatbotLayout({ children }) {
       } else if (!audioBlob) {
         // For text messages, process the response directly
         
-        // Check if there's score information and append it to the message
+        // Use the AI response as-is since it's already properly formatted
         let botContent = response.data.message;
         
-        // Add score information if present
-        if (response.data.score && response.data.score.marksAwarded !== null) {
-          const scoreInfo = `\n\n**Score: ${response.data.score.marksAwarded}/${response.data.score.maxMarks}**`;
-          botContent += scoreInfo;
-        }
+        // Don't add duplicate score information - the AI response already includes it
+        // The backend AI formats the complete response including score, explanation, and next question
         
         const botResponse = { role: "assistant", content: botContent };
         setChatHistory(prev => [...prev, botResponse]);
@@ -749,41 +743,35 @@ export default function ChatbotLayout({ children }) {
     }
   };
 
-  // Update the Let's Start button to use the cleanMessageContent function
+  // Update the Let's Start button to use the AI response as-is
   const processStartTestResponse = (response) => {
     console.log("Start Test response:", response.data);
                                 
     // Check for message field in response (new format)
     if (response.data && response.data.message) {
-      // Clean up the message content
-      let cleanedContent = cleanMessageContent(response.data.message);
+      // Use the AI response as-is since it's already properly formatted
+      let botContent = response.data.message;
       
-      // Add score information if present
-      if (response.data.score && response.data.score.marksAwarded !== null) {
-        const scoreInfo = `\n\n**Score: ${response.data.score.marksAwarded}/${response.data.score.maxMarks}**`;
-        cleanedContent += scoreInfo;
-      }
+      // Don't add duplicate score information - the AI response already includes it
+      // Don't clean the content - the AI generates clean responses now
       
       const aiResponse = { 
         role: "assistant", 
-        content: cleanedContent 
+        content: botContent 
       };
       setChatHistory(prevHistory => [...prevHistory, aiResponse]);
     }
     // Fallback for legacy response format
     else if (response.data && response.data.response) {
-      // Clean up the message content
-      let cleanedContent = cleanMessageContent(response.data.response);
+      // Use the AI response as-is for legacy format too
+      let botContent = response.data.response;
       
-      // Add score information if present
-      if (response.data.score && response.data.score.marksAwarded !== null) {
-        const scoreInfo = `\n\n**Score: ${response.data.score.marksAwarded}/${response.data.score.maxMarks}**`;
-        cleanedContent += scoreInfo;
-      }
+      // Don't add duplicate score information - the AI response already includes it
+      // Don't clean the content - the AI generates clean responses now
       
       const aiResponse = { 
         role: "assistant", 
-        content: cleanedContent 
+        content: botContent 
       };
       setChatHistory(prevHistory => [...prevHistory, aiResponse]);
     }
@@ -1557,12 +1545,11 @@ export default function ChatbotLayout({ children }) {
           }
         });
         
+        // Use the AI response as-is for processAudioMessage too
         let botContent = chatResponse.data.message;
         
-        if (chatResponse.data.score && chatResponse.data.score.marksAwarded !== null) {
-          const scoreInfo = `\n\n**Score: ${chatResponse.data.score.marksAwarded}/${chatResponse.data.score.maxMarks}**`;
-          botContent += scoreInfo;
-        }
+        // Don't add duplicate score information - the AI response already includes it
+        // The backend AI formats the complete response including score, explanation, and next question
         
         const botResponse = { role: "assistant", content: botContent };
         setChatHistory(prev => [...prev, botResponse]);
