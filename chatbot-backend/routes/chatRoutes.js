@@ -1015,19 +1015,50 @@ router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
         const { chapterId } = req.params;
         const userId = req.user.userId;
         
-        console.log(`Fetching chapter stats for chapter ${chapterId} and user ${userId}`);
+        console.log(`📊 Fetching chapter stats for chapter ${chapterId} and user ${userId}`);
+        
+        // First check Chat metadata for debugging
+        const chat = await Chat.findOne({ userId, chapterId });
+        if (chat && chat.metadata) {
+            console.log(`📊 Chat metadata found:`, {
+                answeredQuestions: chat.metadata.answeredQuestions?.length || 0,
+                totalMarks: chat.metadata.totalMarks || 0,
+                earnedMarks: chat.metadata.earnedMarks || 0,
+                firstFewAnswered: chat.metadata.answeredQuestions?.slice(0, 3) || []
+            });
+        } else {
+            console.log(`📊 No chat metadata found for user ${userId} and chapter ${chapterId}`);
+        }
+        
+        // Also check QnALists records
+        const qnaRecord = await QnALists.findOne({ studentId: userId, chapterId });
+        if (qnaRecord && qnaRecord.qnaDetails) {
+            console.log(`📊 QnALists record found:`, {
+                totalQnaDetails: qnaRecord.qnaDetails.length,
+                answeredQnaDetails: qnaRecord.qnaDetails.filter(q => q.status === 1).length,
+                firstFewDetails: qnaRecord.qnaDetails.slice(0, 3).map(q => ({
+                    questionId: q.questionId,
+                    status: q.status,
+                    score: q.score,
+                    questionMarks: q.questionMarks
+                }))
+            });
+        } else {
+            console.log(`📊 No QnALists record found for user ${userId} and chapter ${chapterId}`);
+        }
         
         // Get stats from QnALists
         const stats = await QnALists.getChapterStats(userId, chapterId);
+        console.log(`📊 QnALists.getChapterStats returned:`, stats);
         
         // Only return stats if there are answered questions
         if (stats.answeredQuestions === 0) {
-            console.log(`No answered questions for chapter ${chapterId} and user ${userId}`);
+            console.log(`📊 No answered questions for chapter ${chapterId} and user ${userId}`);
             return res.json({ hasStats: false });
         }
         
         // Return the stats with a flag indicating there are stats
-        console.log(`Returning stats for chapter ${chapterId}: ${stats.earnedMarks}/${stats.totalMarks}`);
+        console.log(`📊 Returning stats for chapter ${chapterId}: ${stats.earnedMarks}/${stats.totalMarks} (${stats.percentage}%)`);
         return res.json({
             hasStats: true,
             earnedMarks: stats.earnedMarks,
@@ -1038,7 +1069,7 @@ router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
         });
         
     } catch (error) {
-        console.error("Error fetching chapter stats:", error);
+        console.error("📊 Error fetching chapter stats:", error);
         res.status(500).json({ error: "Failed to fetch chapter statistics" });
     }
 });
@@ -1245,10 +1276,21 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
 // Add this function to track which questions a user has answered
 async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks, questionText, answerText) {
     try {
+        console.log(`🏆 markQuestionAsAnswered called with:`, {
+            userId,
+            chapterId,
+            questionId,
+            marksAwarded,
+            maxMarks,
+            questionText: questionText?.substring(0, 50) + '...',
+            answerText: answerText?.substring(0, 50) + '...'
+        });
+        
         // Find or create the chat document
         let chat = await Chat.findOne({ userId, chapterId });
         
         if (!chat) {
+            console.log(`🏆 Creating new chat document for user ${userId} and chapter ${chapterId}`);
             chat = new Chat({
                 userId,
                 chapterId,
@@ -1259,10 +1301,13 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     earnedMarks: 0
                 }
             });
+        } else {
+            console.log(`🏆 Found existing chat document for user ${userId} and chapter ${chapterId}`);
         }
         
         // Initialize metadata if it doesn't exist
         if (!chat.metadata) {
+            console.log(`🏆 Initializing metadata for chat document`);
             chat.metadata = {
                 answeredQuestions: [],
                 totalMarks: 0,
@@ -1271,27 +1316,35 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
         }
         
         if (!Array.isArray(chat.metadata.answeredQuestions)) {
+            console.log(`🏆 Initializing answeredQuestions array`);
             chat.metadata.answeredQuestions = [];
         }
         
+        console.log(`🏆 Before updating - answeredQuestions: ${chat.metadata.answeredQuestions.length}, totalMarks: ${chat.metadata.totalMarks}, earnedMarks: ${chat.metadata.earnedMarks}`);
+        
         // Add question to the answered list if not already there
         if (!chat.metadata.answeredQuestions.includes(questionId)) {
+            console.log(`🏆 Adding new question ${questionId} to answered list`);
             chat.metadata.answeredQuestions.push(questionId);
             
             // Update marks
             chat.metadata.totalMarks = (chat.metadata.totalMarks || 0) + maxMarks;
             chat.metadata.earnedMarks = (chat.metadata.earnedMarks || 0) + marksAwarded;
             
+            console.log(`🏆 After updating - answeredQuestions: ${chat.metadata.answeredQuestions.length}, totalMarks: ${chat.metadata.totalMarks}, earnedMarks: ${chat.metadata.earnedMarks}`);
+            
             // Also record in QnALists
             try {
-                console.log(`Recording answer for question ${questionId} in QnALists`);
+                console.log(`🏆 Recording answer for question ${questionId} in QnALists`);
                 
                 // Get the chapter to get the bookId and subject
                 const chapter = await Chapter.findById(chapterId);
                 const chapterBookId = chapter ? chapter.bookId : null;
                 
                 if (!chapterBookId) {
-                    console.error(`Cannot find bookId for chapter ${chapterId}`);
+                    console.error(`🏆 Cannot find bookId for chapter ${chapterId}`);
+                } else {
+                    console.log(`🏆 Found bookId ${chapterBookId} for chapter ${chapterId}`);
                 }
                 
                 // Get book details to check subject (for language determination)
@@ -1300,10 +1353,11 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     const book = await Book.findById(chapterBookId);
                     if (book) {
                         bookSubject = book.subject || "general subject";
+                        console.log(`🏆 Found book subject: ${bookSubject}`);
                     }
                 }
                 
-                await QnALists.recordAnswer({
+                const qnaData = {
                     studentId: userId,
                     bookId: chapterBookId,
                     chapterId: chapterId,
@@ -1314,15 +1368,30 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     questionText: questionText || "",
                     agentType: "oldchat_ai", // Always oldchat_ai for answered questions
                     subject: bookSubject // Add subject for reference
+                };
+                
+                console.log(`🏆 Calling QnALists.recordAnswer with:`, {
+                    ...qnaData,
+                    answerText: qnaData.answerText.substring(0, 50) + '...',
+                    questionText: qnaData.questionText.substring(0, 50) + '...'
                 });
+                
+                await QnALists.recordAnswer(qnaData);
+                console.log(`🏆 Successfully recorded answer in QnALists`);
+                
             } catch (qnaError) {
-                console.error("Error recording answer in QnALists:", qnaError);
+                console.error("🏆 Error recording answer in QnALists:", qnaError);
             }
+        } else {
+            console.log(`🏆 Question ${questionId} already in answered list, skipping`);
         }
         
+        console.log(`🏆 Saving chat document with updated metadata`);
         await chat.save();
+        console.log(`🏆 Successfully saved chat document`);
+        
     } catch (error) {
-        console.error("Error marking question as answered:", error);
+        console.error("🏆 Error marking question as answered:", error);
         throw error;
     }
 }
