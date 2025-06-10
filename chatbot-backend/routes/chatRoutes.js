@@ -987,6 +987,13 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             console.log(`Final score to be returned: marksAwarded=${marksAwarded}, classification=${classification}`);
             
             // Prepare the response object
+            // Special debugging for zero scores before creating response object
+            if (marksAwarded === 0 && previousQuestion && classification === "oldchat_ai") {
+                console.log(`🔍 ZERO SCORE DEBUG [Response]: Zero score should be included in response object`);
+                console.log(`🔍 ZERO SCORE DEBUG [Response]: marksAwarded=${marksAwarded}, type=${typeof marksAwarded}`);
+                console.log(`🔍 ZERO SCORE DEBUG [Response]: classification=${classification}, previousQuestion exists: ${!!previousQuestion}`);
+            }
+            
             const responseObject = {
                 message: botMessage,
                 questionId: currentQuestion ? currentQuestion.questionId : null,
@@ -999,6 +1006,16 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     previousQuestion: previousQuestion ? previousQuestion.question : null
                 }
             };
+            
+            // Debug logging specifically for the score property in the response object
+            console.log(`🔍 RESPONSE OBJECT DEBUG: Score in response:`, {
+                marksAwarded: responseObject.score.marksAwarded, 
+                marksAwardedType: typeof responseObject.score.marksAwarded,
+                isZero: responseObject.score.marksAwarded === 0,
+                maxMarks: responseObject.score.maxMarks,
+                classification: classification,
+                isPreviousQuestion: !!previousQuestion
+            });
             
             console.log(`🚀 Response being sent to frontend:`);
             console.log(`🚀 Message length: ${responseObject.message.length}`);
