@@ -731,9 +731,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 if (previousQuestion) {
                     console.log(`🔍 DEBUG: Previous question found - ID: ${previousQuestion.questionId}, Text: ${previousQuestion.question?.substring(0, 30)}...`);
                     // Extract score from assistant message
-                    let marksAwarded = 0;
-                    let maxScore = previousQuestion.question_marks || 1;
-                    console.log(`🔍 DEBUG: Initial maxScore from question: ${maxScore}`);
+                    // Variables for score tracking will be declared below
+                    console.log(`🔍 DEBUG: Initial maxScore from question: ${previousQuestion.question_marks || 1}`);
                     
                     console.log(`🔍 DEBUG: Bot message first 100 chars: ${botMessage.substring(0, 100)}...`);
                     console.log(`🔍 DEBUG: Bot message length: ${botMessage.length} chars`);
@@ -769,7 +768,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 
                 console.log(`✅ Found exact score pattern: "${scoreMatch[0]}" -> ${marksAwarded}/${maxScore}`);
                 scoreFound = true;
-            } else {
+                        } else {
                 // Define various patterns to match different score formats as fallbacks
                 const scorePatterns = [
                     // 1. Beginning of response: Lines that start with Score/Marks/etc
@@ -822,7 +821,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 }
                             });
                         }
-                    } else {
+                            } else {
                         // For non-global patterns, find the first match
                         match = botMessage.match(pattern.regex);
                         console.log(`🔍 DEBUG: ${pattern.name} match: ${JSON.stringify(match)}`);
@@ -896,7 +895,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // Special check for zero scores - make sure we correctly identify them from explicit "Score: 0/X" patterns
             if (botMessage.match(/Score:\s*0\s*\/\s*\d+/i)) {
                 console.log(`🔍 DEBUG: Found explicit zero score pattern in response`);
-                marksAwarded = 0;
+                                marksAwarded = 0;
                 console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0, value: ${marksAwarded}, type: ${typeof marksAwarded}`);
                 console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0`);
             }
