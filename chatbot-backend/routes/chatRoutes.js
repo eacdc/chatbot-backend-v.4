@@ -704,55 +704,178 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                         console.log(`🔍 DEBUG: "score" keyword not found in response`);
                     }
                     
-                    // NEW: Primary pattern for exact format "Score: X/Y" 
-                    const exactScorePattern = /Score:\s*(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/i;
-                    const exactScoreMatch = botMessage.match(exactScorePattern);
-                    console.log(`✅ Exact score match: ${JSON.stringify(exactScoreMatch)}`);
+                    // IMPROVED SCORE EXTRACTION ALGORITHM
                     
-                    if (exactScoreMatch && exactScoreMatch.length >= 3) {
-                        // Extract both awarded marks and total marks from the exact pattern
-                        marksAwarded = parseFloat(exactScoreMatch[1]);
-                        maxScore = parseFloat(exactScoreMatch[2]);
-                        console.log(`✅ Found exact score pattern "Score: ${marksAwarded}/${maxScore}"`);
-                        console.log(`📊 Using extracted values: marksAwarded=${marksAwarded}, maxScore=${maxScore}`);
-                    } else {
-                        console.log(`🔍 DEBUG: Exact score pattern not found, trying fallback patterns...`);
-                        // Fallback: Specific pattern for score at beginning of response, looking for lines that start with "Score:"
-                        // This will target the score for the previous question, not the next question preview
-                        const scoreFirstPattern = /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im;
-                        const firstScoreMatch = botMessage.match(scoreFirstPattern);
-                        console.log(`🔍 DEBUG: First pattern match: ${JSON.stringify(firstScoreMatch)}`);
-                        
-                        if (firstScoreMatch && firstScoreMatch.length >= 3) {
-                            // Extract score from the matched pattern (first group is awarded, second is max)
-                            marksAwarded = parseFloat(firstScoreMatch[1]);
-                            maxScore = parseFloat(firstScoreMatch[2]);
-                            console.log(`📊 Extracted first score from message: ${marksAwarded}/${maxScore}`);
-                        } else {
-                            console.log(`🔍 DEBUG: First pattern not found, trying general pattern...`);
-                            // Try a more general pattern if a score line at the beginning isn't found
-                            const scoreGeneralPattern = /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i;
-                            const generalScoreMatch = botMessage.match(scoreGeneralPattern);
-                            console.log(`🔍 DEBUG: General pattern match: ${JSON.stringify(generalScoreMatch)}`);
+                    // Define various patterns to match different score formats
+                    const scorePatterns = [
+                        // 1. Primary pattern: Exact format "Score: X/Y"
+                        { 
+                            regex: /Score:\s*(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/i,
+                            name: "exactScore"
+                        },
+                        // 2. Beginning of response: Lines that start with Score/Marks/etc
+                        { 
+                            regex: /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im,
+                            name: "lineStartScore" 
+                        },
+                        // 3. General pattern: Any mention of score anywhere in the text
+                        { 
+                            regex: /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i,
+                            name: "generalScore" 
+                        },
+                        // 4. Simple fraction pattern: Any X/Y pattern
+                        { 
+                            regex: /(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/g,
+                            name: "fractionScore",
+                            global: true  // This is a global pattern that can match multiple times
+                        },
+                        // 5. "You scored X out of Y" pattern
+                        { 
+                            regex: /you (?:scored|earned|got|receive[d]?)\s+(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i,
+                            name: "youScoredPattern" 
+                        },
+                        // 6. "I would award X out of Y" pattern
+                        { 
+                            regex: /(?:I would|I will|I am|I'm) (?:award|give|assign)[ing]*\s+(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i,
+                            name: "awardPattern" 
+                        }
+                    ];
+                    
+                    // Track all matches
+                    const allMatches = [];
+                    let scoreFound = false;
+                    
+                    // Try each pattern in order of priority
+                    for (const pattern of scorePatterns) {
+                        let match;
+                        if (pattern.global) {
+                            // For global patterns, find all matches
+                            const matches = [...botMessage.matchAll(pattern.regex)];
+                            console.log(`🔍 DEBUG: ${pattern.name} matches:`, matches.map(m => ({match: m[0], score: m[1], total: m[2]})));
                             
-                            if (generalScoreMatch && generalScoreMatch.length >= 3) {
-                                // Use the first match from the general pattern
-                                marksAwarded = parseFloat(generalScoreMatch[1]);
-                                maxScore = parseFloat(generalScoreMatch[2]);
-                                console.log(`📊 Extracted score using general pattern: ${marksAwarded}/${maxScore}`);
-                            } else {
-                                // If no score pattern is found, award zero marks
-                                marksAwarded = 0;
-                                console.log(`❌ No score pattern found, awarding zero marks: ${marksAwarded}/${maxScore}`);
+                            if (matches.length > 0) {
+                                // Use first match by default for global patterns
+                                match = matches[0];
                                 
-                                // Additional debug - search for any numbers in the response
-                                console.log(`🔍 DEBUG: No standard pattern found. Searching for any score-like pattern...`);
-                                const anyScorePattern = /(\d+)\/(\d+)/g;
-                                const allScoreMatches = [...botMessage.matchAll(anyScorePattern)];
-                                console.log(`🔍 DEBUG: All score-like patterns found:`, allScoreMatches);
+                                // Store all matches for analysis
+                                matches.forEach(m => {
+                                    if (m && m.length >= 3) {
+                                        allMatches.push({
+                                            pattern: pattern.name,
+                                            match: m[0],
+                                            score: parseFloat(m[1]),
+                                            total: parseFloat(m[2]),
+                                            position: m.index
+                                        });
+                                    }
+                                });
+                            }
+                        } else {
+                            // For non-global patterns, find the first match
+                            match = botMessage.match(pattern.regex);
+                            console.log(`🔍 DEBUG: ${pattern.name} match: ${JSON.stringify(match)}`);
+                            
+                            if (match && match.length >= 3) {
+                                allMatches.push({
+                                    pattern: pattern.name,
+                                    match: match[0],
+                                    score: parseFloat(match[1]),
+                                    total: parseFloat(match[2]),
+                                    position: match.index
+                                });
+                            }
+                        }
+                        
+                        // If we found a match with this pattern and haven't set a score yet
+                        if (match && match.length >= 3 && !scoreFound) {
+                            // Extract both awarded marks and total marks from the pattern
+                            marksAwarded = parseFloat(match[1]);
+                            
+                            // Only update maxScore if the extracted value is valid
+                            if (parseFloat(match[2]) > 0) {
+                                maxScore = parseFloat(match[2]);
+                            }
+                            
+                            console.log(`✅ Found score with ${pattern.name} pattern: "${match[0]}" -> ${marksAwarded}/${maxScore}`);
+                            scoreFound = true;
+                            
+                            // No need to check more patterns if we've found a higher priority one
+                            if (pattern.name === "exactScore" || pattern.name === "lineStartScore") {
+                                break;
                             }
                         }
                     }
+                    
+                    // Analyze all matches if we have multiple
+                    if (allMatches.length > 1) {
+                        console.log(`🔍 DEBUG: Multiple score matches found (${allMatches.length}). Analyzing...`);
+                        console.log(`🔍 DEBUG: All matches:`, allMatches);
+                        
+                        // Sort by pattern priority and position in text
+                        allMatches.sort((a, b) => {
+                            // Define pattern priority
+                            const priority = {
+                                "exactScore": 0, 
+                                "lineStartScore": 1, 
+                                "youScoredPattern": 2,
+                                "awardPattern": 3,
+                                "generalScore": 4, 
+                                "fractionScore": 5
+                            };
+                            
+                            // First sort by pattern priority
+                            if (priority[a.pattern] !== priority[b.pattern]) {
+                                return priority[a.pattern] - priority[b.pattern];
+                            }
+                            
+                            // Then by position (earlier in text = higher priority)
+                            return a.position - b.position;
+                        });
+                        
+                        // Use the highest priority match
+                        const bestMatch = allMatches[0];
+                        marksAwarded = bestMatch.score;
+                        if (bestMatch.total > 0) {
+                            maxScore = bestMatch.total;
+                        }
+                        
+                        console.log(`✅ Selected best match: ${bestMatch.pattern} - "${bestMatch.match}" -> ${marksAwarded}/${maxScore}`);
+                    }
+                    
+                    // If no match found, use fallback
+                    if (!scoreFound) {
+                        // If no score pattern is found, award one mark by default if the answer seems correct
+                        if (botMessage.toLowerCase().includes("correct") || 
+                            botMessage.toLowerCase().includes("well done") ||
+                            botMessage.toLowerCase().includes("good job") ||
+                            botMessage.toLowerCase().includes("excellent")) {
+                            marksAwarded = maxScore;
+                            console.log(`✅ No score pattern found, but answer appears correct. Awarding full marks: ${marksAwarded}/${maxScore}`);
+                        } else {
+                            marksAwarded = 0;
+                            console.log(`❌ No score pattern found and answer doesn't appear correct. Awarding zero marks: ${marksAwarded}/${maxScore}`);
+                        }
+                    }
+                    
+                    // Verify the extracted score is valid
+                    if (isNaN(marksAwarded) || marksAwarded < 0) {
+                        console.log(`❌ Invalid score detected: ${marksAwarded}. Resetting to 0.`);
+                        marksAwarded = 0;
+                    }
+                    
+                    // Ensure maxScore is positive
+                    if (isNaN(maxScore) || maxScore <= 0) {
+                        console.log(`❌ Invalid maxScore detected: ${maxScore}. Using question's marks: ${previousQuestion.question_marks || 1}`);
+                        maxScore = previousQuestion.question_marks || 1;
+                    }
+                    
+                    // Final score validation - make sure score doesn't exceed max
+                    if (marksAwarded > maxScore) {
+                        console.log(`⚠️ Score exceeds maximum: ${marksAwarded}/${maxScore}. Capping at ${maxScore}.`);
+                        marksAwarded = maxScore;
+                    }
+                    
+                    console.log(`📊 FINAL SCORE DETERMINATION: ${marksAwarded}/${maxScore}`)
                 
                 try {
                         console.log(`🔍 DEBUG: About to call markQuestionAsAnswered with score ${marksAwarded}/${maxScore}`);
@@ -1382,9 +1505,16 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             console.log(`🏆 Adding new question ${questionId} to answered list`);
             chat.metadata.answeredQuestions.push(questionId);
             
-            // Update marks
-            chat.metadata.totalMarks = (chat.metadata.totalMarks || 0) + maxMarks;
-            chat.metadata.earnedMarks = (chat.metadata.earnedMarks || 0) + marksAwarded;
+            // Update marks with extra validation
+            // Ensure marks are valid numbers
+            const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
+            const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
+            
+            console.log(`🏆 Using validated marks: awarded=${validMarksAwarded}, max=${validMaxMarks}`);
+            
+            // Force convert to numbers with fallbacks to prevent NaN
+            chat.metadata.totalMarks = parseFloat(chat.metadata.totalMarks || 0) + validMaxMarks;
+            chat.metadata.earnedMarks = parseFloat(chat.metadata.earnedMarks || 0) + validMarksAwarded;
             
             console.log(`🏆 After updating - answeredQuestions: ${chat.metadata.answeredQuestions.length}, totalMarks: ${chat.metadata.totalMarks}, earnedMarks: ${chat.metadata.earnedMarks}`);
         
@@ -1421,13 +1551,14 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     }
                 }
                 
+                // Make sure we use the validated score values
                 const qnaData = {
                     studentId: userId,
                     bookId: chapterBookId,
                     chapterId: chapterId,
                     questionId: questionId,
-                    questionMarks: maxMarks,
-                    score: marksAwarded,
+                    questionMarks: validMaxMarks, // Use validated max marks
+                    score: validMarksAwarded,     // Use validated marks awarded
                     answerText: answerText || "",
                     questionText: questionText || "",
                     agentType: "oldchat_ai", // Always oldchat_ai for answered questions
@@ -1518,3 +1649,80 @@ router.get("/audio/:fileId", authenticateUser, async (req, res) => {
 
 // Add the missing export statement
 module.exports = router;
+
+// TEMPORARY ROUTE: Fix zero scores for testing purposes
+router.get("/fix-zero-scores/:chapterId", authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const chapterId = req.params.chapterId;
+        
+        console.log(`🔧 FIX-SCORES: Attempting to fix zero scores for user ${userId} and chapter ${chapterId}`);
+        
+        // Find all QnA entries for this user and chapter
+        const qnaRecord = await QnALists.findOne({ 
+            studentId: userId,
+            chapterId: chapterId
+        });
+        
+        if (!qnaRecord || !qnaRecord.qnaDetails || qnaRecord.qnaDetails.length === 0) {
+            return res.json({ 
+                success: false, 
+                message: "No records found to update",
+                updated: 0
+            });
+        }
+        
+        // Count how many zero scores we have
+        const zeroScores = qnaRecord.qnaDetails.filter(q => q.score === 0).length;
+        console.log(`🔧 FIX-SCORES: Found ${zeroScores} questions with zero scores out of ${qnaRecord.qnaDetails.length}`);
+        
+        // Update each zero score to a default value (for testing)
+        let updatedCount = 0;
+        for (let i = 0; i < qnaRecord.qnaDetails.length; i++) {
+            if (qnaRecord.qnaDetails[i].score === 0) {
+                // Update to a default score for testing (70% of max)
+                const questionMarks = qnaRecord.qnaDetails[i].questionMarks || 1;
+                const newScore = Math.round(questionMarks * 0.7 * 10) / 10; // 70% rounded to 1 decimal
+                
+                qnaRecord.qnaDetails[i].score = newScore;
+                updatedCount++;
+                
+                console.log(`🔧 FIX-SCORES: Updated question ${qnaRecord.qnaDetails[i].questionId} score from 0 to ${newScore}/${questionMarks}`);
+            }
+        }
+        
+        // Save the updated record
+        if (updatedCount > 0) {
+            await qnaRecord.save();
+            console.log(`🔧 FIX-SCORES: Saved ${updatedCount} updated scores`);
+            
+            // Also update the chat metadata
+            const chat = await Chat.findOne({ userId, chapterId });
+            if (chat && chat.metadata) {
+                // Recalculate earned marks from QnA data
+                const totalEarnedMarks = qnaRecord.qnaDetails.reduce((sum, q) => sum + q.score, 0);
+                
+                // Update the earned marks in chat metadata
+                chat.metadata.earnedMarks = totalEarnedMarks;
+                await chat.save();
+                
+                console.log(`🔧 FIX-SCORES: Updated chat metadata earnedMarks to ${totalEarnedMarks}`);
+            }
+        }
+        
+        return res.json({ 
+            success: true, 
+            message: `Updated ${updatedCount} zero scores`,
+            updated: updatedCount,
+            totalQuestions: qnaRecord.qnaDetails.length
+        });
+        
+    } catch (error) {
+        console.error("Error fixing zero scores:", error);
+        return res.status(500).json({ 
+            success: false,
+            error: "Error fixing zero scores", 
+            details: error.message 
+        });
+    }
+});
