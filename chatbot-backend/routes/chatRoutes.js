@@ -687,34 +687,46 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 if (previousQuestion) {
                     // Extract score from assistant message
                     let marksAwarded = 0;
-                    const maxScore = previousQuestion.question_marks || 1;
+                    let maxScore = previousQuestion.question_marks || 1;
                     
-                    // Specific pattern for score at beginning of response, looking for lines that start with "Score:"
-                    // This will target the score for the previous question, not the next question preview
-                    const scoreFirstPattern = /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im;
-                    const firstScoreMatch = botMessage.match(scoreFirstPattern);
+                    // NEW: Primary pattern for exact format "Score: X/Y" 
+                    const exactScorePattern = /Score:\s*(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/i;
+                    const exactScoreMatch = botMessage.match(exactScorePattern);
                     
-                    if (firstScoreMatch && firstScoreMatch.length >= 3) {
-                        // Extract score from the matched pattern (first group is awarded, second is max)
-                        const extractedScore = parseFloat(firstScoreMatch[1]);
-                        marksAwarded = extractedScore;
-                        console.log(`Extracted first score from message: ${marksAwarded}/${maxScore}`);
+                    if (exactScoreMatch && exactScoreMatch.length >= 3) {
+                        // Extract both awarded marks and total marks from the exact pattern
+                        marksAwarded = parseFloat(exactScoreMatch[1]);
+                        maxScore = parseFloat(exactScoreMatch[2]);
+                        console.log(`✅ Found exact score pattern "Score: ${marksAwarded}/${maxScore}"`);
+                        console.log(`📊 Using extracted values: marksAwarded=${marksAwarded}, maxScore=${maxScore}`);
                     } else {
-                        // Try a more general pattern if a score line at the beginning isn't found
-                        const scoreGeneralPattern = /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i;
-                        const generalScoreMatch = botMessage.match(scoreGeneralPattern);
+                        // Fallback: Specific pattern for score at beginning of response, looking for lines that start with "Score:"
+                        // This will target the score for the previous question, not the next question preview
+                        const scoreFirstPattern = /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im;
+                        const firstScoreMatch = botMessage.match(scoreFirstPattern);
                         
-                        if (generalScoreMatch && generalScoreMatch.length >= 3) {
-                            // Use the first match from the general pattern
-                            const extractedScore = parseFloat(generalScoreMatch[1]);
-                            marksAwarded = extractedScore;
-                            console.log(`Extracted score using general pattern: ${marksAwarded}/${maxScore}`);
-                } else {
-                            // If no score pattern is found, award zero marks
-                            marksAwarded = 0;
-                            console.log(`No score pattern found, awarding zero marks`);
+                        if (firstScoreMatch && firstScoreMatch.length >= 3) {
+                            // Extract score from the matched pattern (first group is awarded, second is max)
+                            marksAwarded = parseFloat(firstScoreMatch[1]);
+                            maxScore = parseFloat(firstScoreMatch[2]);
+                            console.log(`📊 Extracted first score from message: ${marksAwarded}/${maxScore}`);
+                        } else {
+                            // Try a more general pattern if a score line at the beginning isn't found
+                            const scoreGeneralPattern = /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i;
+                            const generalScoreMatch = botMessage.match(scoreGeneralPattern);
+                            
+                            if (generalScoreMatch && generalScoreMatch.length >= 3) {
+                                // Use the first match from the general pattern
+                                marksAwarded = parseFloat(generalScoreMatch[1]);
+                                maxScore = parseFloat(generalScoreMatch[2]);
+                                console.log(`📊 Extracted score using general pattern: ${marksAwarded}/${maxScore}`);
+                            } else {
+                                // If no score pattern is found, award zero marks
+                                marksAwarded = 0;
+                                console.log(`❌ No score pattern found, awarding zero marks: ${marksAwarded}/${maxScore}`);
+                            }
                         }
-                }
+                    }
                 
                 try {
                         // Record the answer for the PREVIOUS question with the user's current message as the answer
