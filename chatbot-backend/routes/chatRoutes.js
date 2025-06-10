@@ -683,16 +683,31 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             
             // If in question mode and classification is oldchat_ai, process scores and update questions
             if (classification === "oldchat_ai" || classification === "newchat_ai") {
+                console.log(`🔍 DEBUG: Starting score extraction process - Classification: ${classification}`);
                 // Check if we have a valid previous question to record the answer for
                 if (previousQuestion) {
+                    console.log(`🔍 DEBUG: Previous question found - ID: ${previousQuestion.questionId}, Text: ${previousQuestion.question?.substring(0, 30)}...`);
                     // Extract score from assistant message
                     let marksAwarded = 0;
                     let maxScore = previousQuestion.question_marks || 1;
+                    console.log(`🔍 DEBUG: Initial maxScore from question: ${maxScore}`);
+                    
+                    console.log(`🔍 DEBUG: Bot message first 100 chars: ${botMessage.substring(0, 100)}...`);
+                    console.log(`🔍 DEBUG: Bot message length: ${botMessage.length} chars`);
+                    
+                    // Debug: Search for "score" in different formats in the response
+                    const scoreKeywordIndex = botMessage.toLowerCase().indexOf("score");
+                    if (scoreKeywordIndex >= 0) {
+                        console.log(`🔍 DEBUG: Found "score" keyword at position ${scoreKeywordIndex}`);
+                        console.log(`🔍 DEBUG: Context around "score": "${botMessage.substring(Math.max(0, scoreKeywordIndex-20), Math.min(botMessage.length, scoreKeywordIndex+30))}"`);
+                    } else {
+                        console.log(`🔍 DEBUG: "score" keyword not found in response`);
+                    }
                     
                     // NEW: Primary pattern for exact format "Score: X/Y" 
                     const exactScorePattern = /Score:\s*(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/i;
                     const exactScoreMatch = botMessage.match(exactScorePattern);
-                    console.log(`✅ Exact score match: ${exactScoreMatch}`);
+                    console.log(`✅ Exact score match: ${JSON.stringify(exactScoreMatch)}`);
                     
                     if (exactScoreMatch && exactScoreMatch.length >= 3) {
                         // Extract both awarded marks and total marks from the exact pattern
@@ -701,10 +716,12 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                         console.log(`✅ Found exact score pattern "Score: ${marksAwarded}/${maxScore}"`);
                         console.log(`📊 Using extracted values: marksAwarded=${marksAwarded}, maxScore=${maxScore}`);
                     } else {
+                        console.log(`🔍 DEBUG: Exact score pattern not found, trying fallback patterns...`);
                         // Fallback: Specific pattern for score at beginning of response, looking for lines that start with "Score:"
                         // This will target the score for the previous question, not the next question preview
                         const scoreFirstPattern = /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im;
                         const firstScoreMatch = botMessage.match(scoreFirstPattern);
+                        console.log(`🔍 DEBUG: First pattern match: ${JSON.stringify(firstScoreMatch)}`);
                         
                         if (firstScoreMatch && firstScoreMatch.length >= 3) {
                             // Extract score from the matched pattern (first group is awarded, second is max)
@@ -712,9 +729,11 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             maxScore = parseFloat(firstScoreMatch[2]);
                             console.log(`📊 Extracted first score from message: ${marksAwarded}/${maxScore}`);
                         } else {
+                            console.log(`🔍 DEBUG: First pattern not found, trying general pattern...`);
                             // Try a more general pattern if a score line at the beginning isn't found
                             const scoreGeneralPattern = /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i;
                             const generalScoreMatch = botMessage.match(scoreGeneralPattern);
+                            console.log(`🔍 DEBUG: General pattern match: ${JSON.stringify(generalScoreMatch)}`);
                             
                             if (generalScoreMatch && generalScoreMatch.length >= 3) {
                                 // Use the first match from the general pattern
@@ -725,11 +744,27 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 // If no score pattern is found, award zero marks
                                 marksAwarded = 0;
                                 console.log(`❌ No score pattern found, awarding zero marks: ${marksAwarded}/${maxScore}`);
+                                
+                                // Additional debug - search for any numbers in the response
+                                console.log(`🔍 DEBUG: No standard pattern found. Searching for any score-like pattern...`);
+                                const anyScorePattern = /(\d+)\/(\d+)/g;
+                                const allScoreMatches = [...botMessage.matchAll(anyScorePattern)];
+                                console.log(`🔍 DEBUG: All score-like patterns found:`, allScoreMatches);
                             }
                         }
                     }
                 
                 try {
+                        console.log(`🔍 DEBUG: About to call markQuestionAsAnswered with score ${marksAwarded}/${maxScore}`);
+                        console.log(`🔍 DEBUG: Parameters for markQuestionAsAnswered:`);
+                        console.log(`  - userId: ${userId}`);
+                        console.log(`  - chapterId: ${chapterId}`);
+                        console.log(`  - questionId: ${previousQuestion.questionId}`);
+                        console.log(`  - marksAwarded: ${marksAwarded} (type: ${typeof marksAwarded})`);
+                        console.log(`  - maxScore: ${maxScore} (type: ${typeof maxScore})`);
+                        console.log(`  - questionText length: ${(previousQuestion.question || "").length}`);
+                        console.log(`  - answerText length: ${message.length}`);
+                        
                         // Record the answer for the PREVIOUS question with the user's current message as the answer
                         await markQuestionAsAnswered(
                             userId, 
@@ -741,18 +776,25 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             message // Current message is the answer to the previous question
                         );
                         
-                        console.log(`Recorded answer for previous question: ${previousQuestion.questionId}`);
+                        console.log(`✅ Successfully recorded answer for previous question: ${previousQuestion.questionId} with score ${marksAwarded}/${maxScore}`);
                 } catch (markError) {
-                    console.error("Error marking question as answered:", markError);
+                    console.error(`❌ ERROR marking question as answered:`, markError);
+                    console.error(`❌ Error details - Question ID: ${previousQuestion.questionId}, Score: ${marksAwarded}/${maxScore}`);
                     }
+                } else {
+                    console.log(`⚠️ No previous question found to record score for`);
                 }
+            } else {
+                console.log(`🔍 DEBUG: Classification ${classification} not eligible for score recording`);
             }
             
             // Store current question as the previous question for next time, for both oldchat_ai and newchat_ai
             if (questionModeEnabled && (classification === "oldchat_ai" || classification === "newchat_ai")) {
                 if (currentQuestion) {
                     previousQuestionsMap.set(userChapterKey, currentQuestion);
-                    console.log(`Set current question as previous for next time: ${currentQuestion.questionId}`);
+                    console.log(`✅ Set current question as previous for next time: ${currentQuestion.questionId}`);
+                } else {
+                    console.log(`⚠️ No current question to set as previous for next time`);
                 }
             }
             
@@ -1345,6 +1387,15 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             chat.metadata.earnedMarks = (chat.metadata.earnedMarks || 0) + marksAwarded;
             
             console.log(`🏆 After updating - answeredQuestions: ${chat.metadata.answeredQuestions.length}, totalMarks: ${chat.metadata.totalMarks}, earnedMarks: ${chat.metadata.earnedMarks}`);
+        
+        // Log the structure of the updated chat metadata
+        console.log(`🏆 Chat metadata structure:`, {
+            hasMetadata: !!chat.metadata,
+            metadataKeys: chat.metadata ? Object.keys(chat.metadata) : [],
+            answeredQuestionsArray: Array.isArray(chat.metadata?.answeredQuestions),
+            earnedMarksType: typeof chat.metadata?.earnedMarks,
+            totalMarksType: typeof chat.metadata?.totalMarks
+        });
             
             // Also record in QnALists
             try {
@@ -1389,7 +1440,39 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     questionText: qnaData.questionText.substring(0, 50) + '...'
                 });
                 
-                await QnALists.recordAnswer(qnaData);
+                // Track the actual recordAnswer operation in detail
+                console.log(`🏆 QnALists.recordAnswer - Operation starting with data:`, JSON.stringify({
+                    studentId: qnaData.studentId,
+                    chapterId: qnaData.chapterId,
+                    questionId: qnaData.questionId,
+                    score: qnaData.score,
+                    questionMarks: qnaData.questionMarks
+                }));
+                
+                const recordResult = await QnALists.recordAnswer(qnaData);
+                console.log(`🏆 QnALists.recordAnswer - Operation result:`, {
+                    success: !!recordResult,
+                    resultId: recordResult?._id?.toString(),
+                    hasQnaDetails: !!recordResult?.qnaDetails,
+                    qnaDetailsCount: recordResult?.qnaDetails?.length || 0
+                });
+                
+                // Verify the record was actually saved by retrieving it
+                const verifyRecord = await QnALists.findOne({ 
+                    studentId: userId,
+                    chapterId: chapterId,
+                    "qnaDetails.questionId": questionId
+                });
+                
+                console.log(`🏆 Verification - Record found: ${!!verifyRecord}`);
+                if (verifyRecord) {
+                    const questionEntry = verifyRecord.qnaDetails.find(q => q.questionId === questionId);
+                    console.log(`🏆 Verification - Question entry found: ${!!questionEntry}`);
+                    if (questionEntry) {
+                        console.log(`🏆 Verification - Saved score: ${questionEntry.score}/${questionEntry.questionMarks}`);
+                    }
+                }
+                
                 console.log(`🏆 Successfully recorded answer in QnALists`);
                 
             } catch (qnaError) {
