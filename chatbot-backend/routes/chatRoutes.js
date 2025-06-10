@@ -682,7 +682,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             console.log(`💾 Last saved message content: ${chat.messages[chat.messages.length - 1].content.substring(0, 100)}...`);
             
             // If in question mode and classification is oldchat_ai, process scores and update questions
-            if (classification === "oldchat_ai" || classification === "newchat_ai") {
+            if (classification === "oldchat_ai") {
                 console.log(`🔍 DEBUG: Starting score extraction process - Classification: ${classification}`);
                 // Check if we have a valid previous question to record the answer for
                 if (previousQuestion) {
