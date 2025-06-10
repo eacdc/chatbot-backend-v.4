@@ -703,50 +703,44 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     } else {
                         console.log(`🔍 DEBUG: "score" keyword not found in response`);
                     }
-                    
-                    // IMPROVED SCORE EXTRACTION ALGORITHM
-                    
-                    // Define various patterns to match different score formats
-                    const scorePatterns = [
-                        // 1. Primary pattern: Exact format "Score: X/Y"
-                        { 
-                            regex: /Score:\s*(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/i,
-                            name: "exactScore"
-                        },
-                        // 2. Beginning of response: Lines that start with Score/Marks/etc
-                        { 
-                            regex: /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im,
-                            name: "lineStartScore" 
-                        },
-                        // 3. General pattern: Any mention of score anywhere in the text
-                        { 
-                            regex: /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i,
-                            name: "generalScore" 
-                        },
-                        // 4. Simple fraction pattern: Any X/Y pattern
-                        { 
-                            regex: /(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/g,
-                            name: "fractionScore",
-                            global: true  // This is a global pattern that can match multiple times
-                        },
-                        // 5. "You scored X out of Y" pattern
-                        { 
-                            regex: /you (?:scored|earned|got|receive[d]?)\s+(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i,
-                            name: "youScoredPattern" 
-                        },
-                        // 6. "I would award X out of Y" pattern
-                        { 
-                            regex: /(?:I would|I will|I am|I'm) (?:award|give|assign)[ing]*\s+(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i,
-                            name: "awardPattern" 
-                        }
-                    ];
-                    
+            
+            // IMPROVED SCORE EXTRACTION ALGORITHM
+            
+            // Define various patterns to match different score formats
+            const scorePatterns = [
+                // 1. Primary pattern: Exact format "Score: X/Y"
+                { 
+                    regex: /Score:\s*(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/i,
+                    name: "exactScore"
+                },
+                // 2. Beginning of response: Lines that start with Score/Marks/etc
+                { 
+                    regex: /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im,
+                    name: "lineStartScore" 
+                },
+                // 3. General pattern: Any mention of score anywhere in the text
+                { 
+                    regex: /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i,
+                    name: "generalScore" 
+                },
+                // 4. "You scored X out of Y" pattern
+                { 
+                    regex: /you (?:scored|earned|got|receive[d]?)\s+(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i,
+                    name: "youScoredPattern" 
+                },
+                // 5. "I would award X out of Y" pattern
+                { 
+                    regex: /(?:I would|I will|I am|I'm) (?:award|give|assign)[ing]*\s+(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i,
+                    name: "awardPattern" 
+                }
+            ];
+            
                     // Track all matches
                     const allMatches = [];
                     let scoreFound = false;
                     
                     // Try each pattern in order of priority
-                    for (const pattern of scorePatterns) {
+            for (const pattern of scorePatterns) {
                         let match;
                         if (pattern.global) {
                             // For global patterns, find all matches
@@ -819,8 +813,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 "lineStartScore": 1, 
                                 "youScoredPattern": 2,
                                 "awardPattern": 3,
-                                "generalScore": 4, 
-                                "fractionScore": 5
+                                "generalScore": 4
                             };
                             
                             // First sort by pattern priority
@@ -855,6 +848,12 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             marksAwarded = 0;
                             console.log(`❌ No score pattern found and answer doesn't appear correct. Awarding zero marks: ${marksAwarded}/${maxScore}`);
                         }
+                    }
+                    
+                    // Special check for zero scores - make sure we correctly identify them from explicit "Score: 0/X" patterns
+                    if (botMessage.match(/Score:\s*0\s*\/\s*\d+/i)) {
+                        console.log(`🔍 DEBUG: Found explicit zero score pattern in response`);
+                        marksAwarded = 0;
                     }
                     
                     // Verify the extracted score is valid
@@ -1697,7 +1696,7 @@ router.get("/fix-zero-scores/:chapterId", authenticateUser, async (req, res) => 
             console.log(`🔧 FIX-SCORES: Saved ${updatedCount} updated scores`);
             
             // Also update the chat metadata
-            const chat = await Chat.findOne({ userId, chapterId });
+        const chat = await Chat.findOne({ userId, chapterId });
             if (chat && chat.metadata) {
                 // Recalculate earned marks from QnA data
                 const totalEarnedMarks = qnaRecord.qnaDetails.reduce((sum, q) => sum + q.score, 0);
