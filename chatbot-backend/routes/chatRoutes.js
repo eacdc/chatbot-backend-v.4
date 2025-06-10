@@ -682,7 +682,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             console.log(`💾 Last saved message content: ${chat.messages[chat.messages.length - 1].content.substring(0, 100)}...`);
             
             // If in question mode and classification is oldchat_ai, process scores and update questions
-            if (questionModeEnabled && (classification === "oldchat_ai")) {
+            if (classification === "oldchat_ai" || classification === "newchat_ai") {
                 // Check if we have a valid previous question to record the answer for
                 if (previousQuestion) {
                     // Extract score from assistant message
@@ -692,6 +692,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     // NEW: Primary pattern for exact format "Score: X/Y" 
                     const exactScorePattern = /Score:\s*(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/i;
                     const exactScoreMatch = botMessage.match(exactScorePattern);
+                    console.log(`✅ Exact score match: ${exactScoreMatch}`);
                     
                     if (exactScoreMatch && exactScoreMatch.length >= 3) {
                         // Extract both awarded marks and total marks from the exact pattern
