@@ -274,6 +274,11 @@ Return only the JSON object. Do not include anything else.`,
                         const currentDifficulty = progressionTracker.currentDifficulty;
                         console.log(`Current difficulty level: ${currentDifficulty}`);
                         
+                        // Initialize lastSubtopic in progressionTracker if it doesn't exist
+                        if (!progressionTracker.lastSubtopic) {
+                            progressionTracker.lastSubtopic = "";
+                        }
+                        
                         // Filter questions by current difficulty level
                         const questionsAtCurrentDifficulty = chapter.questionPrompt.filter(q => 
                             q.difficultyLevel === currentDifficulty && 
@@ -293,15 +298,28 @@ Return only the JSON object. Do not include anything else.`,
                         
                         console.log(`Completed subtopics at ${currentDifficulty}: ${completedSubtopics.join(', ')}`);
                         console.log(`Remaining subtopics at ${currentDifficulty}: ${remainingSubtopics.join(', ')}`);
+                        console.log(`Last subtopic used: ${progressionTracker.lastSubtopic || 'None'}`);
                         
                         let selectedQuestion = null;
                         
                         if (remainingSubtopics.length > 0) {
-                            // Select a random subtopic from remaining ones
-                            const randomSubtopicIndex = Math.floor(Math.random() * remainingSubtopics.length);
-                            const targetSubtopic = remainingSubtopics[randomSubtopicIndex];
+                            // Filter out the last subtopic to prevent back-to-back repetition
+                            const availableSubtopics = remainingSubtopics.filter(subtopic => 
+                                subtopic !== progressionTracker.lastSubtopic || remainingSubtopics.length === 1
+                            );
                             
-                            console.log(`Targeting subtopic: ${targetSubtopic}`);
+                            // If all remaining subtopics are the same as the last one, just use what we have
+                            const subtopicsToUse = availableSubtopics.length > 0 ? availableSubtopics : remainingSubtopics;
+                            
+                            // Select a random subtopic from available ones (that's not the same as last time)
+                            const randomSubtopicIndex = Math.floor(Math.random() * subtopicsToUse.length);
+                            const targetSubtopic = subtopicsToUse[randomSubtopicIndex];
+                            
+                            console.log(`Last subtopic: ${progressionTracker.lastSubtopic}`);
+                            console.log(`Selected new subtopic: ${targetSubtopic}`);
+                            
+                            // Update the lastSubtopic in the tracker
+                            progressionTracker.lastSubtopic = targetSubtopic;
                             
                             // Find questions from the target subtopic at current difficulty
                             const subtopicQuestions = questionsAtCurrentDifficulty.filter(q => 
@@ -313,8 +331,14 @@ Return only the JSON object. Do not include anything else.`,
                                 const randomQuestionIndex = Math.floor(Math.random() * subtopicQuestions.length);
                                 selectedQuestion = subtopicQuestions[randomQuestionIndex];
                                 
-                                // Mark this subtopic as completed for current difficulty
-                                if (!completedSubtopics.includes(targetSubtopic)) {
+                                // Mark this subtopic as completed for current difficulty only if all questions used
+                                const unansweredQuestionsInSubtopic = questionsAtCurrentDifficulty.filter(q => 
+                                    q.subtopic === targetSubtopic && 
+                                    !answeredQuestionIds.includes(q.questionId)
+                                ).length;
+                                
+                                // If this was the last question in the subtopic, mark it as completed
+                                if (unansweredQuestionsInSubtopic <= 1 && !completedSubtopics.includes(targetSubtopic)) {
                                     progressionTracker.subtopicsCompleted[currentDifficulty].push(targetSubtopic);
                                     console.log(`Marked subtopic "${targetSubtopic}" as completed for ${currentDifficulty} difficulty`);
                                 }
@@ -323,10 +347,14 @@ Return only the JSON object. Do not include anything else.`,
                             // All subtopics completed at current difficulty, advance to next difficulty
                             if (currentDifficulty === "Easy") {
                                 progressionTracker.currentDifficulty = "Medium";
+                                // Reset the lastSubtopic when changing difficulty
+                                progressionTracker.lastSubtopic = "";
                                 console.log(`Advanced to Medium difficulty`);
                                 return selectQuestionByProgression(); // Recursive call with new difficulty
                             } else if (currentDifficulty === "Medium") {
                                 progressionTracker.currentDifficulty = "Hard";
+                                // Reset the lastSubtopic when changing difficulty
+                                progressionTracker.lastSubtopic = "";
                                 console.log(`Advanced to Hard difficulty`);
                                 return selectQuestionByProgression(); // Recursive call with new difficulty
                             } else {
@@ -336,9 +364,24 @@ Return only the JSON object. Do not include anything else.`,
                                 );
                                 
                                 if (allUnansweredQuestions.length > 0) {
-                                    const randomIndex = Math.floor(Math.random() * allUnansweredQuestions.length);
-                                    selectedQuestion = allUnansweredQuestions[randomIndex];
-                                    console.log(`All progression completed, selected random remaining question`);
+                                    // Avoid the same subtopic as the last question if possible
+                                    const filteredQuestions = allUnansweredQuestions.filter(q => 
+                                        q.subtopic !== progressionTracker.lastSubtopic
+                                    );
+                                    
+                                    // Use filtered questions if available, otherwise use all unanswered
+                                    const questionsToChooseFrom = filteredQuestions.length > 0 ? 
+                                        filteredQuestions : allUnansweredQuestions;
+                                    
+                                    const randomIndex = Math.floor(Math.random() * questionsToChooseFrom.length);
+                                    selectedQuestion = questionsToChooseFrom[randomIndex];
+                                    
+                                    // Update the lastSubtopic
+                                    if (selectedQuestion && selectedQuestion.subtopic) {
+                                        progressionTracker.lastSubtopic = selectedQuestion.subtopic;
+                                    }
+                                    
+                                    console.log(`All progression completed, selected random remaining question from subtopic: ${selectedQuestion.subtopic || 'Unknown'}`);
                                 }
                             }
                         }
