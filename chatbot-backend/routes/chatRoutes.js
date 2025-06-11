@@ -97,6 +97,7 @@ RULES:
 4. Keep all the original content - do not change, add, or remove any information
 5. Return only the formatted text, nothing else
 6. Use markdown-style formatting if helpful for readability
+7. keep the tone of the message freindly and engaging and use appropriate emojis where needed
 
 Format sections like:
 - Score information
