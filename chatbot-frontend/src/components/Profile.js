@@ -68,81 +68,69 @@ const Profile = () => {
   const fetchUserScores = async (userId) => {
     setLoadingScores(true);
     try {
-      console.log('Fetching user answer history...');
-      const res = await axios.get(`/api/chat/answers/${userId}`);
-      console.log('Answers response:', res.data);
+      console.log('Fetching user statistics...');
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`/api/stats/user/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      console.log('Stats response:', res.data);
       
-      if (res.data && Array.isArray(res.data)) {
-        // Group answers by chapter
-        const answersByChapter = {};
+      if (res.data && res.data.success && res.data.data) {
+        const statsData = res.data.data;
         
-        res.data.forEach(answer => {
-          const chapterId = answer.chapterId?._id || answer.chapterId;
-          if (!answersByChapter[chapterId]) {
-            answersByChapter[chapterId] = {
-              chapterId: chapterId,
-              chapterTitle: answer.chapterId?.title || 'Unknown Chapter',
-              bookTitle: answer.bookId?.title || 'Unknown Book',
-              subject: answer.bookId?.subject || 'N/A',
-              grade: answer.bookId?.grade || 'N/A',
-              answers: [],
-              totalMarks: 0,
-              earnedMarks: 0,
-              latestAttempt: answer.createdAt,
-            };
-          }
-          
-          // Add answer to the chapter group
-          answersByChapter[chapterId].answers.push(answer);
-          answersByChapter[chapterId].totalMarks += answer.questionMarks || 0;
-          answersByChapter[chapterId].earnedMarks += answer.score || 0;
-          
-          // Update latest attempt if this answer is more recent
-          if (new Date(answer.createdAt) > new Date(answersByChapter[chapterId].latestAttempt)) {
-            answersByChapter[chapterId].latestAttempt = answer.createdAt;
-          }
-        });
-        
-        // Convert grouped data to array and add calculated fields
-        const processedScores = Object.values(answersByChapter).map(chapter => {
-          // Calculate percentage
-          const percentage = chapter.totalMarks > 0 ? 
-            (chapter.earnedMarks / chapter.totalMarks) * 100 : 0;
-          
-          // Determine completion status
-          let completionStatus = 'partial';
-          // We don't have total questions info here, so use answers count as indicator
-          if (chapter.answers.length >= 5) {  // Assuming a minimum of 5 questions indicates completion
-            completionStatus = 'complete';
-          } else if (chapter.answers.length === 0) {
-            completionStatus = 'abandoned';
-          }
-          
-          return {
-            ...chapter,
-            scoreDate: new Date(chapter.latestAttempt).toLocaleDateString(),
-            scoreTime: new Date(chapter.latestAttempt).toLocaleTimeString(),
-            scorePercentage: percentage.toFixed(1) + '%',
-            questionsAnswered: chapter.answers.length,
-            completionStatus,
-            completionLabel: getCompletionLabel(completionStatus),
-            questionsProgress: `${chapter.answers.length}`,
-            marksProgress: `${chapter.earnedMarks}/${chapter.totalMarks}`
-          };
-        });
-        
-        // Sort by most recent
-        processedScores.sort((a, b) => new Date(b.latestAttempt) - new Date(a.latestAttempt));
+        // Convert chapter stats to the format expected by the UI
+        const processedScores = statsData.chapterStats.map(chapter => ({
+          chapterId: chapter.chapterId,
+          chapterTitle: chapter.chapterTitle,
+          bookId: chapter.bookId,
+          bookTitle: chapter.bookTitle,
+          subject: chapter.subject,
+          grade: chapter.grade,
+          questionsAnswered: chapter.questionsAnswered,
+          totalQuestions: chapter.totalQuestions,
+          earnedMarks: chapter.marksEarned,
+          totalMarks: chapter.marksAvailable,
+          scorePercentage: chapter.percentage.toFixed(1) + '%',
+          correctAnswers: chapter.correctAnswers,
+          partialAnswers: chapter.partialAnswers,
+          incorrectAnswers: chapter.incorrectAnswers,
+          timeSpentMinutes: chapter.timeSpentMinutes,
+          lastAttempted: chapter.lastAttempted,
+          firstAttempted: chapter.firstAttempted,
+          completionStatus: chapter.completionStatus,
+          completionLabel: getCompletionLabel(chapter.completionStatus),
+          questionsProgress: `${chapter.questionsAnswered}/${chapter.totalQuestions}`,
+          marksProgress: `${chapter.marksEarned}/${chapter.marksAvailable}`,
+          scoreDate: chapter.lastAttempted ? new Date(chapter.lastAttempted).toLocaleDateString() : 'N/A',
+          scoreTime: chapter.lastAttempted ? new Date(chapter.lastAttempted).toLocaleTimeString() : 'N/A'
+        }));
         
         console.log('Processed chapter scores:', processedScores);
         setScores(processedScores);
+        
+        // Store overall stats for potential use
+        setUserData(prev => ({
+          ...prev,
+          overallStats: {
+            totalBooksAttempted: statsData.totalBooksAttempted,
+            totalChaptersAttempted: statsData.totalChaptersAttempted,
+            totalQuestionsAnswered: statsData.totalQuestionsAnswered,
+            totalMarksEarned: statsData.totalMarksEarned,
+            totalMarksAvailable: statsData.totalMarksAvailable,
+            overallPercentage: statsData.overallPercentage,
+            bookStats: statsData.bookStats,
+            recentActivity: statsData.recentActivity
+          }
+        }));
       } else {
-        console.log('No answers or invalid data format received');
+        console.log('No stats data received');
         setScores([]);
       }
     } catch (error) {
-      console.error('Error fetching answers:', error);
-      toast.error('Failed to load score history');
+      console.error('Error fetching stats:', error);
+      toast.error('Failed to load statistics');
     } finally {
       setLoadingScores(false);
     }
@@ -151,11 +139,11 @@ const Profile = () => {
   // Helper function to get completion label based on status
   const getCompletionLabel = (status) => {
     switch(status) {
-      case 'complete':
+      case 'completed':
         return 'Completed';
-      case 'partial':
+      case 'in_progress':
         return 'In Progress';
-      case 'abandoned':
+      case 'not_started':
         return 'Not Started';
       default:
         return 'Not Started';
@@ -328,36 +316,127 @@ const Profile = () => {
           {/* Tab content */}
           <div className="px-8 py-6">
             {activeTab === "scores" && (
-              <div className="scores-container">
+              <div className="space-y-6">
+                {/* Overall Statistics Summary */}
+                {userData?.overallStats && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+                    <h3 className="text-xl font-semibold text-gray-900 mb-4">📊 Overall Performance</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">{userData.overallStats.totalBooksAttempted}</div>
+                        <div className="text-sm text-gray-600">Books Started</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">{userData.overallStats.totalChaptersAttempted}</div>
+                        <div className="text-sm text-gray-600">Chapters</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-600">{userData.overallStats.totalQuestionsAnswered}</div>
+                        <div className="text-sm text-gray-600">Questions</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600">{userData.overallStats.overallPercentage.toFixed(1)}%</div>
+                        <div className="text-sm text-gray-600">Overall Score</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 text-center">
+                      <div className="text-lg text-gray-700">
+                        <span className="font-semibold">{userData.overallStats.totalMarksEarned}</span> out of{' '}
+                        <span className="font-semibold">{userData.overallStats.totalMarksAvailable}</span> total marks earned
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {loadingScores ? (
-                  <div className="loading">Loading your scores...</div>
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600"></div>
+                    <span className="ml-3 text-gray-600">Loading your progress...</span>
+                  </div>
                 ) : scores.length > 0 ? (
-                  <div className="scores-list">
-                    <h3>Your Assessment Scores</h3>
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-semibold text-gray-900 mb-4">📚 Chapter Progress</h3>
                     {scores.map((score, index) => (
-                      <div key={index} className="score-card">
-                        <div className="score-header">
-                          <h4>{score.chapterId?.title || 'Unknown Chapter'}</h4>
-                          <span className={`completion-badge ${score.completionStatus}`}>
-                            {score.completionLabel}
-                          </span>
-                        </div>
-                        <div className="score-details">
-                          <p>Book: {score.bookId?.title || 'Unknown'}</p>
-                          <p>Subject: {score.bookId?.subject || 'N/A'}</p>
-                          <p>Grade: {score.bookId?.grade || 'N/A'}</p>
-                          <p>Questions: {score.questionsProgress}</p>
-                          <p>Marks: {score.marksProgress}</p>
-                          <p>Score: {score.scorePercentage}</p>
-                          <p>Date: {score.scoreDate} at {score.scoreTime}</p>
+                      <div key={index} className="bg-white rounded-xl border border-gray-200 hover:border-blue-300 transition-colors duration-200 overflow-hidden">
+                        <div className="p-6">
+                          {/* Header */}
+                          <div className="flex justify-between items-start mb-4">
+                            <div className="flex-1">
+                              <h4 className="text-lg font-semibold text-gray-900">{score.chapterTitle}</h4>
+                              <p className="text-sm text-gray-600">{score.bookTitle} • {score.subject} • Grade {score.grade}</p>
+                            </div>
+                            <div className="flex items-center ml-4">
+                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                score.completionStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                score.completionStatus === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {score.completionLabel}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Progress Bar */}
+                          <div className="mb-4">
+                            <div className="flex justify-between text-sm text-gray-600 mb-1">
+                              <span>Progress</span>
+                              <span>{score.scorePercentage}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-3">
+                              <div 
+                                className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300"
+                                style={{ width: score.scorePercentage }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          {/* Detailed Stats */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div className="text-center p-3 bg-blue-50 rounded-lg">
+                              <div className="text-lg font-semibold text-blue-600">{score.questionsProgress}</div>
+                              <div className="text-xs text-gray-600">Questions</div>
+                            </div>
+                            <div className="text-center p-3 bg-green-50 rounded-lg">
+                              <div className="text-lg font-semibold text-green-600">{score.marksProgress}</div>
+                              <div className="text-xs text-gray-600">Marks</div>
+                            </div>
+                            <div className="text-center p-3 bg-purple-50 rounded-lg">
+                              <div className="text-lg font-semibold text-purple-600">
+                                {score.correctAnswers || 0}✓ {score.incorrectAnswers || 0}✗
+                              </div>
+                              <div className="text-xs text-gray-600">Correct/Wrong</div>
+                            </div>
+                            <div className="text-center p-3 bg-orange-50 rounded-lg">
+                              <div className="text-lg font-semibold text-orange-600">
+                                {score.timeSpentMinutes > 0 ? `${score.timeSpentMinutes}m` : 'N/A'}
+                              </div>
+                              <div className="text-xs text-gray-600">Time Spent</div>
+                            </div>
+                          </div>
+
+                          {/* Last Attempt */}
+                          <div className="flex justify-between items-center text-sm text-gray-500 pt-4 border-t border-gray-100">
+                            <span>Last attempted: {score.scoreDate} at {score.scoreTime}</span>
+                            {score.partialAnswers > 0 && (
+                              <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">
+                                {score.partialAnswers} partial answers
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="no-scores">
-                    <p>You haven't taken any assessments yet.</p>
-                    <p>Complete chapter assessments to see your scores here.</p>
+                  <div className="text-center py-12">
+                    <div className="w-24 h-24 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Assessment Data</h3>
+                    <p className="text-gray-600 mb-4">You haven't taken any assessments yet.</p>
+                    <p className="text-sm text-gray-500">Complete chapter assessments to see your detailed progress here.</p>
                   </div>
                 )}
               </div>
