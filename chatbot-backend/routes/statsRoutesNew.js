@@ -212,10 +212,17 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
                     totalMarksEarned += chapterMarksEarned;
                     totalMarksAvailable += chapterMarksAvailable;
                     
-                    if (record.bookId) {
-                        uniqueBooks.add(record.bookId._id ? record.bookId._id.toString() : record.bookId.toString());
+                    // Safe null checks for bookId
+                    if (record.bookId && record.bookId !== null) {
+                        const bookIdStr = record.bookId._id ? record.bookId._id.toString() : record.bookId.toString();
+                        uniqueBooks.add(bookIdStr);
                     }
-                    uniqueChapters.add(record.chapterId._id ? record.chapterId._id.toString() : record.chapterId.toString());
+                    
+                    // Safe null checks for chapterId
+                    if (record.chapterId && record.chapterId !== null) {
+                        const chapterIdStr = record.chapterId._id ? record.chapterId._id.toString() : record.chapterId.toString();
+                        uniqueChapters.add(chapterIdStr);
+                    }
 
                     // Get performance breakdown
                     const correctAnswers = answeredQuestions.filter(q => (q.score || 0) >= (q.questionMarks || 1) * 0.7).length;
@@ -242,12 +249,12 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
                     }
 
                     chapterStats.push({
-                        chapterId: record.chapterId._id || record.chapterId,
-                        chapterTitle: record.chapterId.title || `Chapter ${record.chapterId}`,
-                        bookId: record.bookId ? (record.bookId._id || record.bookId) : null,
-                        bookTitle: record.bookId ? (record.bookId.title || 'Unknown Book') : 'Unknown Book',
-                        subject: record.bookId ? (record.bookId.subject || 'Unknown') : 'Unknown',
-                        grade: record.bookId ? (record.bookId.grade || 'Unknown') : 'Unknown',
+                        chapterId: record.chapterId && record.chapterId._id ? record.chapterId._id : (record.chapterId || 'unknown'),
+                        chapterTitle: record.chapterId && record.chapterId.title ? record.chapterId.title : `Chapter ${record.chapterId || 'Unknown'}`,
+                        bookId: record.bookId && record.bookId._id ? record.bookId._id : (record.bookId || null),
+                        bookTitle: record.bookId && record.bookId.title ? record.bookId.title : 'Unknown Book',
+                        subject: record.bookId && record.bookId.subject ? record.bookId.subject : 'Unknown',
+                        grade: record.bookId && record.bookId.grade ? record.bookId.grade : 'Unknown',
                         questionsAnswered: answeredQuestions.length,
                         totalQuestions: record.qnaDetails.length,
                         marksEarned: chapterMarksEarned,
@@ -270,10 +277,10 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
                             score: q.score || 0,
                             questionMarks: q.questionMarks || 1,
                             percentage: (q.questionMarks || 1) > 0 ? ((q.score || 0) / (q.questionMarks || 1)) * 100 : 0,
-                            attemptedAt: q.attemptedAt,
-                            chapterTitle: record.chapterId.title || `Chapter ${record.chapterId}`,
-                            bookTitle: record.bookId ? (record.bookId.title || 'Unknown Book') : 'Unknown Book',
-                            subject: record.bookId ? (record.bookId.subject || 'Unknown') : 'Unknown'
+                                                    attemptedAt: q.attemptedAt,
+                        chapterTitle: record.chapterId && record.chapterId.title ? record.chapterId.title : `Chapter ${record.chapterId || 'Unknown'}`,
+                        bookTitle: record.bookId && record.bookId.title ? record.bookId.title : 'Unknown Book',
+                        subject: record.bookId && record.bookId.subject ? record.bookId.subject : 'Unknown'
                         });
                     });
                 }
