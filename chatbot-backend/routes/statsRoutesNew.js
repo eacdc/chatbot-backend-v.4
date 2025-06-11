@@ -55,6 +55,31 @@ router.get("/user/:userId/debug", async (req, res) => {
     }
 });
 
+// Simple authenticated endpoint to test auth middleware
+router.get("/user/:userId/auth-test", authenticateUser, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        console.log(`🔐 Auth test: Successfully authenticated for user: ${userId}`);
+        console.log(`🔐 Token user ID: ${req.user?.userId}`);
+        console.log(`🔐 Request user ID: ${userId}`);
+
+        return res.json({
+            success: true,
+            message: "Authentication successful",
+            authenticatedUserId: req.user?.userId,
+            requestedUserId: userId,
+            authMatch: req.user?.userId === userId
+        });
+    } catch (error) {
+        console.error("🔐 Auth test error:", error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
+
 router.get("/user/:userId", authenticateUser, async (req, res) => {
     try {
         const { userId } = req.params;
