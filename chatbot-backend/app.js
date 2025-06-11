@@ -52,12 +52,14 @@ const chatRoutes = require("./routes/chatRoutes");
 const authRoutes = require("./routes/authRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const statsRoutes = require("./routes/statsRoutes");
 
 // Use routes
 app.use("/api/chat", chatRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/admins", adminRoutes);
+app.use("/api/stats", statsRoutes);
 
 // Serve static files if in production
 if (process.env.NODE_ENV === 'production') {
