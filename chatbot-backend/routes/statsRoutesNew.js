@@ -15,17 +15,51 @@ router.get("/test", (req, res) => {
 router.get("/user/:userId", authenticateUser, async (req, res) => {
     try {
         const { userId } = req.params;
-        console.log(`📊 Fetching stats for user: ${userId}`);
+        console.log(`📊 Starting stats fetch for user: ${userId}`);
 
-        // Get all QnALists records for the user
-        const userRecords = await QnALists.find({ studentId: userId })
-            .populate('bookId', 'title subject grade')
-            .populate('chapterId', 'title')
-            .sort({ updatedAt: -1 });
+        // Step 1: Test basic database connection
+        try {
+            const testQuery = await QnALists.countDocuments({ studentId: userId });
+            console.log(`📊 Found ${testQuery} QnALists records for user in database`);
+        } catch (dbError) {
+            console.error("📊 Database connection error:", dbError);
+            return res.status(500).json({ 
+                success: false, 
+                error: "Database connection failed", 
+                details: dbError.message 
+            });
+        }
 
-        console.log(`📊 Found ${userRecords.length} QnALists records for user`);
+        // Step 2: Get basic records without population first
+        let userRecords;
+        try {
+            userRecords = await QnALists.find({ studentId: userId })
+                .sort({ updatedAt: -1 });
+            console.log(`📊 Found ${userRecords.length} basic QnALists records for user`);
+        } catch (queryError) {
+            console.error("📊 Basic query error:", queryError);
+            return res.status(500).json({ 
+                success: false, 
+                error: "Failed to fetch basic records", 
+                details: queryError.message 
+            });
+        }
+
+        // Step 3: Try to populate references
+        try {
+            userRecords = await QnALists.find({ studentId: userId })
+                .populate('bookId', 'title subject grade')
+                .populate('chapterId', 'title')
+                .sort({ updatedAt: -1 });
+            console.log(`📊 Successfully populated ${userRecords.length} records`);
+        } catch (populateError) {
+            console.error("📊 Population error:", populateError);
+            // Continue with unpopulated data
+            console.log("📊 Continuing with unpopulated data");
+        }
 
         if (!userRecords || userRecords.length === 0) {
+            console.log(`📊 No records found for user ${userId}`);
             return res.json({
                 success: true,
                 data: {
@@ -42,6 +76,8 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
             });
         }
 
+        console.log(`📊 Processing ${userRecords.length} records`);
+
         // Calculate overall statistics
         let totalQuestionsAnswered = 0;
         let totalMarksEarned = 0;
@@ -53,27 +89,35 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
         const chapterStats = [];
         const recentActivity = [];
 
-        userRecords.forEach(record => {
+        userRecords.forEach((record, index) => {
+            console.log(`📊 Processing record ${index + 1}: chapterId=${record.chapterId}, qnaDetails count=${record.qnaDetails?.length || 0}`);
+            
+            if (!record.qnaDetails) {
+                console.log(`📊 Record ${index + 1} has no qnaDetails`);
+                return;
+            }
+
             // Filter answered questions (status = 1)
             const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
+            console.log(`📊 Record ${index + 1}: ${answeredQuestions.length} answered questions out of ${record.qnaDetails.length} total`);
             
             if (answeredQuestions.length > 0) {
-                const chapterMarksEarned = answeredQuestions.reduce((sum, q) => sum + q.score, 0);
-                const chapterMarksAvailable = answeredQuestions.reduce((sum, q) => sum + q.questionMarks, 0);
+                const chapterMarksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
+                const chapterMarksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
                 
                 totalQuestionsAnswered += answeredQuestions.length;
                 totalMarksEarned += chapterMarksEarned;
                 totalMarksAvailable += chapterMarksAvailable;
                 
                 if (record.bookId) {
-                    uniqueBooks.add(record.bookId._id.toString());
+                    uniqueBooks.add(record.bookId._id ? record.bookId._id.toString() : record.bookId.toString());
                 }
-                uniqueChapters.add(record.chapterId._id.toString());
+                uniqueChapters.add(record.chapterId._id ? record.chapterId._id.toString() : record.chapterId.toString());
 
                 // Get performance breakdown
-                const correctAnswers = answeredQuestions.filter(q => q.score >= q.questionMarks * 0.7).length;
-                const partialAnswers = answeredQuestions.filter(q => q.score > 0 && q.score < q.questionMarks * 0.7).length;
-                const incorrectAnswers = answeredQuestions.filter(q => q.score === 0).length;
+                const correctAnswers = answeredQuestions.filter(q => (q.score || 0) >= (q.questionMarks || 1) * 0.7).length;
+                const partialAnswers = answeredQuestions.filter(q => (q.score || 0) > 0 && (q.score || 0) < (q.questionMarks || 1) * 0.7).length;
+                const incorrectAnswers = answeredQuestions.filter(q => (q.score || 0) === 0).length;
 
                 // Calculate time spent
                 const attempts = answeredQuestions.sort((a, b) => new Date(a.attemptedAt) - new Date(b.attemptedAt));
@@ -95,12 +139,12 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
                 }
 
                 chapterStats.push({
-                    chapterId: record.chapterId._id,
-                    chapterTitle: record.chapterId.title,
-                    bookId: record.bookId ? record.bookId._id : null,
-                    bookTitle: record.bookId ? record.bookId.title : 'Unknown Book',
-                    subject: record.bookId ? record.bookId.subject : 'Unknown',
-                    grade: record.bookId ? record.bookId.grade : 'Unknown',
+                    chapterId: record.chapterId._id || record.chapterId,
+                    chapterTitle: record.chapterId.title || `Chapter ${record.chapterId}`,
+                    bookId: record.bookId ? (record.bookId._id || record.bookId) : null,
+                    bookTitle: record.bookId ? (record.bookId.title || 'Unknown Book') : 'Unknown Book',
+                    subject: record.bookId ? (record.bookId.subject || 'Unknown') : 'Unknown',
+                    grade: record.bookId ? (record.bookId.grade || 'Unknown') : 'Unknown',
                     questionsAnswered: answeredQuestions.length,
                     totalQuestions: record.qnaDetails.length,
                     marksEarned: chapterMarksEarned,
@@ -119,14 +163,14 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
                 answeredQuestions.forEach(q => {
                     recentActivity.push({
                         questionId: q.questionId,
-                        questionText: q.questionText.substring(0, 100) + '...',
-                        score: q.score,
-                        questionMarks: q.questionMarks,
-                        percentage: q.questionMarks > 0 ? (q.score / q.questionMarks) * 100 : 0,
+                        questionText: (q.questionText || 'Question').substring(0, 100) + '...',
+                        score: q.score || 0,
+                        questionMarks: q.questionMarks || 1,
+                        percentage: (q.questionMarks || 1) > 0 ? ((q.score || 0) / (q.questionMarks || 1)) * 100 : 0,
                         attemptedAt: q.attemptedAt,
-                        chapterTitle: record.chapterId.title,
-                        bookTitle: record.bookId ? record.bookId.title : 'Unknown Book',
-                        subject: record.bookId ? record.bookId.subject : 'Unknown'
+                        chapterTitle: record.chapterId.title || `Chapter ${record.chapterId}`,
+                        bookTitle: record.bookId ? (record.bookId.title || 'Unknown Book') : 'Unknown Book',
+                        subject: record.bookId ? (record.bookId.subject || 'Unknown') : 'Unknown'
                     });
                 });
             }
@@ -161,11 +205,13 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
         res.json(response);
 
     } catch (error) {
-        console.error("📊 Error fetching user statistics:", error);
+        console.error("📊 Unexpected error in stats route:", error);
+        console.error("📊 Error stack:", error.stack);
         res.status(500).json({ 
             success: false, 
             error: "Failed to fetch statistics", 
-            details: error.message 
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 });
