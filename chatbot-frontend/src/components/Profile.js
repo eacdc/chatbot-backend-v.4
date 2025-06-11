@@ -20,13 +20,15 @@ const Profile = () => {
     console.log("Current active tab:", activeTab);
   }, [activeTab]);
 
-  // Auto-switch to scores tab if assessment data is available
+  // Auto-switch to scores tab if assessment data is available (only once)
+  const [hasAutoSwitched, setHasAutoSwitched] = useState(false);
   useEffect(() => {
-    if (scores.length > 0 && activeTab === "profile") {
+    if (scores.length > 0 && activeTab === "profile" && !hasAutoSwitched) {
       console.log("Assessment data available, switching to scores tab");
       setActiveTab("scores");
+      setHasAutoSwitched(true);
     }
-  }, [scores, activeTab]);
+  }, [scores, activeTab, hasAutoSwitched]);
 
   // Update activity timestamp on component mount
   useEffect(() => {
