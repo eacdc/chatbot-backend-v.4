@@ -12,6 +12,49 @@ router.get("/test", (req, res) => {
     });
 });
 
+// Test endpoint without authentication to debug database issues
+router.get("/user/:userId/debug", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        console.log(`🔍 Debug: Testing database connection for user: ${userId}`);
+
+        // Test 1: Simple count
+        const count = await QnALists.countDocuments({ studentId: userId });
+        console.log(`🔍 Debug: Found ${count} records`);
+
+        // Test 2: Get basic records
+        const records = await QnALists.find({ studentId: userId }).limit(1);
+        console.log(`🔍 Debug: Sample record:`, records[0] ? {
+            studentId: records[0].studentId,
+            bookId: records[0].bookId,
+            chapterId: records[0].chapterId,
+            qnaDetailsCount: records[0].qnaDetails?.length || 0
+        } : "No records found");
+
+        return res.json({
+            success: true,
+            debug: {
+                userId,
+                recordCount: count,
+                hasRecords: count > 0,
+                sampleRecord: records[0] ? {
+                    studentId: records[0].studentId,
+                    bookId: records[0].bookId,
+                    chapterId: records[0].chapterId,
+                    qnaDetailsCount: records[0].qnaDetails?.length || 0
+                } : null
+            }
+        });
+    } catch (error) {
+        console.error("🔍 Debug error:", error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
+
 router.get("/user/:userId", authenticateUser, async (req, res) => {
     try {
         const { userId } = req.params;
