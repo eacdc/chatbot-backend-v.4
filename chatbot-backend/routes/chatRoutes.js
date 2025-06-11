@@ -76,20 +76,20 @@ const upload = multer({
 // Add a map to track previous questions for each user-chapter pair
 const previousQuestionsMap = new Map();
 
-// Function to format bot message with HTML line breaks
+// Function to format bot message with line breaks and separators
 function formatBotMessage(message) {
     if (!message || typeof message !== 'string') {
         return message;
     }
     
-    // Add HTML line breaks before key sections
+    // Add line breaks with separators before key sections
     let formattedMessage = message
-        .replace(/\bScore:/g, '<br><br>Score:')
-        .replace(/\bExplanation:/g, '<br><br>Explanation:')
-        .replace(/\bSubtopic:/g, '<br><br>Subtopic:')
-        .replace(/\bDifficulty level:/g, '<br>Difficulty level:')
-        .replace(/\bQuestion type:/g, '<br>Question type:')
-        .replace(/\bNext Question:/g, '<br><br>Next Question:')
+        .replace(/\bScore:/g, '\n\n📊 Score:')
+        .replace(/\bExplanation:/g, '\n\n💡 Explanation:')
+        .replace(/\bSubtopic:/g, '\n\n📚 Subtopic:')
+        .replace(/\bDifficulty level:/g, '\n🎯 Difficulty level:')
+        .replace(/\bQuestion type:/g, '\n📝 Question type:')
+        .replace(/\bNext Question:/g, '\n\n❓ Next Question:')
         .trim(); // Remove leading/trailing whitespace
     
     return formattedMessage;
