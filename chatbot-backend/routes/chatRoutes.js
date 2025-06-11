@@ -76,6 +76,25 @@ const upload = multer({
 // Add a map to track previous questions for each user-chapter pair
 const previousQuestionsMap = new Map();
 
+// Function to format bot message with simple line breaks
+function formatBotMessage(message) {
+    if (!message || typeof message !== 'string') {
+        return message;
+    }
+    
+    // Add simple line breaks before key sections
+    let formattedMessage = message
+        .replace(/\bScore:/g, '\n\nScore:')
+        .replace(/\bExplanation:/g, '\n\nExplanation:')
+        .replace(/\bSubtopic:/g, '\n\nSubtopic:')
+        .replace(/\bDifficulty level:/g, '\nDifficulty level:')
+        .replace(/\bQuestion type:/g, '\nQuestion type:')
+        .replace(/\bNext Question:/g, '\n\nNext Question:')
+        .trim(); // Remove leading/trailing whitespace
+    
+    return formattedMessage;
+}
+
 // Send Message & Get AI Response with Question Prompts
 router.post("/send", authenticateUser, async (req, res) => {
     try {
@@ -819,7 +838,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     // Verify the extracted score is valid
                     if (isNaN(marksAwarded) || marksAwarded < 0) {
                         console.log(`❌ Invalid score detected: ${marksAwarded}. Resetting to 0.`);
-                        marksAwarded = 0;
+                                marksAwarded = 0;
                         console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0 after validation`);
                     }
                     
