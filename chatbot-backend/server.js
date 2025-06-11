@@ -127,7 +127,7 @@ const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const statsRoutes = require("./routes/statsRoutes"); // Step 1: Re-enabled
+const statsRoutes = require("./routes/statsRoutesNew"); // Testing new file
 
 // Optional routes - check if file exists first
 let bookCoversRoutes;
