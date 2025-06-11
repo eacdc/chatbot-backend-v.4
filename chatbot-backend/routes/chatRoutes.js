@@ -76,23 +76,51 @@ const upload = multer({
 // Add a map to track previous questions for each user-chapter pair
 const previousQuestionsMap = new Map();
 
-// Function to format bot message with line breaks and separators
-function formatBotMessage(message) {
+// Function to beautify oldchat_ai responses using GPT-4.1
+async function beautifyBotResponse(message) {
     if (!message || typeof message !== 'string') {
         return message;
     }
     
-    // Add line breaks with separators before key sections
-    let formattedMessage = message
-        .replace(/\bScore:/g, '\n\n📊 Score:')
-        .replace(/\bExplanation:/g, '\n\n💡 Explanation:')
-        .replace(/\bSubtopic:/g, '\n\n📚 Subtopic:')
-        .replace(/\bDifficulty level:/g, '\n🎯 Difficulty level:')
-        .replace(/\bQuestion type:/g, '\n📝 Question type:')
-        .replace(/\bNext Question:/g, '\n\n❓ Next Question:')
-        .trim(); // Remove leading/trailing whitespace
-    
-    return formattedMessage;
+    try {
+        const beautifyResponse = await openaiSelector.chat.completions.create({
+            model: "gpt-4.1",
+            messages: [
+                {
+                    role: "system",
+                    content: `You are a text formatter. Your job is to take educational chatbot responses and make them beautifully formatted and easy to read.
+
+RULES:
+1. Add proper line breaks and spacing between sections
+2. Use clear visual separators between different parts (Score, Explanation, Subtopic, etc.)
+3. Make the text more readable and well-structured
+4. Keep all the original content - do not change, add, or remove any information
+5. Return only the formatted text, nothing else
+6. Use markdown-style formatting if helpful for readability
+
+Format sections like:
+- Score information
+- Explanations 
+- Subtopic/Difficulty/Question type details
+- Next questions
+
+Make it visually appealing and easy to scan while preserving all original information exactly.`
+                },
+                {
+                    role: "user", 
+                    content: message
+                }
+            ],
+            temperature: 0,
+            max_tokens: 1500
+        });
+        
+        return beautifyResponse.choices[0].message.content.trim();
+    } catch (error) {
+        console.error("Error beautifying response:", error);
+        // Return original message if beautification fails
+        return message;
+    }
 }
 
 // Send Message & Get AI Response with Question Prompts
@@ -903,6 +931,18 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             
             // Log the marksAwarded value before sending the response
             console.log(`Final score to be returned: marksAwarded=${marksAwarded}, classification=${classification}`);
+            
+            // Beautify the response for oldchat_ai using GPT-4.1
+            if (classification === "oldchat_ai") {
+                console.log(`🎨 Beautifying oldchat_ai response...`);
+                try {
+                    finalBotMessage = await beautifyBotResponse(finalBotMessage);
+                    console.log(`✅ Response beautified successfully`);
+                } catch (beautifyError) {
+                    console.error(`❌ Error beautifying response:`, beautifyError);
+                    // Continue with original message if beautification fails
+                }
+            }
             
             // Prepare the response object
             // Special debugging for zero scores before creating response object
