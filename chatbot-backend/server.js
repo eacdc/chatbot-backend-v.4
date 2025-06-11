@@ -127,7 +127,7 @@ const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const statsRoutes = require("./routes/statsRoutes");
+// const statsRoutes = require("./routes/statsRoutes");
 
 // Optional routes - check if file exists first
 let bookCoversRoutes;
@@ -172,7 +172,7 @@ app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/stats", statsRoutes);
+// app.use("/api/stats", statsRoutes);
 
 // Only add bookcovers route if it exists
 if (bookCoversRoutes) {
