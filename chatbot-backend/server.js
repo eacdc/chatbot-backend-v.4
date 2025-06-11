@@ -127,7 +127,7 @@ const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-// const statsRoutes = require("./routes/statsRoutes"); // Temporarily disabled
+const statsRoutes = require("./routes/statsRoutes"); // Step 1: Re-enabled
 
 // Optional routes - check if file exists first
 let bookCoversRoutes;
@@ -172,7 +172,7 @@ app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
-// app.use("/api/stats", statsRoutes); // Temporarily disabled
+app.use("/api/stats", statsRoutes); // Step 1: Re-enabled
 
 // Only add bookcovers route if it exists
 if (bookCoversRoutes) {
@@ -189,24 +189,7 @@ app.get("/healthcheck", (req, res) => {
   res.status(200).json({ status: "ok", message: "Server is running" });
 });
 
-// Temporary stats endpoint to provide basic functionality
-app.get("/api/stats/user/:userId", (req, res) => {
-  console.log(`📊 Temporary stats endpoint called for user: ${req.params.userId}`);
-  res.json({
-    success: true,
-    data: {
-      totalBooksAttempted: 0,
-      totalChaptersAttempted: 0,
-      totalQuestionsAnswered: 0,
-      totalMarksEarned: 0,
-      totalMarksAvailable: 0,
-      overallPercentage: 0,
-      bookStats: [],
-      chapterStats: [],
-      recentActivity: []
-    }
-  });
-});
+// Temporary endpoint removed - using statsRoutes now
 
 // ✅ Fetch chapters by bookId API (Newly Added)
 const Chapter = require("./models/Chapter");
