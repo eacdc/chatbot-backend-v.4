@@ -20,6 +20,14 @@ const Profile = () => {
     console.log("Current active tab:", activeTab);
   }, [activeTab]);
 
+  // Auto-switch to scores tab if assessment data is available
+  useEffect(() => {
+    if (scores.length > 0 && activeTab === "profile") {
+      console.log("Assessment data available, switching to scores tab");
+      setActiveTab("scores");
+    }
+  }, [scores, activeTab]);
+
   // Update activity timestamp on component mount
   useEffect(() => {
     // Check if user is authenticated and update activity timestamp
@@ -68,17 +76,25 @@ const Profile = () => {
   const fetchUserScores = async (userId) => {
     setLoadingScores(true);
     try {
-      console.log('Fetching user statistics...');
+      console.log('Fetching user statistics for userId:', userId);
       const token = localStorage.getItem("token");
-      const res = await axios.get(`/api/stats/user/${userId}`, {
+      const statsUrl = `${API_ENDPOINTS.GET_USER_STATS}/${userId}`;
+      console.log('Stats URL:', statsUrl);
+      console.log('Token available:', !!token);
+      
+      const res = await axios.get(statsUrl, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
       console.log('Stats response:', res.data);
+      console.log('Stats response status:', res.status);
       
       if (res.data && res.data.success && res.data.data) {
         const statsData = res.data.data;
+        console.log('Stats data received:', statsData);
+        console.log('Chapter stats count:', statsData.chapterStats?.length || 0);
+        console.log('Total questions answered:', statsData.totalQuestionsAnswered || 0);
         
         // Convert chapter stats to the format expected by the UI
         const processedScores = statsData.chapterStats.map(chapter => ({
@@ -125,11 +141,18 @@ const Profile = () => {
           }
         }));
       } else {
-        console.log('No stats data received');
+        console.log('No stats data received or invalid response structure');
+        console.log('Response data:', res.data);
         setScores([]);
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
       toast.error('Failed to load statistics');
     } finally {
       setLoadingScores(false);
