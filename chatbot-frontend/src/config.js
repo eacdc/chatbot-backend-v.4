@@ -45,6 +45,9 @@ export const API_ENDPOINTS = {
   MARK_NOTIFICATION_SEEN: `${API_URL}/api/notifications/:notificationId/mark-seen`,
   MARK_ALL_NOTIFICATIONS_SEEN: `${API_URL}/api/notifications/mark-all-seen`,
   SEED_NOTIFICATIONS: `${API_URL}/api/notifications/seed`,
+  
+  // User statistics endpoints
+  GET_USER_STATS: `${API_URL}/api/stats/user`,
 };
 
 export default API_URL; 
