@@ -723,16 +723,37 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                         const responseArray = JSON.parse(botMessage);
                         
                         if (Array.isArray(responseArray) && responseArray.length >= 3) {
-                            finalBotMessage = responseArray[0]; // Message content
-                            extractedScore = parseFloat(responseArray[1]); // Score for previous question
-                            extractedMaxScore = parseFloat(responseArray[2]); // Max score for previous question
-                            
-                            console.log(`✅ Parsed JSON array response successfully:`);
-                            console.log(`📝 Message: ${finalBotMessage.substring(0, 100)}...`);
-                            console.log(`📊 Score: ${extractedScore}/${extractedMaxScore}`);
-                            console.log(`🔍 ZERO SCORE DEBUG [Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
+                            // Check if it's the new object-based format
+                            if (typeof responseArray[0] === 'object' && responseArray[0].bot_answer &&
+                                typeof responseArray[1] === 'object' && responseArray[1].score &&
+                                typeof responseArray[2] === 'object' && responseArray[2].question_marks) {
+                                
+                                // New object-based format: [{"bot_answer": "..."}, {"score": "0"}, {"question_marks": "1"}]
+                                finalBotMessage = responseArray[0].bot_answer; // Bot answer content
+                                extractedScore = parseFloat(responseArray[1].score); // Score for previous question
+                                extractedMaxScore = parseFloat(responseArray[2].question_marks); // Max score for previous question
+                                
+                                console.log(`✅ Parsed object-based array response successfully:`);
+                                console.log(`📝 Message: ${finalBotMessage.substring(0, 100)}...`);
+                                console.log(`📊 Score: ${extractedScore}/${extractedMaxScore}`);
+                                console.log(`🔍 ZERO SCORE DEBUG [Object Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
+                                
+                            } else if (typeof responseArray[0] === 'string' || typeof responseArray[0] === 'number') {
+                                // Old simple array format: ["message", 0, 2]
+                                finalBotMessage = responseArray[0]; // Message content
+                                extractedScore = parseFloat(responseArray[1]); // Score for previous question
+                                extractedMaxScore = parseFloat(responseArray[2]); // Max score for previous question
+                                
+                                console.log(`✅ Parsed simple JSON array response successfully:`);
+                                console.log(`📝 Message: ${finalBotMessage.substring(0, 100)}...`);
+                                console.log(`📊 Score: ${extractedScore}/${extractedMaxScore}`);
+                                console.log(`🔍 ZERO SCORE DEBUG [Simple Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
+                            } else {
+                                console.log(`⚠️ Unknown JSON array format, falling back to original message`);
+                                finalBotMessage = botMessage;
+                            }
                         } else {
-                            console.log(`⚠️ JSON array format invalid, falling back to original message`);
+                            console.log(`⚠️ JSON array format invalid (length < 3), falling back to original message`);
                             finalBotMessage = botMessage;
                         }
                     } else if (botMessage.includes(',') && botMessage.trim().startsWith('[')) {
@@ -747,7 +768,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             console.log(`✅ Parsed non-JSON array response successfully:`);
                             console.log(`📝 Message: ${finalBotMessage.substring(0, 100)}...`);
                             console.log(`📊 Score: ${extractedScore}/${extractedMaxScore}`);
-                            console.log(`🔍 ZERO SCORE DEBUG [Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
+                            console.log(`🔍 ZERO SCORE DEBUG [Non-JSON Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
                         } else {
                             console.log(`⚠️ Non-JSON array format invalid, falling back to original message`);
                             finalBotMessage = botMessage;
