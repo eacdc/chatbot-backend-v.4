@@ -710,234 +710,112 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             console.log(`📄 Bot reply full content:\n${botMessage}`);
             console.log(`📄 Bot reply JSON stringify: ${JSON.stringify(botMessage)}`);
 
+            // Parse array response format for oldchat_ai
+            let finalBotMessage = botMessage;
+            let extractedScore = null;
+            let extractedMaxScore = null;
+            
+            if (classification === "oldchat_ai" && previousQuestion) {
+                try {
+                    // Check if the response contains array format with brackets
+                    if (botMessage.trim().startsWith('[') && botMessage.trim().endsWith(']')) {
+                        // Try to parse the response as an array
+                        const responseArray = JSON.parse(botMessage);
+                        
+                        if (Array.isArray(responseArray) && responseArray.length >= 3) {
+                            finalBotMessage = responseArray[0]; // Message content
+                            extractedScore = parseFloat(responseArray[1]); // Score for previous question
+                            extractedMaxScore = parseFloat(responseArray[2]); // Max score for previous question
+                            
+                            console.log(`✅ Parsed JSON array response successfully:`);
+                            console.log(`📝 Message: ${finalBotMessage.substring(0, 100)}...`);
+                            console.log(`📊 Score: ${extractedScore}/${extractedMaxScore}`);
+                            console.log(`🔍 ZERO SCORE DEBUG [Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
+                        } else {
+                            console.log(`⚠️ JSON array format invalid, falling back to original message`);
+                            finalBotMessage = botMessage;
+                        }
+                    } else if (botMessage.includes(',') && botMessage.trim().startsWith('[')) {
+                        // Handle non-JSON array format like: [ content, 0, 2 ]
+                        const arrayMatch = botMessage.match(/^\s*\[\s*(.*?)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\]\s*$/s);
+                        
+                        if (arrayMatch && arrayMatch.length >= 4) {
+                            finalBotMessage = arrayMatch[1].trim(); // Message content
+                            extractedScore = parseFloat(arrayMatch[2]); // Score for previous question
+                            extractedMaxScore = parseFloat(arrayMatch[3]); // Max score for previous question
+                            
+                            console.log(`✅ Parsed non-JSON array response successfully:`);
+                            console.log(`📝 Message: ${finalBotMessage.substring(0, 100)}...`);
+                            console.log(`📊 Score: ${extractedScore}/${extractedMaxScore}`);
+                            console.log(`🔍 ZERO SCORE DEBUG [Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
+                        } else {
+                            console.log(`⚠️ Non-JSON array format invalid, falling back to original message`);
+                            finalBotMessage = botMessage;
+                        }
+                    } else {
+                        console.log(`⚠️ Response not in array format, using original message`);
+                        finalBotMessage = botMessage;
+                    }
+                } catch (parseError) {
+                    console.log(`⚠️ Failed to parse response as array, using original message:`, parseError.message);
+                    finalBotMessage = botMessage;
+                }
+            }
+
             // Save the message to chat history, managing history based on agent type
         chat.messages.push({ role: "user", content: message });
             
             // Always save the full message history for all agent types
-        chat.messages.push({ role: "assistant", content: botMessage });
+        chat.messages.push({ role: "assistant", content: finalBotMessage });
         
             // Update the lastActive timestamp
             chat.lastActive = Date.now();
             
         await chat.save();
             
-            console.log(`💾 Saved assistant message to DB (length: ${botMessage.length})`);
+            console.log(`💾 Saved assistant message to DB (length: ${finalBotMessage.length})`);
             console.log(`💾 Last saved message content: ${chat.messages[chat.messages.length - 1].content.substring(0, 100)}...`);
             
             // If in question mode and classification is oldchat_ai, process scores and update questions
             if (classification === "oldchat_ai") {
-                console.log(`🔍 DEBUG: Starting score extraction process - Classification: ${classification}`);
+                console.log(`🔍 DEBUG: Starting score processing - Classification: ${classification}`);
                 // Check if we have a valid previous question to record the answer for
                 if (previousQuestion) {
                     console.log(`🔍 DEBUG: Previous question found - ID: ${previousQuestion.questionId}, Text: ${previousQuestion.question?.substring(0, 30)}...`);
-                    // Extract score from assistant message
-                    // Variables for score tracking will be declared below
-                    console.log(`🔍 DEBUG: Initial maxScore from question: ${previousQuestion.question_marks || 1}`);
                     
-                    console.log(`🔍 DEBUG: Bot message first 100 chars: ${botMessage.substring(0, 100)}...`);
-                    console.log(`🔍 DEBUG: Bot message length: ${botMessage.length} chars`);
+                    // Use extracted scores from array or fallback to 0
+                    let marksAwarded = 0;
+                    let maxScore = previousQuestion.question_marks || 1;
                     
-                    // Debug: Search for "score" in different formats in the response
-                    const scoreKeywordIndex = botMessage.toLowerCase().indexOf("score");
-                    if (scoreKeywordIndex >= 0) {
-                        console.log(`🔍 DEBUG: Found "score" keyword at position ${scoreKeywordIndex}`);
-                        console.log(`🔍 DEBUG: Context around "score": "${botMessage.substring(Math.max(0, scoreKeywordIndex-20), Math.min(botMessage.length, scoreKeywordIndex+30))}"`);
+                    if (extractedScore !== null && extractedMaxScore !== null) {
+                        marksAwarded = extractedScore;
+                        maxScore = extractedMaxScore;
+                        console.log(`✅ Using scores from array response: ${marksAwarded}/${maxScore}`);
                     } else {
-                        console.log(`🔍 DEBUG: "score" keyword not found in response`);
-                    }
-            
-            // IMPROVED SCORE EXTRACTION ALGORITHM
-            
-            // First, try to find the exact "Score: X / Y" pattern - this takes precedence over all other patterns
-            let scoreFound = false;
-            let marksAwarded = 0;
-            let maxScore = previousQuestion.question_marks || 1;
-            
-            // Check for the specific "Score: X / Y" pattern in the first 500 characters (likely to be at the beginning)
-            const exactScorePattern = /Score:\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/i;
-            const scoreMatch = botMessage.match(exactScorePattern);
-            
-            if (scoreMatch && scoreMatch.length >= 3) {
-                // Extract both awarded marks and total marks from the pattern
-                marksAwarded = parseFloat(scoreMatch[1]);
-                
-                // Only update maxScore if the extracted value is valid
-                if (parseFloat(scoreMatch[2]) > 0) {
-                    maxScore = parseFloat(scoreMatch[2]);
-                }
-                
-                console.log(`✅ Found exact score pattern: "${scoreMatch[0]}" -> ${marksAwarded}/${maxScore}`);
-                scoreFound = true;
-                        } else {
-                // Define various patterns to match different score formats as fallbacks
-                const scorePatterns = [
-                    // 1. Beginning of response: Lines that start with Score/Marks/etc
-                    { 
-                        regex: /^(?:Score|Note|Marks|Points|Grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/im,
-                        name: "lineStartScore" 
-                    },
-                    // 2. General pattern: Any mention of score anywhere in the text
-                    { 
-                        regex: /(?:score|note|marks|points|grade)(?:\s*:)?\s*(\d+\.?\d*)(?:\s*\/\s*|\s+\/\s+|\s+out\s+of\s+)(\d+\.?\d*)/i,
-                        name: "generalScore" 
-                    },
-                    // 3. "You scored X out of Y" pattern
-                    { 
-                        regex: /you (?:scored|earned|got|receive[d]?)\s+(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i,
-                        name: "youScoredPattern" 
-                    },
-                    // 4. "I would award X out of Y" pattern
-                    { 
-                        regex: /(?:I would|I will|I am|I'm) (?:award|give|assign)[ing]*\s+(\d+\.?\d*)(?:\s*\/\s*|\s+out\s+of\s+)(\d+\.?\d*)/i,
-                        name: "awardPattern" 
-                    }
-                ];
-                
-                // Track all matches
-                const allMatches = [];
-                
-                // Try each pattern in order of priority
-                for (const pattern of scorePatterns) {
-                    let match;
-                    if (pattern.global) {
-                        // For global patterns, find all matches
-                        const matches = [...botMessage.matchAll(pattern.regex)];
-                        console.log(`🔍 DEBUG: ${pattern.name} matches:`, matches.map(m => ({match: m[0], score: m[1], total: m[2]})));
-                        
-                        if (matches.length > 0) {
-                            // Use first match by default for global patterns
-                            match = matches[0];
-                            
-                            // Store all matches for analysis
-                            matches.forEach(m => {
-                                if (m && m.length >= 3) {
-                                    allMatches.push({
-                                        pattern: pattern.name,
-                                        match: m[0],
-                                        score: parseFloat(m[1]),
-                                        total: parseFloat(m[2]),
-                                        position: m.index
-                                    });
-                                }
-                            });
-                        }
-                            } else {
-                        // For non-global patterns, find the first match
-                        match = botMessage.match(pattern.regex);
-                        console.log(`🔍 DEBUG: ${pattern.name} match: ${JSON.stringify(match)}`);
-                        
-                        if (match && match.length >= 3) {
-                            allMatches.push({
-                                pattern: pattern.name,
-                                match: match[0],
-                                score: parseFloat(match[1]),
-                                total: parseFloat(match[2]),
-                                position: match.index
-                            });
-                        }
+                        console.log(`⚠️ No valid scores in array response, using default: ${marksAwarded}/${maxScore}`);
                     }
                     
-                    // If we found a match with this pattern and haven't set a score yet
-                    if (match && match.length >= 3 && !scoreFound) {
-                        // Extract both awarded marks and total marks from the pattern
-                        marksAwarded = parseFloat(match[1]);
-                        
-                        // Only update maxScore if the extracted value is valid
-                        if (parseFloat(match[2]) > 0) {
-                            maxScore = parseFloat(match[2]);
-                        }
-                        
-                        console.log(`✅ Found score with ${pattern.name} pattern: "${match[0]}" -> ${marksAwarded}/${maxScore}`);
-                        scoreFound = true;
-                        
-                        // No need to check more patterns if we've found a higher priority one
-                        if (pattern.name === "lineStartScore") {
-                            break;
-                        }
-                    }
-                }
-                
-                // Analyze all matches if we have multiple
-                if (allMatches.length > 1) {
-                    console.log(`🔍 DEBUG: Multiple score matches found (${allMatches.length}). Analyzing...`);
-                    console.log(`🔍 DEBUG: All matches:`, allMatches);
-                    
-                    // Sort by pattern priority and position in text
-                    allMatches.sort((a, b) => {
-                        // Define pattern priority
-                        const priority = {
-                            "lineStartScore": 0, 
-                            "youScoredPattern": 1,
-                            "awardPattern": 2,
-                            "generalScore": 3
-                        };
-                        
-                        // First sort by pattern priority
-                        if (priority[a.pattern] !== priority[b.pattern]) {
-                            return priority[a.pattern] - priority[b.pattern];
-                        }
-                        
-                        // Then by position (earlier in text = higher priority)
-                        return a.position - b.position;
-                    });
-                    
-                    // Use the highest priority match
-                    const bestMatch = allMatches[0];
-                    marksAwarded = bestMatch.score;
-                    if (bestMatch.total > 0) {
-                        maxScore = bestMatch.total;
+                    // Verify the extracted score is valid
+                    if (isNaN(marksAwarded) || marksAwarded < 0) {
+                        console.log(`❌ Invalid score detected: ${marksAwarded}. Resetting to 0.`);
+                        marksAwarded = 0;
+                        console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0 after validation`);
                     }
                     
-                    console.log(`✅ Selected best match: ${bestMatch.pattern} - "${bestMatch.match}" -> ${marksAwarded}/${maxScore}`);
-                }
-            }
-            
-            // Special check for zero scores - make sure we correctly identify them from explicit "Score: 0/X" patterns
-            if (botMessage.match(/Score:\s*0\s*\/\s*\d+/i)) {
-                console.log(`🔍 DEBUG: Found explicit zero score pattern in response`);
-                                marksAwarded = 0;
-                console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0, value: ${marksAwarded}, type: ${typeof marksAwarded}`);
-                console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0`);
-            }
-            
-            // If no match found, use fallback
-            if (!scoreFound) {
-                // If no score pattern is found, award one mark by default if the answer seems correct
-                if (botMessage.toLowerCase().includes("correct") || 
-                    botMessage.toLowerCase().includes("well done") ||
-                    botMessage.toLowerCase().includes("good job") ||
-                    botMessage.toLowerCase().includes("excellent")) {
-                    marksAwarded = maxScore;
-                    console.log(`✅ No score pattern found, but answer appears correct. Awarding full marks: ${marksAwarded}/${maxScore}`);
-                } else {
-                    marksAwarded = 0;
-                    console.log(`❌ No score pattern found and answer doesn't appear correct. Awarding zero marks: ${marksAwarded}/${maxScore}`);
-                    console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0 in fallback`);
-                }
-            }
-            
-            // Verify the extracted score is valid
-            if (isNaN(marksAwarded) || marksAwarded < 0) {
-                console.log(`❌ Invalid score detected: ${marksAwarded}. Resetting to 0.`);
-                marksAwarded = 0;
-                console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0 after validation`);
-            }
-            
-            // Ensure maxScore is positive
-            if (isNaN(maxScore) || maxScore <= 0) {
-                console.log(`❌ Invalid maxScore detected: ${maxScore}. Using question's marks: ${previousQuestion.question_marks || 1}`);
-                maxScore = previousQuestion.question_marks || 1;
-            }
-            
-            // Final score validation - make sure score doesn't exceed max
-            if (marksAwarded > maxScore) {
-                console.log(`⚠️ Score exceeds maximum: ${marksAwarded}/${maxScore}. Capping at ${maxScore}.`);
-                marksAwarded = maxScore;
-            }
-            
-            console.log(`📊 FINAL SCORE DETERMINATION: ${marksAwarded}/${maxScore}`);
-            console.log(`🔍 ZERO SCORE DEBUG: Final marksAwarded value: ${marksAwarded}, type: ${typeof marksAwarded}, isZero: ${marksAwarded === 0}, toString(): "${marksAwarded.toString()}"`);
-            ;
+                    // Ensure maxScore is positive
+                    if (isNaN(maxScore) || maxScore <= 0) {
+                        console.log(`❌ Invalid maxScore detected: ${maxScore}. Using question's marks: ${previousQuestion.question_marks || 1}`);
+                        maxScore = previousQuestion.question_marks || 1;
+                    }
+                    
+                    // Final score validation - make sure score doesn't exceed max
+                    if (marksAwarded > maxScore) {
+                        console.log(`⚠️ Score exceeds maximum: ${marksAwarded}/${maxScore}. Capping at ${maxScore}.`);
+                        marksAwarded = maxScore;
+                    }
+                    
+                    console.log(`📊 FINAL SCORE DETERMINATION: ${marksAwarded}/${maxScore}`);
+                    console.log(`🔍 ZERO SCORE DEBUG: Final marksAwarded value: ${marksAwarded}, type: ${typeof marksAwarded}, isZero: ${marksAwarded === 0}, toString(): "${marksAwarded.toString()}"`);
                 
                 try {
                         console.log(`🔍 DEBUG: About to call markQuestionAsAnswered with score ${marksAwarded}/${maxScore}`);
@@ -995,14 +873,14 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             }
             
             const responseObject = {
-                message: botMessage,
+                message: finalBotMessage,
                 questionId: currentQuestion ? currentQuestion.questionId : null,
                 fullQuestion: currentQuestion,
                 agentType: classification,
                 previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
                 score: {
-                    marksAwarded: (previousQuestion && classification === "oldchat_ai") ? marksAwarded : null,
-                    maxMarks: (previousQuestion && classification === "oldchat_ai") ? (previousQuestion.question_marks || 1) : null,
+                    marksAwarded: (previousQuestion && classification === "oldchat_ai" && typeof marksAwarded !== 'undefined') ? marksAwarded : null,
+                    maxMarks: (previousQuestion && classification === "oldchat_ai" && typeof maxScore !== 'undefined') ? maxScore : null,
                     previousQuestion: previousQuestion ? previousQuestion.question : null
                 }
             };
