@@ -35,7 +35,7 @@ EMAIL_PASS=your-password
 
 ### Custom SMTP (modify emailService.js)
 ```javascript
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
     host: 'smtp.your-provider.com',
     port: 587,
     secure: false,
