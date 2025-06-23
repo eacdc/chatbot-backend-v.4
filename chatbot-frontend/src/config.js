@@ -5,6 +5,9 @@ console.log("Using API_URL:", API_URL);
 export const API_ENDPOINTS = {
   LOGIN: `${API_URL}/api/users/login`,
   SIGNUP: `${API_URL}/api/users/signup`,
+  SEND_OTP: `${API_URL}/api/users/send-otp`,
+  VERIFY_OTP: `${API_URL}/api/users/verify-otp`,
+  RESEND_OTP: `${API_URL}/api/users/resend-otp`,
   CHAT: `${API_URL}/api/chat/send`,
   BOOKS: `${API_URL}/api/books`,
   CHAPTERS: `${API_URL}/api/chapters`,

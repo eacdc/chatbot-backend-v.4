@@ -517,7 +517,7 @@ export default function ChatbotLayout({ children }) {
       
     // Do a final pass to remove any remaining square bracket LaTeX that wasn't caught
     cleanedContent = cleanedContent.replace(/\[\s*\\[^\]]+\]/g, '*formula*');
-    
+  
     // Clean up any remaining LaTeX commands or unwanted characters
     cleanedContent = cleanedContent
       // Clean up multiple spaces
