@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 // Create transporter (using Gmail as example - you can change this)
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: process.env.EMAIL_USER, // Your email
@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransporter({
 
 // You can also use other email services like:
 // For Outlook/Hotmail:
-// const transporter = nodemailer.createTransporter({
+// const transporter = nodemailer.createTransport({
 //     service: 'hotmail',
 //     auth: {
 //         user: process.env.EMAIL_USER,
@@ -21,7 +21,7 @@ const transporter = nodemailer.createTransporter({
 // });
 
 // For custom SMTP:
-// const transporter = nodemailer.createTransporter({
+// const transporter = nodemailer.createTransport({
 //     host: 'smtp.your-email-provider.com',
 //     port: 587,
 //     secure: false,
