@@ -1,6 +1,12 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
+// Debug: Check if environment variables are loaded
+console.log('🔍 Email Environment Variables Check:');
+console.log('EMAIL_USER exists:', !!process.env.EMAIL_USER);
+console.log('EMAIL_PASS exists:', !!process.env.EMAIL_PASS);
+console.log('EMAIL_USER value:', process.env.EMAIL_USER ? `${process.env.EMAIL_USER.substring(0, 3)}***` : 'NOT SET');
+
 // Create transporter (using Gmail as example - you can change this)
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -33,6 +39,16 @@ const transporter = nodemailer.createTransport({
 
 const sendOTPEmail = async (email, otp, fullname) => {
     try {
+        // Validate environment variables before attempting to send
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            console.error('❌ Email credentials not configured:');
+            console.error('EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
+            console.error('EMAIL_PASS:', process.env.EMAIL_PASS ? 'SET' : 'NOT SET');
+            return { 
+                success: false, 
+                error: 'Email service not configured. Please set EMAIL_USER and EMAIL_PASS environment variables.' 
+            };
+        }
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: email,

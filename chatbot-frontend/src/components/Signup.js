@@ -32,6 +32,7 @@ const Signup = () => {
     const [resendLoading, setResendLoading] = useState(false);
     const [countdown, setCountdown] = useState(0);
     const [userEmail, setUserEmail] = useState("");
+    const [isDummyMode, setIsDummyMode] = useState(false); // Track if using dummy OTP
 
     // Detect if the app is being accessed from CP domain
     useEffect(() => {
@@ -106,6 +107,9 @@ const Signup = () => {
             // Store email for OTP verification
             setUserEmail(formData.email);
             
+            // Check if in dummy mode
+            setIsDummyMode(response.data.developmentMode || false);
+            
             // Switch to OTP verification step
             setOtpStep(true);
             setCountdown(60); // 60 seconds before allowing resend
@@ -173,8 +177,15 @@ const Signup = () => {
             setCountdown(60); // Reset countdown
             setOtpCode(""); // Clear OTP input
             
+            // Update dummy mode status
+            setIsDummyMode(response.data.developmentMode || false);
+            
             // Show success message
-            alert("New OTP sent to your email!");
+            if (response.data.developmentMode) {
+                alert("Development Mode: Use OTP 123456 to verify!");
+            } else {
+                alert("New OTP sent to your email!");
+            }
             
         } catch (error) {
             console.error("Resend OTP Error:", error.response?.data?.message || error.message);
@@ -205,9 +216,27 @@ const Signup = () => {
                         </div>
                         <h2 className="mt-4 text-3xl font-extrabold text-gray-900">Verify Your Email</h2>
                         <p className="mt-2 text-sm text-gray-600">
-                            We've sent a 6-digit OTP to
+                            {isDummyMode ? (
+                                "Development Mode: Use dummy OTP below"
+                            ) : (
+                                "We've sent a 6-digit OTP to"
+                            )}
                         </p>
                         <p className="text-blue-600 font-medium">{userEmail}</p>
+                        
+                        {isDummyMode && (
+                            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <div className="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-600 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-sm font-medium text-yellow-800">Development Mode</p>
+                                        <p className="text-sm text-yellow-700">Use OTP: <span className="font-bold font-mono">123456</span></p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {error && (
