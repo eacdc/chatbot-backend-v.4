@@ -10,6 +10,35 @@ require("dotenv").config();
 
 const router = express.Router();
 
+// ✅ Check Username Availability (Real-time validation)
+router.post("/check-username", async (req, res) => {
+    try {
+        const { username } = req.body;
+        
+        if (!username || !username.trim()) {
+            return res.status(400).json({ message: "Username is required" });
+        }
+
+        // Check if username already exists
+        const existingUser = await User.findOne({ username: username.trim() });
+        
+        if (existingUser) {
+            return res.status(409).json({ 
+                available: false,
+                message: "Username already taken" 
+            });
+        } else {
+            return res.status(200).json({ 
+                available: true,
+                message: "Username is available" 
+            });
+        }
+    } catch (error) {
+        console.error("❌ Error checking username:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 // ✅ Generate and Send OTP for Registration
 router.post("/send-otp", async (req, res) => {
     try {
@@ -501,6 +530,35 @@ router.post("/refresh-token", async (req, res) => {
     console.error("Token refresh error:", error);
     res.status(401).json({ message: "Invalid or expired token" });
   }
+});
+
+// ✅ Check Username Availability (Real-time validation)
+router.post("/check-username", async (req, res) => {
+    try {
+        const { username } = req.body;
+        
+        if (!username || !username.trim()) {
+            return res.status(400).json({ message: "Username is required" });
+        }
+
+        // Check if username already exists
+        const existingUser = await User.findOne({ username: username.trim() });
+        
+        if (existingUser) {
+            return res.status(409).json({ 
+                available: false,
+                message: "Username already taken" 
+            });
+        } else {
+            return res.status(200).json({ 
+                available: true,
+                message: "Username is available" 
+            });
+        }
+    } catch (error) {
+        console.error("❌ Error checking username:", error);
+        res.status(500).json({ message: "Server error" });
+    }
 });
 
 module.exports = router;

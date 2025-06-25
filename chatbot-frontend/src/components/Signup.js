@@ -33,6 +33,8 @@ const Signup = () => {
     const [countdown, setCountdown] = useState(0);
     const [userEmail, setUserEmail] = useState("");
     const [isDummyMode, setIsDummyMode] = useState(false); // Track if using dummy OTP
+    const [usernameError, setUsernameError] = useState(""); // Track username validation
+    const [checkingUsername, setCheckingUsername] = useState(false); // Track loading state for username check
 
     // Detect if the app is being accessed from CP domain
     useEffect(() => {
@@ -63,6 +65,50 @@ const Signup = () => {
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
         setError(""); // Clear error when user types
+        
+        // Clear username error when user starts typing in username field
+        if (e.target.name === 'username') {
+            setUsernameError("");
+        }
+    };
+
+    // Check username availability
+    const checkUsernameAvailability = async (username) => {
+        if (!username || !username.trim()) {
+            setUsernameError("");
+            return;
+        }
+
+        setCheckingUsername(true);
+        setUsernameError("");
+
+        try {
+            const response = await fetch(API_ENDPOINTS.CHECK_USERNAME, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ username: username.trim() })
+            });
+
+            const data = await response.json();
+
+            if (response.status === 409) {
+                // Username taken
+                setUsernameError(data.message);
+            } else if (response.status === 200) {
+                // Username available
+                setUsernameError("");
+            } else {
+                // Other error
+                setUsernameError(data.message || "Error checking username");
+            }
+        } catch (error) {
+            console.error("Error checking username:", error);
+            setUsernameError("Error checking username availability");
+        } finally {
+            setCheckingUsername(false);
+        }
     };
 
     const handleOtpChange = (e) => {
@@ -74,6 +120,13 @@ const Signup = () => {
         e.preventDefault();
         setError("");
         setLoading(true);
+
+        // Check if username is available before proceeding
+        if (usernameError) {
+            setError("Please choose a different username.");
+            setLoading(false);
+            return;
+        }
 
         // Basic form validation
         if (formData.password !== formData.confirmPassword) {
@@ -365,17 +418,32 @@ const Signup = () => {
                     <div className="space-y-4 rounded-md">
                         <div>
                             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">Username <span className="text-blue-600 font-medium">(Used for login)</span></label>
-                            <input
-                                id="username"
-                                name="username"
-                                type="text"
-                                required
-                                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-lg placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Choose a username"
-                                value={formData.username}
-                                onChange={handleChange}
-                            />
-                            <p className="mt-1 text-xs text-gray-500">You'll use this username to log in to your account.</p>
+                            <div className="relative">
+                                <input
+                                    id="username"
+                                    name="username"
+                                    type="text"
+                                    required
+                                    className={`appearance-none relative block w-full px-3 py-2 border ${usernameError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'} rounded-lg placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
+                                    placeholder="Choose a username"
+                                    value={formData.username}
+                                    onChange={handleChange}
+                                    onBlur={(e) => checkUsernameAvailability(e.target.value)}
+                                />
+                                {checkingUsername && (
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                        <svg className="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                )}
+                            </div>
+                            {usernameError ? (
+                                <p className="mt-1 text-xs text-red-600">{usernameError}</p>
+                            ) : (
+                                <p className="mt-1 text-xs text-gray-500">You'll use this username to log in to your account.</p>
+                            )}
                         </div>
                         <div>
                             <label htmlFor="fullname" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
