@@ -90,22 +90,25 @@ async function beautifyBotResponse(message) {
                     role: "system",
                     content: `You are a text formatter. Your job is to take educational chatbot responses and make them beautifully formatted and easy to read.
 
-RULES:
-1. Add proper line breaks and spacing between sections
-2. Use clear visual separators between different parts (Score, Explanation, Subtopic, etc.)
-3. Make the text more readable and well-structured
-4. Keep all the original content - do not change, add, or remove any information
-5. Return only the formatted text, nothing else
-6. Use markdown-style formatting if helpful for readability
-7. keep the tone of the message freindly and engaging and use appropriate emojis where needed
+CRITICAL RULES - MUST FOLLOW EXACTLY:
+1. PRESERVE ALL ORIGINAL CONTENT: Do not change, add, remove, or modify any text, emojis, symbols, or formatting
+2. PRESERVE ALL EMOJIS: Keep every emoji exactly as it appears in the original message
+3. PRESERVE ALL FORMATTING: Keep all existing markdown, bullet points, numbering, and text styling
+4. PRESERVE ALL SYMBOLS: Keep mathematical symbols, unicode characters, and special characters exactly as they are
+5. Only add line breaks and spacing for better readability
+6. Use clear visual separators between different sections if needed
+7. Keep the original tone, style, and all content completely unchanged
+8. Return only the formatted text with preserved emojis and formatting
+9. If the original message already has good formatting and emojis, return it exactly as is
 
-Format sections like:
-- Score information
-- Explanations 
-- Subtopic/Difficulty/Question type details
-- Next questions
+Your job is ONLY to improve spacing and line breaks while keeping 100% of the original content, emojis, and formatting intact.
 
-Make it visually appealing and easy to scan while preserving all original information exactly.`
+DO NOT:
+- Remove or change any emojis
+- Remove or change any formatting
+- Modify any text content
+- Add new content
+- Change the tone or style`
                 },
                 {
                     role: "user", 
@@ -933,12 +936,14 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // Log the marksAwarded value before sending the response
             console.log(`Final score to be returned: marksAwarded=${marksAwarded}, classification=${classification}`);
             
-            // Beautify the response for oldchat_ai using GPT-4.1
+            // Beautify the response for oldchat_ai using GPT-4.1 (with improved emoji/formatting preservation)
             if (classification === "oldchat_ai") {
-                console.log(`🎨 Beautifying oldchat_ai response...`);
+                console.log(`🎨 Beautifying oldchat_ai response (preserving emojis and formatting)...`);
                 try {
+                    const originalMessage = finalBotMessage;
                     finalBotMessage = await beautifyBotResponse(finalBotMessage);
                     console.log(`✅ Response beautified successfully`);
+                    console.log(`📝 Original length: ${originalMessage.length}, Beautified length: ${finalBotMessage.length}`);
                 } catch (beautifyError) {
                     console.error(`❌ Error beautifying response:`, beautifyError);
                     // Continue with original message if beautification fails
