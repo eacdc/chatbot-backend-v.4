@@ -374,7 +374,7 @@ router.post("/login", async (req, res) => {
                     loginOrigin: requestOrigin  // Include origin information in the token
                 },
                 process.env.JWT_SECRET,
-                { expiresIn: "1h" }
+                { expiresIn: "7d" }
             );
 
             console.log("✅ Login successful!");
@@ -406,7 +406,7 @@ router.post("/login", async (req, res) => {
                     loginOrigin: requestOrigin  // Include origin information in the token
                 },
                 process.env.JWT_SECRET,
-                { expiresIn: "1h" }
+                { expiresIn: "7d" }
             );
             console.log("✅ Login successful with direct comparison!");
             return res.json({ 
@@ -436,7 +436,7 @@ router.post("/login", async (req, res) => {
                 loginOrigin: requestOrigin  // Include origin information in the token
             },
             process.env.JWT_SECRET,
-            { expiresIn: "1h" }
+            { expiresIn: "7d" }
         );
         return res.json({ 
             token, 
@@ -516,7 +516,7 @@ router.post("/refresh-token", async (req, res) => {
     const newToken = jwt.sign(
       { userId: user._id, name: user.fullname, role: user.role, grade: user.grade },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
     res.json({

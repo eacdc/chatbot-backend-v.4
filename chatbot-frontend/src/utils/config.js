@@ -4,7 +4,7 @@ export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/a
 // Authentication Configuration
 export const TOKEN_KEY = 'access_token';
 export const REFRESH_TOKEN_KEY = 'refresh_token';
-export const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+export const SESSION_TIMEOUT = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 // Route Configuration
 export const ROUTES = {
@@ -267,4 +267,4 @@ export const MAX_PAGE_SIZE = 100;
 
 // Timeouts
 export const API_TIMEOUT = 30000; // 30 seconds
-export const TOKEN_REFRESH_INTERVAL = 4 * 60 * 1000; // 4 minutes 
+export const TOKEN_REFRESH_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours 
