@@ -834,19 +834,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 }
             }
 
-            // Save the message to chat history, managing history based on agent type
-        chat.messages.push({ role: "user", content: message });
-            
-            // Always save the full message history for all agent types
-        chat.messages.push({ role: "assistant", content: finalBotMessage });
-        
-            // Update the lastActive timestamp
-            chat.lastActive = Date.now();
-            
-        await chat.save();
-            
-            console.log(`💾 Saved assistant message to DB (length: ${finalBotMessage.length})`);
-            console.log(`💾 Last saved message content: ${chat.messages[chat.messages.length - 1].content.substring(0, 100)}...`);
+            // Save the message to chat history - BUT WAIT FOR BEAUTIFICATION FIRST
+            // We'll save after beautification to ensure DB and user get the same content
             
             // If in question mode and classification is oldchat_ai, process scores and update questions
             if (classification === "oldchat_ai") {
@@ -949,6 +938,19 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     // Continue with original message if beautification fails
                 }
             }
+            
+            // NOW save the message to chat history AFTER beautification
+            // This ensures both database and user get the same beautified content
+            chat.messages.push({ role: "user", content: message });
+            chat.messages.push({ role: "assistant", content: finalBotMessage });
+            
+            // Update the lastActive timestamp
+            chat.lastActive = Date.now();
+            
+            await chat.save();
+            
+            console.log(`💾 Saved beautified assistant message to DB (length: ${finalBotMessage.length})`);
+            console.log(`💾 Last saved message content: ${chat.messages[chat.messages.length - 1].content.substring(0, 100)}...`);
             
             // Prepare the response object
             // Special debugging for zero scores before creating response object
