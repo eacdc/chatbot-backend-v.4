@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
   DELETE_CHAPTER: `${API_URL}/api/chapters/:chapterId`,
   USER_SIGNUP: `${API_URL}/api/users/register`,
   GET_USER: `${API_URL}/api/users/me`,
+  UPDATE_USER_PROFILE: `${API_URL}/api/users/profile`,
   GET_BOOK_CHAPTERS: `${API_URL}/api/books/:bookId/chapters`,
   GET_SUBSCRIPTIONS: `${API_URL}/api/subscriptions/my-subscriptions`,
   UNSUBSCRIBE_BOOK: `${API_URL}/api/subscriptions/:bookId`,
