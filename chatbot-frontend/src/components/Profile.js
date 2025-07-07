@@ -13,12 +13,36 @@ const Profile = () => {
   const [scores, setScores] = useState([]);
   const [loadingScores, setLoadingScores] = useState(false);
   const [activeTab, setActiveTab] = useState("profile"); // Default to profile tab
+  
+  // Add edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    fullname: "",
+    email: "",
+    phone: "",
+    grade: "",
+    publisher: ""
+  });
+  const [updateLoading, setUpdateLoading] = useState(false);
 
   // Add debugging
   useEffect(() => {
     console.log("Profile component mounted");
     console.log("Current active tab:", activeTab);
   }, [activeTab]);
+
+  // Initialize edit form data when userData changes
+  useEffect(() => {
+    if (userData) {
+      setEditFormData({
+        fullname: userData.fullname || "",
+        email: userData.email || "",
+        phone: userData.phone || "",
+        grade: userData.grade || "",
+        publisher: userData.publisher || ""
+      });
+    }
+  }, [userData]);
 
   // Auto-switch to scores tab if assessment data is available (only once)
   const [hasAutoSwitched, setHasAutoSwitched] = useState(false);
@@ -40,6 +64,70 @@ const Profile = () => {
       navigate("/login");
     }
   }, [navigate]);
+
+  // Handle form input changes
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle edit mode toggle
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // Cancel edit - reset form data
+      setEditFormData({
+        fullname: userData.fullname || "",
+        email: userData.email || "",
+        phone: userData.phone || "",
+        grade: userData.grade || "",
+        publisher: userData.publisher || ""
+      });
+    }
+    setIsEditing(!isEditing);
+  };
+
+  // Handle profile update
+  const handleUpdateProfile = async () => {
+    setUpdateLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Please login again");
+        navigate("/login");
+        return;
+      }
+
+      const response = await axios.put(
+        API_ENDPOINTS.UPDATE_USER_PROFILE,
+        editFormData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.message) {
+        toast.success(response.data.message);
+      } else {
+        toast.success("Profile updated successfully");
+      }
+
+      // Update local userData with the new data
+      setUserData(response.data.user);
+      setIsEditing(false);
+      
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      const errorMessage = error.response?.data?.message || "Failed to update profile";
+      toast.error(errorMessage);
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -268,32 +356,149 @@ const Profile = () => {
           {/* Personal Information Card - Always visible below the header */}
           <div className="relative px-8 -mt-12 mb-6 z-10">
             <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Personal Information</h3>
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+                
+                {/* Edit/Save/Cancel buttons */}
+                <div className="flex space-x-2">
+                  {!isEditing ? (
+                    <button
+                      onClick={handleEditToggle}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit Profile
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleUpdateProfile}
+                        disabled={updateLoading}
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                      >
+                        {updateLoading ? (
+                          <svg className="animate-spin h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {updateLoading ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={handleEditToggle}
+                        disabled={updateLoading}
+                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+                      >
+                        <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Username</label>
                   <p className="text-gray-900 text-lg">{userData?.username || "Not set"}</p>
+                  <p className="text-xs text-gray-400 mt-1">Username cannot be changed</p>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Full Name</label>
-                  <p className="text-gray-900 text-lg">{userData?.fullname || "Not set"}</p>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="fullname"
+                      value={editFormData.fullname}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter your full name"
+                    />
+                  ) : (
+                    <p className="text-gray-900 text-lg">{userData?.fullname || "Not set"}</p>
+                  )}
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Email Address</label>
-                  <p className="text-gray-900 text-lg">{userData?.email || "Not set"}</p>
+                  {isEditing ? (
+                    <input
+                      type="email"
+                      name="email"
+                      value={editFormData.email}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter your email address"
+                    />
+                  ) : (
+                    <p className="text-gray-900 text-lg">{userData?.email || "Not set"}</p>
+                  )}
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Phone Number</label>
-                  <p className="text-gray-900 text-lg">{userData?.phone || "Not set"}</p>
+                  {isEditing ? (
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={editFormData.phone}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter your phone number"
+                    />
+                  ) : (
+                    <p className="text-gray-900 text-lg">{userData?.phone || "Not set"}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Grade</label>
+                  {isEditing ? (
+                    <select
+                      name="grade"
+                      value={editFormData.grade}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select grade</option>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(grade => (
+                        <option key={grade} value={grade.toString()}>{grade}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-gray-900 text-lg">{userData?.grade || "Not set"}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Publisher</label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="publisher"
+                      value={editFormData.publisher}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter publisher preference"
+                    />
+                  ) : (
+                    <p className="text-gray-900 text-lg">{userData?.publisher || "Not set"}</p>
+                  )}
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Account Type</label>
                   <p className="text-gray-900 text-lg">{getRoleDisplay(userData?.role) || "Not set"}</p>
+                  <p className="text-xs text-gray-400 mt-1">Account type cannot be changed</p>
                 </div>
                 
                 <div>
