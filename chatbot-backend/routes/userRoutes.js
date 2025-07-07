@@ -466,6 +466,119 @@ router.get("/me", authenticateUser, async (req, res) => {
     }
 });
 
+// ✅ Update User Profile
+router.put("/profile", authenticateUser, async (req, res) => {
+    try {
+        const { fullname, email, phone, grade, publisher } = req.body;
+        console.log("📝 Profile update request:", { fullname, email, phone, grade, publisher });
+
+        // Find the user
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Prepare update object with only allowed fields
+        const updateData = {};
+        
+        // Validate and update fullname
+        if (fullname !== undefined) {
+            if (!fullname || fullname.trim().length < 2) {
+                return res.status(400).json({ message: "Full name must be at least 2 characters long" });
+            }
+            updateData.fullname = fullname.trim();
+        }
+
+        // Validate and update email
+        if (email !== undefined) {
+            if (email && email.trim()) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email.trim())) {
+                    return res.status(400).json({ message: "Please provide a valid email address" });
+                }
+                
+                // Check if email is already taken by another user
+                const existingUser = await User.findOne({ 
+                    email: email.toLowerCase().trim(),
+                    _id: { $ne: req.user.userId } 
+                });
+                if (existingUser) {
+                    return res.status(409).json({ message: "Email already registered by another user" });
+                }
+                
+                updateData.email = email.toLowerCase().trim();
+            } else {
+                // Allow clearing email (set to undefined)
+                updateData.email = undefined;
+            }
+        }
+
+        // Validate and update phone
+        if (phone !== undefined) {
+            if (!phone || phone.trim().length < 10) {
+                return res.status(400).json({ message: "Phone number must be at least 10 characters long" });
+            }
+            updateData.phone = phone.trim();
+        }
+
+        // Validate and update grade
+        if (grade !== undefined) {
+            if (!grade || grade.trim().length === 0) {
+                return res.status(400).json({ message: "Grade is required" });
+            }
+            updateData.grade = grade.trim();
+        }
+
+        // Validate and update publisher
+        if (publisher !== undefined) {
+            // Publisher can be empty or a valid string
+            updateData.publisher = publisher ? publisher.trim() : undefined;
+        }
+
+        // Check if there's anything to update
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ message: "No valid fields provided for update" });
+        }
+
+        console.log("📝 Update data:", updateData);
+
+        // Update the user
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user.userId,
+            updateData,
+            { new: true, runValidators: true }
+        ).select("_id username fullname email role phone grade publisher createdAt");
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        console.log("✅ Profile updated successfully");
+        res.json({
+            message: "Profile updated successfully",
+            user: updatedUser
+        });
+
+    } catch (error) {
+        console.error("❌ Error updating profile:", error);
+        
+        // Handle mongoose validation errors
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({ message: errors.join(', ') });
+        }
+        
+        // Handle duplicate key errors
+        if (error.code === 11000) {
+            if (error.keyPattern && error.keyPattern.email) {
+                return res.status(409).json({ message: "Email already registered" });
+            }
+        }
+        
+        res.status(500).json({ message: error.message || "Server error" });
+    }
+});
+
 // ✅ Update User Password (for fixing hashing issues)
 router.post("/reset-password", async (req, res) => {
     try {
