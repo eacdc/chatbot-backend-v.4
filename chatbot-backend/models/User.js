@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema({
     phone: { type: String, required: true },
     grade: { type: String, required: true, default: "1" }, // Grade level for filtering content
     publisher: { type: String, required: false, trim: true }, // Publisher preference for filtering content
+    profilePicture: { type: String, required: false }, // URL/path to profile picture
     role: { 
         type: String, 
         enum: ["student", "teacher", "school admin", "publisher admin", "admin"], 

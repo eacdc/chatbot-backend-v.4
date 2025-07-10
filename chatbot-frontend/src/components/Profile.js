@@ -24,6 +24,11 @@ const Profile = () => {
     publisher: ""
   });
   const [updateLoading, setUpdateLoading] = useState(false);
+  
+  // Profile picture states
+  const [profilePictureLoading, setProfilePictureLoading] = useState(false);
+  const [profilePicturePreview, setProfilePicturePreview] = useState(null);
+  const [profilePictureFile, setProfilePictureFile] = useState(null);
 
   // Add debugging
   useEffect(() => {
@@ -127,6 +132,124 @@ const Profile = () => {
     } finally {
       setUpdateLoading(false);
     }
+  };
+
+  // Handle profile picture selection
+  const handleProfilePictureChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please select a valid image file");
+        return;
+      }
+      
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image size should be less than 5MB");
+        return;
+      }
+      
+      setProfilePictureFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setProfilePicturePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle profile picture upload
+  const handleProfilePictureUpload = async () => {
+    if (!profilePictureFile) return;
+    
+    setProfilePictureLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Please login again");
+        navigate("/login");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('profilePicture', profilePictureFile);
+
+      const response = await axios.post(
+        API_ENDPOINTS.UPLOAD_PROFILE_PICTURE,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+
+      if (response.data.message) {
+        toast.success(response.data.message);
+      } else {
+        toast.success("Profile picture updated successfully");
+      }
+
+      // Update local userData with the new data
+      setUserData(response.data.user);
+      setProfilePictureFile(null);
+      setProfilePicturePreview(null);
+      
+    } catch (error) {
+      console.error("Error uploading profile picture:", error);
+      const errorMessage = error.response?.data?.error || "Failed to upload profile picture";
+      toast.error(errorMessage);
+    } finally {
+      setProfilePictureLoading(false);
+    }
+  };
+
+  // Handle profile picture deletion
+  const handleProfilePictureDelete = async () => {
+    setProfilePictureLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Please login again");
+        navigate("/login");
+        return;
+      }
+
+      const response = await axios.delete(
+        API_ENDPOINTS.DELETE_PROFILE_PICTURE,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.message) {
+        toast.success(response.data.message);
+      } else {
+        toast.success("Profile picture deleted successfully");
+      }
+
+      // Update local userData with the new data
+      setUserData(response.data.user);
+      
+    } catch (error) {
+      console.error("Error deleting profile picture:", error);
+      const errorMessage = error.response?.data?.error || "Failed to delete profile picture";
+      toast.error(errorMessage);
+    } finally {
+      setProfilePictureLoading(false);
+    }
+  };
+
+  // Cancel profile picture selection
+  const handleProfilePictureCancelSelection = () => {
+    setProfilePictureFile(null);
+    setProfilePicturePreview(null);
   };
 
   useEffect(() => {
@@ -332,14 +455,79 @@ const Profile = () => {
           {/* Profile Header with Avatar - Always visible at the top */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 pt-8 pb-20 px-8 text-white relative">
             <div className="flex items-center">
-              <div className="h-24 w-24 rounded-full bg-white p-1 shadow-xl">
-                <div className="h-full w-full rounded-full bg-blue-200 flex items-center justify-center text-blue-800 text-3xl font-bold">
-                  {userData?.username?.charAt(0).toUpperCase() || "U"}
+              <div className="relative h-24 w-24 rounded-full bg-white p-1 shadow-xl">
+                {userData?.profilePicture ? (
+                  <img
+                    src={userData.profilePicture}
+                    alt="Profile"
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                ) : profilePicturePreview ? (
+                  <img
+                    src={profilePicturePreview}
+                    alt="Profile Preview"
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="h-full w-full rounded-full bg-blue-200 flex items-center justify-center text-blue-800 text-3xl font-bold">
+                    {userData?.username?.charAt(0).toUpperCase() || "U"}
+                  </div>
+                )}
+                
+                {/* Profile Picture Upload/Change Button */}
+                <div className="absolute -bottom-1 -right-1">
+                  <label className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 cursor-pointer shadow-lg transition-colors duration-200 block">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfilePictureChange}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
-              <div className="ml-6">
+              
+              <div className="ml-6 flex-1">
                 <h2 className="text-2xl font-bold">{userData?.fullname}</h2>
                 <p className="text-blue-100 font-medium">{getRoleDisplay(userData?.role)}</p>
+                
+                {/* Profile Picture Management Buttons */}
+                {(profilePictureFile || userData?.profilePicture) && (
+                  <div className="mt-3 flex space-x-2">
+                    {profilePictureFile && (
+                      <>
+                        <button
+                          onClick={handleProfilePictureUpload}
+                          disabled={profilePictureLoading}
+                          className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200"
+                        >
+                          {profilePictureLoading ? 'Uploading...' : 'Save Picture'}
+                        </button>
+                        <button
+                          onClick={handleProfilePictureCancelSelection}
+                          disabled={profilePictureLoading}
+                          className="bg-gray-600 hover:bg-gray-700 disabled:opacity-50 text-white px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                    
+                    {userData?.profilePicture && !profilePictureFile && (
+                      <button
+                        onClick={handleProfilePictureDelete}
+                        disabled={profilePictureLoading}
+                        className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200"
+                      >
+                        {profilePictureLoading ? 'Deleting...' : 'Remove Picture'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             

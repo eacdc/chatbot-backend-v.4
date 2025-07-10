@@ -2,6 +2,10 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const cloudinary = require("cloudinary").v2;
 const User = require("../models/User");
 const OTP = require("../models/OTP");
 const { sendOTPEmail } = require("../services/emailService");
@@ -9,6 +13,40 @@ const authenticateUser = require("../middleware/authMiddleware");
 require("dotenv").config();
 
 const router = express.Router();
+
+// Validate Cloudinary configuration
+const isCloudinaryConfigured = () => {
+  return process.env.CLOUDINARY_CLOUD_NAME && 
+         process.env.CLOUDINARY_API_KEY && 
+         process.env.CLOUDINARY_API_SECRET;
+};
+
+// Configure Cloudinary if credentials are available
+if (isCloudinaryConfigured()) {
+  cloudinary.config({ 
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET 
+  });
+  console.log('Cloudinary configured successfully for user uploads');
+} else {
+  console.warn('Cloudinary credentials missing. Profile picture uploads will fail!');
+}
+
+// Configure multer storage for profile picture uploads
+const storage = multer.memoryStorage();
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: function (req, file, cb) {
+    // Accept image files only
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error("Only image files are allowed!"), false);
+    }
+    cb(null, true);
+  }
+});
 
 // ✅ Check Username Availability (Real-time validation)
 router.post("/check-username", async (req, res) => {
@@ -456,7 +494,7 @@ router.post("/login", async (req, res) => {
 // ✅ Get Logged-in User Details
 router.get("/me", authenticateUser, async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId).select("_id username fullname email role phone grade publisher createdAt");
+        const user = await User.findById(req.user.userId).select("_id username fullname email role phone grade publisher profilePicture createdAt");
         if (!user) return res.status(404).json({ message: "User not found" });
 
         res.json(user);
@@ -547,7 +585,7 @@ router.put("/profile", authenticateUser, async (req, res) => {
             req.user.userId,
             updateData,
             { new: true, runValidators: true }
-        ).select("_id username fullname email role phone grade publisher createdAt");
+        ).select("_id username fullname email role phone grade publisher profilePicture createdAt");
 
         if (!updatedUser) {
             return res.status(404).json({ message: "User not found" });
@@ -671,6 +709,142 @@ router.post("/check-username", async (req, res) => {
     } catch (error) {
         console.error("❌ Error checking username:", error);
         res.status(500).json({ message: "Server error" });
+    }
+});
+
+// ✅ Upload Profile Picture
+router.post("/upload-profile-picture", authenticateUser, upload.single('profilePicture'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No image file provided" });
+        }
+
+        console.log('Profile Picture Upload - File Details:', {
+            filename: req.file.originalname,
+            size: req.file.size,
+            mimetype: req.file.mimetype,
+            userId: req.user.userId
+        });
+
+        if (!isCloudinaryConfigured()) {
+            return res.status(500).json({ 
+                error: 'Image upload service unavailable', 
+                details: 'Cloudinary configuration is missing' 
+            });
+        }
+
+        // Create a buffer from the file
+        const buffer = req.file.buffer;
+        const tempFilePath = path.join(__dirname, `../temp-profile-${req.user.userId}-${Date.now()}.jpg`);
+        
+        try {
+            // Write buffer to temporary file
+            fs.writeFileSync(tempFilePath, buffer);
+            console.log('Profile Picture Upload - Temporary file created:', tempFilePath);
+            
+            // Upload to Cloudinary
+            console.log('Profile Picture Upload - Starting Cloudinary upload...');
+            const result = await cloudinary.uploader.upload(tempFilePath, {
+                folder: "profile-pictures",
+                resource_type: "image",
+                public_id: `profile_${req.user.userId}`, // Use user ID as public_id for easy overwriting
+                overwrite: true, // Allow overwriting existing profile pictures
+                transformation: [
+                    { width: 300, height: 300, crop: "fill", quality: "auto" }
+                ],
+                timeout: 60000 // 60 second timeout
+            });
+            
+            // Delete the temporary file
+            fs.unlinkSync(tempFilePath);
+            console.log('Profile Picture Upload - Temporary file deleted');
+            
+            if (!result || !result.secure_url) {
+                throw new Error('Cloudinary upload failed to return a valid URL');
+            }
+            
+            console.log('Profile Picture Upload - Cloudinary upload successful:', {
+                url: result.secure_url,
+                public_id: result.public_id
+            });
+            
+            // Update user's profile picture URL in database
+            const updatedUser = await User.findByIdAndUpdate(
+                req.user.userId,
+                { profilePicture: result.secure_url },
+                { new: true, runValidators: true }
+            ).select("_id username fullname email role phone grade publisher profilePicture createdAt");
+            
+            if (!updatedUser) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            
+            console.log('Profile Picture Upload - Database updated successfully');
+            
+            res.status(200).json({ 
+                message: "Profile picture uploaded successfully", 
+                profilePicture: result.secure_url,
+                user: updatedUser
+            });
+            
+        } catch (uploadError) {
+            // Clean up temp file if it exists
+            if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+            }
+            console.error('Profile Picture Upload - Error:', uploadError);
+            throw uploadError;
+        }
+    } catch (error) {
+        console.error("Profile Picture Upload - Error:", error);
+        res.status(500).json({ 
+            error: "Failed to upload profile picture", 
+            details: error.message 
+        });
+    }
+});
+
+// ✅ Delete Profile Picture
+router.delete("/delete-profile-picture", authenticateUser, async (req, res) => {
+    try {
+        // Find the user
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // If user has a profile picture, try to delete it from Cloudinary
+        if (user.profilePicture && isCloudinaryConfigured()) {
+            try {
+                const publicId = `profile-pictures/profile_${req.user.userId}`;
+                await cloudinary.uploader.destroy(publicId);
+                console.log('Profile Picture Delete - Cloudinary image deleted:', publicId);
+            } catch (cloudinaryError) {
+                console.error('Profile Picture Delete - Cloudinary error:', cloudinaryError);
+                // Continue even if Cloudinary deletion fails
+            }
+        }
+
+        // Remove profile picture URL from database
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user.userId,
+            { $unset: { profilePicture: "" } },
+            { new: true, runValidators: true }
+        ).select("_id username fullname email role phone grade publisher profilePicture createdAt");
+
+        console.log('Profile Picture Delete - Database updated successfully');
+        
+        res.status(200).json({ 
+            message: "Profile picture deleted successfully",
+            user: updatedUser
+        });
+        
+    } catch (error) {
+        console.error("Profile Picture Delete - Error:", error);
+        res.status(500).json({ 
+            error: "Failed to delete profile picture", 
+            details: error.message 
+        });
     }
 });
 
