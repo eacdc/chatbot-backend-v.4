@@ -55,6 +55,28 @@ export const API_ENDPOINTS = {
   
   // User statistics endpoints
   GET_USER_STATS: `${API_URL}/api/stats/user`,
+
+  // ================================================================
+  // COMPREHENSIVE SCORES & PROGRESS API ENDPOINTS
+  // ================================================================
+  
+  // 1. Score and Progress Details API
+  GET_PROGRESS_DETAILS: `${API_URL}/api/scores/progress-details/:userId`,
+  
+  // 2. Assessment Data API  
+  GET_ASSESSMENT_DATA: `${API_URL}/api/scores/assessment-data/:userId`,
+  
+  // 3. Score Board API
+  GET_SCOREBOARD: `${API_URL}/api/scores/scoreboard/:userId`,
+  
+  // 4. Recent Activity API
+  GET_RECENT_ACTIVITY: `${API_URL}/api/scores/recent-activity/:userId`,
+  
+  // 5. Performance Overview API
+  GET_PERFORMANCE_OVERVIEW: `${API_URL}/api/scores/performance-overview/:userId`,
+  
+  // Test endpoint for scores API
+  TEST_SCORES_API: `${API_URL}/api/scores/test`,
 };
 
 export default API_URL; 
