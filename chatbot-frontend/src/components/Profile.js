@@ -13,7 +13,7 @@ const Profile = () => {
   const [scores, setScores] = useState([]);
   const [loadingScores, setLoadingScores] = useState(false);
   const [activeTab, setActiveTab] = useState("profile"); // Default to profile tab
-  
+
   // Add edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -469,8 +469,8 @@ const Profile = () => {
                     className="h-full w-full rounded-full object-cover"
                   />
                 ) : (
-                  <div className="h-full w-full rounded-full bg-blue-200 flex items-center justify-center text-blue-800 text-3xl font-bold">
-                    {userData?.username?.charAt(0).toUpperCase() || "U"}
+                <div className="h-full w-full rounded-full bg-blue-200 flex items-center justify-center text-blue-800 text-3xl font-bold">
+                  {userData?.username?.charAt(0).toUpperCase() || "U"}
                   </div>
                 )}
                 
@@ -612,7 +612,7 @@ const Profile = () => {
                       placeholder="Enter your full name"
                     />
                   ) : (
-                    <p className="text-gray-900 text-lg">{userData?.fullname || "Not set"}</p>
+                  <p className="text-gray-900 text-lg">{userData?.fullname || "Not set"}</p>
                   )}
                 </div>
                 
@@ -628,7 +628,7 @@ const Profile = () => {
                       placeholder="Enter your email address"
                     />
                   ) : (
-                    <p className="text-gray-900 text-lg">{userData?.email || "Not set"}</p>
+                  <p className="text-gray-900 text-lg">{userData?.email || "Not set"}</p>
                   )}
                 </div>
                 
@@ -644,7 +644,7 @@ const Profile = () => {
                       placeholder="Enter your phone number"
                     />
                   ) : (
-                    <p className="text-gray-900 text-lg">{userData?.phone || "Not set"}</p>
+                  <p className="text-gray-900 text-lg">{userData?.phone || "Not set"}</p>
                   )}
                 </div>
                 
