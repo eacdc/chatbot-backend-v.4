@@ -1,6 +1,7 @@
 // Directly set the API URL to ensure it's always available
-const API_URL = 'https://chatbot-backend-v-4.onrender.com';
-console.log("Using API_URL:", API_URL);
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://chatbot-backend-v-4-cp.onrender.com'
+  : 'http://localhost:5000';
 
 export const API_ENDPOINTS = {
   LOGIN: `${API_URL}/api/users/login`,
@@ -41,42 +42,49 @@ export const API_ENDPOINTS = {
   // Chapter preparation endpoints
   PROCESS_TEXT_BATCH: `${API_URL}/api/chapters/process-text-batch`,
   ENHANCED_BATCH_PROCESS: `${API_URL}/api/chapters/enhanced-batch-process`,
-  GENERATE_EMBEDDINGS: `${API_URL}/api/chapters/generate-embeddings`,
-  SEMANTIC_SEARCH: `${API_URL}/api/chapters/semantic-search`,
-  ANALYZE_QUESTION: `${API_URL}/api/chapters/analyze-question/:chapterId`,
-  GENERATE_QNA: `${API_URL}/api/chapters/generate-qna`,
+  
+  // Score and statistics endpoints
+  GET_RECENT_ACTIVITY: `${API_URL}/api/scores/recent-activity/:userId`,
+  GET_SCOREBOARD: `${API_URL}/api/scores/scoreboard/:userId`,
+  GET_PROGRESS_DETAILS: `${API_URL}/api/scores/progress-details/:userId`,
+  GET_ASSESSMENT_DATA: `${API_URL}/api/scores/assessment-data/:userId`,
+  GET_PERFORMANCE_OVERVIEW: `${API_URL}/api/scores/performance-overview/:userId`,
+  
+  // New Search and Collection APIs
+  SEARCH_BOOKS: `${API_URL}/api/books/search`,
+  SEARCH_SUGGESTIONS: `${API_URL}/api/books/search-suggestions`,
+  GET_USER_COLLECTION: `${API_URL}/api/subscriptions/collection`,
+  GET_COLLECTION_SUMMARY: `${API_URL}/api/subscriptions/collection/summary`,
+  
+  // User stats endpoints
+  GET_USER_STATS: `${API_URL}/api/stats/user/:userId`,
+  GET_USER_STATS_NEW: `${API_URL}/api/stats-new/user/:userId`,
   
   // Notification endpoints
   GET_NOTIFICATIONS: `${API_URL}/api/notifications`,
-  GET_FIRST_UNSEEN: `${API_URL}/api/notifications/first-unseen`,
-  MARK_NOTIFICATION_SEEN: `${API_URL}/api/notifications/:notificationId/mark-seen`,
-  MARK_ALL_NOTIFICATIONS_SEEN: `${API_URL}/api/notifications/mark-all-seen`,
-  SEED_NOTIFICATIONS: `${API_URL}/api/notifications/seed`,
   
-  // User statistics endpoints
-  GET_USER_STATS: `${API_URL}/api/stats/user`,
-
-  // ================================================================
-  // COMPREHENSIVE SCORES & PROGRESS API ENDPOINTS
-  // ================================================================
+  // Admin endpoints
+  ADMIN_DASHBOARD: `${API_URL}/api/admin/dashboard`,
+  ADMIN_USERS: `${API_URL}/api/admin/users`,
+  ADMIN_BOOKS: `${API_URL}/api/admin/books`,
+  ADMIN_CHAPTERS: `${API_URL}/api/admin/chapters`,
   
-  // 1. Score and Progress Details API
-  GET_PROGRESS_DETAILS: `${API_URL}/api/scores/progress-details/:userId`,
+  // Prompt management
+  GET_PROMPTS: `${API_URL}/api/prompts`,
+  UPDATE_PROMPT: `${API_URL}/api/prompts/:type`,
   
-  // 2. Assessment Data API  
-  GET_ASSESSMENT_DATA: `${API_URL}/api/scores/assessment-data/:userId`,
+  // Config endpoints
+  GET_CONFIG: `${API_URL}/api/config`,
+  UPDATE_CONFIG: `${API_URL}/api/config/:key`,
   
-  // 3. Score Board API
-  GET_SCOREBOARD: `${API_URL}/api/scores/scoreboard/:userId`,
+  // Reset endpoints
+  RESET_QUESTIONS: `${API_URL}/api/chat/reset-questions/:chapterId`,
+  GET_PROGRESSION_STATUS: `${API_URL}/api/chat/progression-status/:chapterId`,
   
-  // 4. Recent Activity API
-  GET_RECENT_ACTIVITY: `${API_URL}/api/scores/recent-activity/:userId`,
-  
-  // 5. Performance Overview API
-  GET_PERFORMANCE_OVERVIEW: `${API_URL}/api/scores/performance-overview/:userId`,
-  
-  // Test endpoint for scores API
-  TEST_SCORES_API: `${API_URL}/api/scores/test`,
+  // Test endpoints
+  TEST_UPLOAD: `${API_URL}/api/books/test-upload`,
+  FIX_ZERO_SCORES: `${API_URL}/api/chat/fix-zero-scores/:chapterId`
 };
 
-export default API_URL; 
+// Export the base URL as well for direct usage
+export { API_URL }; 
