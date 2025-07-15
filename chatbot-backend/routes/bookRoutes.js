@@ -1,11 +1,13 @@
 const express = require("express");
 const Book = require("../models/Book");
 const Chapter = require("../models/Chapter"); // Import Chapter model
+const Subscription = require("../models/Subscription"); // Import Subscription model
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
+const authenticateUser = require("../middleware/authMiddleware"); // Add user authentication
 const cloudinary = require("cloudinary").v2;
 
 // Validate Cloudinary configuration
@@ -41,6 +43,200 @@ const upload = multer({
     cb(null, true);
   }
 });
+
+// ================================================================
+// NEW SEARCH AND COLLECTION APIS
+// ================================================================
+
+// Search books API
+router.get("/search", async (req, res) => {
+  try {
+    const { 
+      q, 
+      limit = 20, 
+      page = 1,
+      subject,
+      grade,
+      publisher,
+      sortBy = 'title',
+      sortOrder = 'asc'
+    } = req.query;
+
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Search query must be at least 2 characters long" 
+      });
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = Math.min(parseInt(limit), 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build search filter
+    const searchFilter = {
+      $or: [
+        { title: { $regex: q, $options: 'i' } },
+        { subject: { $regex: q, $options: 'i' } },
+        { publisher: { $regex: q, $options: 'i' } },
+        { language: { $regex: q, $options: 'i' } }
+      ]
+    };
+
+    // Add additional filters
+    if (subject) searchFilter.subject = subject;
+    if (grade) searchFilter.grade = grade;
+    if (publisher) searchFilter.publisher = publisher;
+
+    // Build sort object
+    const sortObj = {};
+    const validSortFields = ['title', 'subject', 'grade', 'publisher', 'createdAt'];
+    if (validSortFields.includes(sortBy)) {
+      sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    } else {
+      sortObj['title'] = 1;
+    }
+
+    // Execute search
+    const [books, totalCount] = await Promise.all([
+      Book.find(searchFilter)
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limitNum),
+      Book.countDocuments(searchFilter)
+    ]);
+
+    // Generate search suggestions
+    const suggestions = await generateSearchSuggestions(q);
+
+    res.json({
+      success: true,
+      data: {
+        books: books.map(book => ({
+          ...book.toObject(),
+          isInCollection: false // Will be updated by frontend if user is logged in
+        })),
+        totalResults: totalCount,
+        searchQuery: q,
+        suggestions
+      },
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalCount / limitNum),
+        totalItems: totalCount,
+        limit: limitNum,
+        hasNext: pageNum < Math.ceil(totalCount / limitNum),
+        hasPrev: pageNum > 1
+      }
+    });
+
+  } catch (error) {
+    console.error("Search error:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Search failed", 
+      details: error.message 
+    });
+  }
+});
+
+// Search suggestions API
+router.get("/search-suggestions", async (req, res) => {
+  try {
+    const { q, limit = 5 } = req.query;
+    
+    if (!q || q.trim().length < 2) {
+      return res.json({
+        success: true,
+        data: {
+          suggestions: [],
+          recentSearches: [],
+          popularSearches: []
+        }
+      });
+    }
+
+    const suggestions = await generateSearchSuggestions(q, parseInt(limit));
+    
+    // Get popular searches (mock data - could be stored in database)
+    const popularSearches = [
+      { query: "mathematics", searchCount: 156 },
+      { query: "science", searchCount: 89 },
+      { query: "english", searchCount: 78 }
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        suggestions,
+        recentSearches: [], // Could be implemented with user session storage
+        popularSearches
+      }
+    });
+
+  } catch (error) {
+    console.error("Search suggestions error:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to get search suggestions" 
+    });
+  }
+});
+
+// Helper function to generate search suggestions
+async function generateSearchSuggestions(query, limit = 5) {
+  try {
+    const suggestions = [];
+    
+    // Title suggestions
+    const titleMatches = await Book.find({
+      title: { $regex: query, $options: 'i' }
+    }).limit(limit).select('title');
+    
+    titleMatches.forEach(book => {
+      suggestions.push({
+        text: book.title,
+        type: 'title',
+        resultCount: 1
+      });
+    });
+
+    // Subject suggestions
+    const subjectMatches = await Book.distinct('subject', {
+      subject: { $regex: query, $options: 'i' }
+    });
+    
+    subjectMatches.slice(0, limit).forEach(subject => {
+      suggestions.push({
+        text: subject,
+        type: 'subject',
+        resultCount: 1
+      });
+    });
+
+    // Publisher suggestions
+    const publisherMatches = await Book.distinct('publisher', {
+      publisher: { $regex: query, $options: 'i' }
+    });
+    
+    publisherMatches.slice(0, limit).forEach(publisher => {
+      suggestions.push({
+        text: publisher,
+        type: 'publisher',
+        resultCount: 1
+      });
+    });
+
+    return suggestions.slice(0, limit);
+  } catch (error) {
+    console.error("Error generating suggestions:", error);
+    return [];
+  }
+}
+
+// ================================================================
+// EXISTING ROUTES (PRESERVED)
+// ================================================================
 
 // Create a new book
 router.post("/", async (req, res) => {
