@@ -19,6 +19,35 @@ export default function Collections() {
   const [showChaptersModal, setShowChaptersModal] = useState(false);
   const navigate = useNavigate(); // For navigation
 
+  // New state for search and filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState({
+    subject: "",
+    grade: "",
+    author: "",
+    status: "",
+    progress: "",
+    lastAccessed: ""
+  });
+  const [sortBy, setSortBy] = useState("title");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({});
+  const [availableFilters, setAvailableFilters] = useState({
+    subjects: [],
+    grades: [],
+    authors: [],
+    statuses: []
+  });
+  const [collectionSummary, setCollectionSummary] = useState({
+    totalBooks: 0,
+    completedBooks: 0,
+    inProgressBooks: 0,
+    notStartedBooks: 0,
+    averageProgress: 0,
+    totalTimeSpent: 0
+  });
+
   // Update activity timestamp on component mount
   useEffect(() => {
     // Check if user is authenticated and update activity timestamp
@@ -78,25 +107,71 @@ export default function Collections() {
     fetchSubscriptions();
   }, []);
 
-  // Fetch books from API
+  // Fetch collection summary
+  useEffect(() => {
+    const fetchCollectionSummary = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        
+        const response = await axios.get(API_ENDPOINTS.GET_COLLECTION_SUMMARY, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        if (response.data.success) {
+          setCollectionSummary(response.data.data);
+        }
+      } catch (error) {
+        console.error("Error fetching collection summary:", error);
+      }
+    };
+    
+    fetchCollectionSummary();
+  }, []);
+
+  // Fetch books from collection API with search and filters
   useEffect(() => {
     const fetchBooks = async () => {
       try {
         setLoading(true);
         
-        // Only fetch books if we have the user data
-        if (user && user.publisher) {
-          // Filter books by the logged-in user's publisher
-          const url = `${API_ENDPOINTS.GET_BOOKS}?publisher=${user.publisher}`;
-          
-          const response = await axios.get(url);
-          setBooks(response.data);
-          console.log(`Loaded ${response.data.length} books from ${user.publisher}`);
-        } else {
-          // Fetch all books if user has no publisher preference
-          const response = await axios.get(API_ENDPOINTS.GET_BOOKS);
-          setBooks(response.data);
-          console.log(`Loaded ${response.data.length} books without publisher filter`);
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setError("Please log in to view collections");
+          setLoading(false);
+          return;
+        }
+
+        // Build query parameters
+        const params = new URLSearchParams();
+        
+        if (searchQuery) params.append('search', searchQuery);
+        if (filters.subject) params.append('subject', filters.subject);
+        if (filters.grade) params.append('grade', filters.grade);
+        if (filters.author) params.append('author', filters.author);
+        if (filters.status) params.append('status', filters.status);
+        if (filters.progress) params.append('progress', filters.progress);
+        if (filters.lastAccessed) params.append('lastAccessed', filters.lastAccessed);
+        
+        params.append('sortBy', sortBy);
+        params.append('sortOrder', sortOrder);
+        params.append('page', currentPage.toString());
+        params.append('limit', '20');
+
+        const response = await axios.get(`${API_ENDPOINTS.GET_USER_COLLECTION}?${params.toString()}`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        if (response.data.success) {
+          setBooks(response.data.data.books);
+          setPagination(response.data.pagination);
+          setAvailableFilters(response.data.data.availableFilters);
+          setCollectionSummary(response.data.data.summary);
+          console.log(`Loaded ${response.data.data.books.length} books from collection`);
         }
       } catch (error) {
         console.error("Error fetching books:", error);
@@ -105,8 +180,9 @@ export default function Collections() {
         setLoading(false);
       }
     };
+    
     fetchBooks();
-  }, [user]);
+  }, [searchQuery, filters, sortBy, sortOrder, currentPage]);
 
   // Store user data in localStorage when user data is fetched
   useEffect(() => {
@@ -120,6 +196,48 @@ export default function Collections() {
     }
   }, [user]);
 
+  // Handle search input change
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Handle filter changes
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  // Handle sort changes
+  const handleSortChange = (field) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1); // Reset to first page when sorting
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilters({
+      subject: "",
+      grade: "",
+      author: "",
+      status: "",
+      progress: "",
+      lastAccessed: ""
+    });
+    setSortBy("title");
+    setSortOrder("asc");
+    setCurrentPage(1);
+  };
+
   // Fetch chapters when a book is selected
   const fetchChapters = async (bookId) => {
     setLoading(true);
@@ -132,7 +250,7 @@ export default function Collections() {
     }
     
     // Find the book data for the selected book
-    const bookData = books.find(book => book._id === bookId);
+    const bookData = books.find(book => book.bookId === bookId);
     setSelectedBookData(bookData);
     
     try {
@@ -260,209 +378,377 @@ export default function Collections() {
     }
   };
 
-  // Helper function to fix image URLs that might be using localhost
-  const fixImageUrl = (url) => {
-    if (!url) return "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22600%22%20viewBox%3D%220%200%20400%20600%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22400%22%20height%3D%22600%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2224%22%20text-anchor%3D%22middle%22%20x%3D%22200%22%20y%3D%22300%22%3E%3Ctspan%20x%3D%22200%22%20dy%3D%220%22%3EBook%20Cover%3C%2Ftspan%3E%3Ctspan%20x%3D%22200%22%20dy%3D%2230%22%3ENot%20Available%3C%2Ftspan%3E%3C%2Ftext%3E%3C%2Fsvg%3E";
-    
-    // Check if the URL is using localhost
-    if (url.includes('localhost:5000')) {
-      // Replace localhost:5000 with the production URL
-      return url.replace('http://localhost:5000', 'https://chatbot-backend-v-4-1.onrender.com');
+  // Auto-hide notification after 5 seconds
+  useEffect(() => {
+    if (notification.show) {
+      const timer = setTimeout(() => {
+        setNotification({ show: false, type: "", message: "" });
+      }, 5000);
+      return () => clearTimeout(timer);
     }
-    
-    // If it's already using HTTP, convert to HTTPS
-    if (url.startsWith('http://')) {
-      return url.replace('http://', 'https://');
+  }, [notification]);
+
+  // Auto-hide error after 5 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError("");
+      }, 5000);
+      return () => clearTimeout(timer);
     }
-    
-    return url;
+  }, [error]);
+
+  // Format progress percentage
+  const formatProgress = (progress) => {
+    return Math.round(progress * 10) / 10;
   };
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4">
-        <div className="bg-white rounded-xl shadow-xl p-6 md:p-8 max-w-md w-full border border-red-100">
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">{error === "Please log in to view collections" ? "Authentication Required" : "Error"}</h2>
-            <p className="text-gray-600 mb-6">{error}</p>
-            <button 
-              onClick={() => window.location.href = '/login'} 
-              className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-            >
-              Go to Login
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Get status badge color
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'in_progress': return 'bg-blue-100 text-blue-800';
+      case 'not_started': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Get status display text
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'completed': return 'Completed';
+      case 'in_progress': return 'In Progress';
+      case 'not_started': return 'Not Started';
+      default: return 'Unknown';
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-      {/* Notification popup */}
-      {notification.show && (
-        <div className="fixed top-5 right-5 z-50 max-w-sm w-full bg-white rounded-xl shadow-lg p-4 border border-gray-200">
-          <div className="flex items-start justify-between">
-            <div className="flex">
-              <div className={`flex-shrink-0 h-6 w-6 mr-3 ${
-                notification.type === "success" ? "text-green-500" : 
-                notification.type === "info" ? "text-blue-500" : "text-red-500"
-              }`}>
-                {notification.type === "success" ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+            📚 My Collection
+          </h1>
+
+          {/* Collection Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold">{collectionSummary.totalBooks}</div>
+              <div className="text-sm">Total Books</div>
+            </div>
+            <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold">{collectionSummary.completedBooks}</div>
+              <div className="text-sm">Completed</div>
+            </div>
+            <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold">{collectionSummary.inProgressBooks}</div>
+              <div className="text-sm">In Progress</div>
+            </div>
+            <div className="bg-gradient-to-r from-gray-500 to-gray-600 text-white p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold">{collectionSummary.notStartedBooks}</div>
+              <div className="text-sm">Not Started</div>
+            </div>
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold">{formatProgress(collectionSummary.averageProgress)}%</div>
+              <div className="text-sm">Avg Progress</div>
+            </div>
+            <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold">{Math.round(collectionSummary.totalTimeSpent / 60)}h</div>
+              <div className="text-sm">Time Spent</div>
+            </div>
+          </div>
+
+          {/* Search and Filters */}
+          <div className="bg-gray-50 rounded-xl p-6 mb-6">
+            {/* Search Bar */}
+            <div className="mb-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search books by title, subject, or author..."
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                ) : notification.type === "info" ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">
-                  {notification.type === "success" ? "Success" : 
-                   notification.type === "info" ? "Information" : "Error"}
-                </p>
-                <p className="mt-1 text-gray-600">{notification.message}</p>
+                </div>
               </div>
             </div>
-            <button 
-              className="text-gray-400 hover:text-gray-600 focus:outline-none"
-              onClick={() => setNotification({ ...notification, show: false })}
-            >
-              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* Chapters Modal */}
-      <ChaptersModal
-        isOpen={showChaptersModal}
-        onClose={closeChaptersModal}
-        book={selectedBookData}
-        chapters={chapters}
-        isAdmin={false}
-      />
+            {/* Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+              {/* Subject Filter */}
+              <select
+                value={filters.subject}
+                onChange={(e) => handleFilterChange('subject', e.target.value)}
+                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Subjects</option>
+                {availableFilters.subjects.map(subject => (
+                  <option key={subject.name} value={subject.name}>
+                    {subject.name} ({subject.count})
+                  </option>
+                ))}
+              </select>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-10">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Book Collections</h1>
-            <p className="mt-1 text-sm sm:text-base text-gray-500">Browse and subscribe to available books</p>
+              {/* Grade Filter */}
+              <select
+                value={filters.grade}
+                onChange={(e) => handleFilterChange('grade', e.target.value)}
+                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Grades</option>
+                {availableFilters.grades.map(grade => (
+                  <option key={grade.name} value={grade.name}>
+                    Grade {grade.name} ({grade.count})
+                  </option>
+                ))}
+              </select>
+
+              {/* Status Filter */}
+              <select
+                value={filters.status}
+                onChange={(e) => handleFilterChange('status', e.target.value)}
+                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Status</option>
+                {availableFilters.statuses.map(status => (
+                  <option key={status.name} value={status.name}>
+                    {getStatusText(status.name)} ({status.count})
+                  </option>
+                ))}
+              </select>
+
+              {/* Progress Filter */}
+              <select
+                value={filters.progress}
+                onChange={(e) => handleFilterChange('progress', e.target.value)}
+                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Progress</option>
+                <option value="0-25">0-25%</option>
+                <option value="26-50">26-50%</option>
+                <option value="51-75">51-75%</option>
+                <option value="76-100">76-100%</option>
+              </select>
+
+              {/* Last Accessed Filter */}
+              <select
+                value={filters.lastAccessed}
+                onChange={(e) => handleFilterChange('lastAccessed', e.target.value)}
+                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Time</option>
+                <option value="today">Today</option>
+                <option value="this_week">This Week</option>
+                <option value="this_month">This Month</option>
+                <option value="older">Older</option>
+              </select>
+
+              {/* Clear Filters Button */}
+              <button
+                onClick={clearFilters}
+                className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Clear All
+              </button>
+            </div>
+
+            {/* Sort Options */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-sm text-gray-600 py-2">Sort by:</span>
+              {['title', 'subject', 'grade', 'progress', 'lastAccessed'].map(field => (
+                <button
+                  key={field}
+                  onClick={() => handleSortChange(field)}
+                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                    sortBy === field
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  {field.charAt(0).toUpperCase() + field.slice(1)}
+                  {sortBy === field && (
+                    <span className="ml-1">
+                      {sortOrder === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-          
-          <div className="mt-4 sm:mt-0">
-            <a 
-              href="/chatbot" 
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-              Back to Chat
-            </a>
-          </div>
-        </div>
-        
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
-            <p className="mt-4 text-gray-600 font-medium">Loading collections...</p>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-10">
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* Notification */}
+          {notification.show && (
+            <div className={`px-4 py-3 rounded-lg mb-6 ${
+              notification.type === "success" ? "bg-green-100 border border-green-400 text-green-700" :
+              notification.type === "info" ? "bg-blue-100 border border-blue-400 text-blue-700" :
+              "bg-red-100 border border-red-400 text-red-700"
+            }`}>
+              <p className="text-sm">{notification.message}</p>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <p className="text-gray-600 mt-2">Loading your collection...</p>
+            </div>
+          )}
+
+          {/* Books Grid */}
+          {!loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {books.map((book) => (
-                <div key={book._id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100 flex flex-col">
-                  <div className="relative h-64 w-full overflow-hidden flex justify-center">
-                    <img 
-                      src={fixImageUrl(book.bookCoverImgLink)} 
-                      alt={book.title} 
-                      className="h-full w-auto object-contain transform hover:scale-105 transition-transform duration-500 ease-in-out"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22600%22%20viewBox%3D%220%200%20400%20600%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22400%22%20height%3D%22600%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2224%22%20text-anchor%3D%22middle%22%20x%3D%22200%22%20y%3D%22300%22%3E%3Ctspan%20x%3D%22200%22%20dy%3D%220%22%3EBook%20Cover%3C%2Ftspan%3E%3Ctspan%20x%3D%22200%22%20dy%3D%2230%22%3ENot%20Available%3C%2Ftspan%3E%3C%2Ftext%3E%3C%2Fsvg%3E";
-                        console.error(`Failed to load image: ${book.bookCoverImgLink}`);
-                      }}
-                    />
-                  </div>
-                  <div className="p-4 flex-1 flex flex-col">
-                    <h2 className="font-bold text-lg text-gray-900 line-clamp-1">{book.title}</h2>
-                    <p className="text-sm text-gray-600 mb-4">{book.publisher}</p>
-                    <div className="mt-auto flex flex-col sm:flex-row gap-2">
+                <div key={book.bookId} className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow duration-300">
+                  <div className="flex flex-col h-full">
+                    {/* Book Cover */}
+                    <div className="mb-4 text-center">
+                      <img
+                        src={book.coverImage}
+                        alt={book.title}
+                        className="h-32 w-auto mx-auto object-contain rounded-lg"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22150%22%20viewBox%3D%220%200%20100%20150%22%3E%3Crect%20fill%3D%22%233B82F6%22%20width%3D%22100%22%20height%3D%22150%22%2F%3E%3Ctext%20fill%3D%22%23FFFFFF%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2210%22%20text-anchor%3D%22middle%22%20x%3D%2250%22%20y%3D%2275%22%3EBook%3C%2Ftext%3E%3C%2Fsvg%3E";
+                        }}
+                      />
+                    </div>
+
+                    {/* Book Info */}
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-800 mb-2 text-center">{book.title}</h3>
+                      <p className="text-sm text-gray-600 mb-1">Subject: {book.subject}</p>
+                      <p className="text-sm text-gray-600 mb-1">Grade: {book.grade}</p>
+                      <p className="text-sm text-gray-600 mb-3">Publisher: {book.author}</p>
+
+                      {/* Progress Info */}
+                      <div className="mb-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm text-gray-600">Progress:</span>
+                          <span className="text-sm font-medium">{formatProgress(book.userProgress.progressPercentage)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${book.userProgress.progressPercentage}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="mb-3">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(book.userProgress.status)}`}>
+                          {getStatusText(book.userProgress.status)}
+                        </span>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="text-xs text-gray-500 mb-4">
+                        <div>Chapters: {book.userProgress.chaptersCompleted}/{book.totalChapters}</div>
+                        <div>Time: {book.userProgress.totalTimeSpent}min</div>
+                        <div>Score: {formatProgress(book.userProgress.averageScore)}%</div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 mt-auto">
                       <button
-                        className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 flex-1"
-                        onClick={() => fetchChapters(book._id)}
-                        disabled={loading}
+                        onClick={() => fetchChapters(book.bookId)}
+                        className="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors text-sm"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-                        </svg>
                         View Chapters
                       </button>
-                      
-                      {subscribedBookIds.includes(book._id) ? (
-                        <button
-                          className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200 flex-1"
-                          onClick={() => handleUnsubscribe(book._id)}
-                          disabled={loading}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          Unsubscribe
-                        </button>
-                      ) : (
-                        <button
-                          className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 flex-1"
-                          onClick={() => handleSubscribe(book._id)}
-                          disabled={loading}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                          Subscribe
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleUnsubscribe(book.bookId)}
+                        className="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition-colors text-sm"
+                        disabled={loading}
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+          )}
 
-            {books.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                <div className="bg-white rounded-xl shadow-md border border-gray-100 p-8 max-w-md w-full">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-6">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-3">No Books Available</h2>
-                  <p className="text-gray-600 mb-6">There are currently no books in the collection. Check back soon as our library continues to grow!</p>
-                  <div className="animate-pulse flex space-x-4 mt-4 justify-center">
-                    <div className="h-3 w-20 bg-blue-200 rounded"></div>
-                    <div className="h-3 w-16 bg-blue-300 rounded"></div>
-                    <div className="h-3 w-24 bg-blue-200 rounded"></div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 mt-8">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={!pagination.hasPrev}
+                className={`px-4 py-2 rounded-lg ${
+                  pagination.hasPrev
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                Previous
+              </button>
+              
+              <span className="px-4 py-2 text-gray-600">
+                Page {pagination.currentPage} of {pagination.totalPages}
+              </span>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                disabled={!pagination.hasNext}
+                className={`px-4 py-2 rounded-lg ${
+                  pagination.hasNext
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!loading && books.length === 0 && (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📚</div>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">No books found</h3>
+              <p className="text-gray-500 mb-4">
+                {searchQuery || Object.values(filters).some(f => f) 
+                  ? "Try adjusting your search or filters"
+                  : "You haven't subscribed to any books yet"}
+              </p>
+              {searchQuery || Object.values(filters).some(f => f) ? (
+                <button
+                  onClick={clearFilters}
+                  className="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Clear Filters
+                </button>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Chapters Modal */}
+      {showChaptersModal && (
+        <ChaptersModal
+          book={selectedBookData}
+          chapters={chapters}
+          onClose={closeChaptersModal}
+        />
+      )}
     </div>
   );
 }
