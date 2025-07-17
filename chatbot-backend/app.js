@@ -77,8 +77,8 @@ const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const chapterRoutes = require("./routes/chapterRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-const statsRoutes = require("./routes/statsRoutes");
 const scoresRoutes = require("./routes/scores");
+const statsRoutesNew = require("./routes/statsRoutesNew");
 
 // Use routes
 app.use("/api/chat", chatRoutes);
@@ -88,8 +88,8 @@ app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/chapters", chapterRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/admins", adminRoutes);
-app.use("/api/stats", statsRoutes);
 app.use("/api/scores", scoresRoutes);
+app.use("/api/stats", statsRoutesNew);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
