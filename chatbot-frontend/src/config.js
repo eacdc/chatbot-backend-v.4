@@ -1,6 +1,6 @@
 // Directly set the API URL to ensure it's always available
 const API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://chatbot-backend-v-4-cp.onrender.com'
+  ? 'https://chatbot-backend-v-4.onrender.com'
   : 'http://localhost:5000';
 
 export const API_ENDPOINTS = {

@@ -364,7 +364,7 @@ router.post("/login", async (req, res) => {
             console.log("✅ JD publisher verified, continuing with login");
         } 
         // Check if request is from CP frontend and if user's publisher is CP
-        else if (hostname === 'chatbot-backend-v-4-cp.onrender.com' || requestOrigin.includes('chatbot-backend-v-4-cp.onrender.com')) {
+        else if (hostname === 'chatbot-backend-v-4.onrender.com' || requestOrigin.includes('chatbot-backend-v-4.onrender.com')) {
             console.log("🔒 CP Frontend detected, checking publisher...");
             if (!user.publisher || user.publisher !== 'CP') {
                 console.log("❌ Access denied: Non-CP user attempting to login via CP frontend");

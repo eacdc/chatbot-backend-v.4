@@ -24,7 +24,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        value: https://chatbot-backend-v-4-1.onrender.com
+        value: https://chatbot-backend-v-4.onrender.com
   - type: web
     name: chatbot-frontend
     env: static
