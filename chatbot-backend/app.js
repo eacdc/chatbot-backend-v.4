@@ -11,10 +11,25 @@ dotenv.config();
 const app = express();
 
 // Middleware
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://www.testyourlearning.com',
+  'https://testyourlearning.com',
+  'https://chatbot-frontend-v4.onrender.com'
+];
+
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow all origins
-    callback(null, true);
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Origin not allowed by CORS:', origin);
+      callback(null, true); // Allow all origins for now to debug
+    }
   },
   methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
   credentials: true,
@@ -23,9 +38,16 @@ app.use(cors({
 
 // Add CORS headers to all responses as a backup
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  } else {
+    res.header("Access-Control-Allow-Origin", "*"); // Allow all for now
+  }
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, user-id");
+  res.header("Access-Control-Allow-Credentials", "true");
+  
   if (req.method === 'OPTIONS') {
     // Pre-flight request, respond immediately with 200
     return res.status(200).end();
@@ -49,17 +71,48 @@ mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI)
 
 // Import route files
 const chatRoutes = require("./routes/chatRoutes");
-const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
+const bookRoutes = require("./routes/bookRoutes");
+const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const chapterRoutes = require("./routes/chapterRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const statsRoutes = require("./routes/statsRoutes");
+const scoresRoutes = require("./routes/scores");
 
 // Use routes
 app.use("/api/chat", chatRoutes);
-app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/books", bookRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
+app.use("/api/chapters", chapterRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/scores", scoresRoutes);
+
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ 
+    message: "Backend is running successfully!", 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Root endpoint
+app.get("/", (req, res) => {
+  res.json({ 
+    message: "Chatbot Backend API is running", 
+    endpoints: [
+      "/api/health",
+      "/api/users/login",
+      "/api/users/signup",
+      "/api/books",
+      "/api/subscriptions"
+    ]
+  });
+});
 
 // Serve static files if in production
 if (process.env.NODE_ENV === 'production') {
