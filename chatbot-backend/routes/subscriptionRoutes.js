@@ -30,13 +30,29 @@ router.get("/collection", authenticateUser, async (req, res) => {
     } = req.query;
 
     console.log(`📚 Fetching collection for user: ${userId}`);
+    console.log(`📊 Query parameters:`, {
+      search,
+      subject,
+      grade,
+      author,
+      status,
+      progress,
+      lastAccessed,
+      sortBy,
+      sortOrder,
+      page,
+      limit
+    });
 
     // Get user's subscriptions
     const subscriptions = await Subscription.find({ userId })
       .populate('bookId', 'title subject grade publisher language bookCoverImgLink createdAt')
       .sort({ subscribedAt: -1 });
 
+    console.log(`📚 Found ${subscriptions.length} subscriptions for user ${userId}`);
+
     if (subscriptions.length === 0) {
+      console.log(`📚 No subscriptions found for user ${userId}`);
       return res.json({
         success: true,
         data: {
@@ -69,7 +85,9 @@ router.get("/collection", authenticateUser, async (req, res) => {
     }
 
     // Get user progress data for each book
-    const bookIds = subscriptions.map(sub => sub.bookId._id);
+    const bookIds = subscriptions.map(sub => sub.bookId?._id).filter(id => id);
+    console.log(`📚 Processing ${bookIds.length} book IDs for progress calculation`);
+
     const [userChats, userQnARecords] = await Promise.all([
       Chat.find({ userId, chapterId: { $exists: true } })
         .populate('chapterId', 'title bookId'),
@@ -77,10 +95,15 @@ router.get("/collection", authenticateUser, async (req, res) => {
         .populate('chapterId', 'title bookId')
     ]);
 
+    console.log(`📚 Found ${userChats.length} chat records and ${userQnARecords.length} Q&A records`);
+
     // Process books with user progress
     const processedBooks = await Promise.all(subscriptions.map(async (subscription) => {
       const book = subscription.bookId;
-      if (!book) return null;
+      if (!book) {
+        console.log(`⚠️ Warning: Subscription ${subscription._id} has no associated book`);
+        return null;
+      }
 
       // Get chapters for this book
       const Chapter = require("../models/Chapter");
@@ -157,7 +180,7 @@ router.get("/collection", authenticateUser, async (req, res) => {
         subject: book.subject,
         grade: book.grade,
         author: book.publisher, // Using publisher as author for now
-        description: book.description || '',
+        description: book.description || book.title, // Use title as fallback for description
         coverImage: book.bookCoverImgLink,
         totalChapters,
         addedToCollection: subscription.subscribedAt,
@@ -184,48 +207,62 @@ router.get("/collection", authenticateUser, async (req, res) => {
 
     // Filter out null entries
     let filteredBooks = processedBooks.filter(book => book !== null);
+    console.log(`📚 Processed ${filteredBooks.length} books successfully`);
 
     // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase();
+      const originalCount = filteredBooks.length;
       filteredBooks = filteredBooks.filter(book => 
         book.title.toLowerCase().includes(searchLower) ||
         book.subject.toLowerCase().includes(searchLower) ||
         book.author.toLowerCase().includes(searchLower) ||
         (book.description && book.description.toLowerCase().includes(searchLower))
       );
+      console.log(`🔍 Search filter applied: ${originalCount} → ${filteredBooks.length} books`);
     }
 
     // Apply filters
     if (subject) {
       const subjects = subject.split(',');
+      const originalCount = filteredBooks.length;
       filteredBooks = filteredBooks.filter(book => subjects.includes(book.subject));
+      console.log(`🎯 Subject filter applied: ${originalCount} → ${filteredBooks.length} books`);
     }
 
     if (grade) {
       const grades = grade.split(',');
+      const originalCount = filteredBooks.length;
       filteredBooks = filteredBooks.filter(book => grades.includes(book.grade));
+      console.log(`📚 Grade filter applied: ${originalCount} → ${filteredBooks.length} books`);
     }
 
     if (author) {
+      const originalCount = filteredBooks.length;
       filteredBooks = filteredBooks.filter(book => book.author === author);
+      console.log(`✍️ Author filter applied: ${originalCount} → ${filteredBooks.length} books`);
     }
 
     if (status) {
+      const originalCount = filteredBooks.length;
       filteredBooks = filteredBooks.filter(book => book.userProgress.status === status);
+      console.log(`📊 Status filter applied: ${originalCount} → ${filteredBooks.length} books`);
     }
 
     if (progress) {
       const [min, max] = progress.split('-').map(Number);
+      const originalCount = filteredBooks.length;
       filteredBooks = filteredBooks.filter(book => 
         book.userProgress.progressPercentage >= min && 
         book.userProgress.progressPercentage <= max
       );
+      console.log(`📈 Progress filter applied: ${originalCount} → ${filteredBooks.length} books`);
     }
 
     if (lastAccessed) {
       const now = new Date();
       let filterDate;
+      const originalCount = filteredBooks.length;
       
       switch (lastAccessed) {
         case 'today':
@@ -248,6 +285,7 @@ router.get("/collection", authenticateUser, async (req, res) => {
       if (filterDate && lastAccessed !== 'older') {
         filteredBooks = filteredBooks.filter(book => new Date(book.lastAccessed) >= filterDate);
       }
+      console.log(`📅 LastAccessed filter applied: ${originalCount} → ${filteredBooks.length} books`);
     }
 
     // Sort books
@@ -282,6 +320,7 @@ router.get("/collection", authenticateUser, async (req, res) => {
         if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
         return 0;
       });
+      console.log(`🔄 Books sorted by ${sortBy} in ${sortOrder} order`);
     }
 
     // Pagination
@@ -292,6 +331,8 @@ router.get("/collection", authenticateUser, async (req, res) => {
     const startIndex = (pageNum - 1) * limitNum;
     const endIndex = startIndex + limitNum;
     const paginatedBooks = filteredBooks.slice(startIndex, endIndex);
+
+    console.log(`📄 Pagination: Page ${pageNum}/${totalPages}, showing ${paginatedBooks.length} of ${totalItems} books`);
 
     // Generate available filters
     const availableFilters = {
@@ -325,7 +366,9 @@ router.get("/collection", authenticateUser, async (req, res) => {
       totalTimeSpent: processedBooks.reduce((sum, book) => sum + book.userProgress.totalTimeSpent, 0)
     };
 
-    res.json({
+    console.log(`📊 Summary: ${summary.totalBooks} total, ${summary.completedBooks} completed, ${summary.inProgressBooks} in progress, ${summary.notStartedBooks} not started`);
+
+    const response = {
       success: true,
       data: {
         books: paginatedBooks,
@@ -354,10 +397,14 @@ router.get("/collection", authenticateUser, async (req, res) => {
         hasNext: pageNum < totalPages,
         hasPrev: pageNum > 1
       }
-    });
+    };
+
+    console.log(`✅ Returning collection response with ${paginatedBooks.length} books`);
+    res.json(response);
 
   } catch (error) {
-    console.error("Error fetching user collection:", error);
+    console.error("❌ Error fetching user collection:", error);
+    console.error("❌ Error stack:", error.stack);
     res.status(500).json({ 
       success: false, 
       error: "Failed to fetch user collection", 
