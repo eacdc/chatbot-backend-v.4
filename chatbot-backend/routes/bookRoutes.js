@@ -62,7 +62,19 @@ router.get("/search", async (req, res) => {
       sortOrder = 'asc'
     } = req.query;
 
+    console.log(`🔍 Book search request:`, {
+      query: q,
+      limit,
+      page,
+      subject,
+      grade,
+      publisher,
+      sortBy,
+      sortOrder
+    });
+
     if (!q || q.trim().length < 2) {
+      console.log(`❌ Search query too short: "${q}"`);
       return res.status(400).json({ 
         success: false, 
         error: "Search query must be at least 2 characters long" 
@@ -84,18 +96,31 @@ router.get("/search", async (req, res) => {
     };
 
     // Add additional filters
-    if (subject) searchFilter.subject = subject;
-    if (grade) searchFilter.grade = grade;
-    if (publisher) searchFilter.publisher = publisher;
+    if (subject) {
+      searchFilter.subject = subject;
+      console.log(`🎯 Subject filter: ${subject}`);
+    }
+    if (grade) {
+      searchFilter.grade = grade;
+      console.log(`📚 Grade filter: ${grade}`);
+    }
+    if (publisher) {
+      searchFilter.publisher = publisher;
+      console.log(`🏢 Publisher filter: ${publisher}`);
+    }
 
     // Build sort object
     const sortObj = {};
     const validSortFields = ['title', 'subject', 'grade', 'publisher', 'createdAt'];
     if (validSortFields.includes(sortBy)) {
       sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+      console.log(`🔄 Sort by: ${sortBy} ${sortOrder}`);
     } else {
       sortObj['title'] = 1;
+      console.log(`🔄 Using default sort: title asc`);
     }
+
+    console.log(`🔍 Search filter:`, searchFilter);
 
     // Execute search
     const [books, totalCount] = await Promise.all([
@@ -106,10 +131,12 @@ router.get("/search", async (req, res) => {
       Book.countDocuments(searchFilter)
     ]);
 
+    console.log(`✅ Found ${books.length} books out of ${totalCount} total matches`);
+
     // Generate search suggestions
     const suggestions = await generateSearchSuggestions(q);
 
-    res.json({
+    const response = {
       success: true,
       data: {
         books: books.map(book => ({
@@ -128,10 +155,14 @@ router.get("/search", async (req, res) => {
         hasNext: pageNum < Math.ceil(totalCount / limitNum),
         hasPrev: pageNum > 1
       }
-    });
+    };
+
+    console.log(`✅ Returning search response with ${books.length} books`);
+    res.json(response);
 
   } catch (error) {
-    console.error("Search error:", error);
+    console.error("❌ Search error:", error);
+    console.error("❌ Search error stack:", error.stack);
     res.status(500).json({ 
       success: false, 
       error: "Search failed", 
