@@ -47,6 +47,8 @@ export default function Collections() {
     averageProgress: 0,
     totalTimeSpent: 0
   });
+  const [showFilters, setShowFilters] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
 
   // Update activity timestamp on component mount
   useEffect(() => {
@@ -398,6 +400,20 @@ export default function Collections() {
     }
   }, [error]);
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showSortDropdown && !event.target.closest('.sort-dropdown-container')) {
+        setShowSortDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSortDropdown]);
+
   // Format progress percentage
   const formatProgress = (progress) => {
     return Math.round(progress * 10) / 10;
@@ -461,125 +477,231 @@ export default function Collections() {
 
           {/* Search and Filters */}
           <div className="bg-gray-50 rounded-xl p-6 mb-6">
-            {/* Search Bar */}
-            <div className="mb-4">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search books by title, subject, or author..."
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+            {/* Search Bar and Action Buttons */}
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+              {/* Enhanced Search Bar */}
+              <div className="flex-1 relative">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search books by title, subject, or author..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    className="w-full p-4 pl-12 pr-4 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-lg"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
-              {/* Subject Filter */}
-              <select
-                value={filters.subject}
-                onChange={(e) => handleFilterChange('subject', e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Subjects</option>
-                {availableFilters.subjects.map(subject => (
-                  <option key={subject.name} value={subject.name}>
-                    {subject.name} ({subject.count})
-                  </option>
-                ))}
-              </select>
-
-              {/* Grade Filter */}
-              <select
-                value={filters.grade}
-                onChange={(e) => handleFilterChange('grade', e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Grades</option>
-                {availableFilters.grades.map(grade => (
-                  <option key={grade.name} value={grade.name}>
-                    Grade {grade.name} ({grade.count})
-                  </option>
-                ))}
-              </select>
-
-              {/* Status Filter */}
-              <select
-                value={filters.status}
-                onChange={(e) => handleFilterChange('status', e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Status</option>
-                {availableFilters.statuses.map(status => (
-                  <option key={status.name} value={status.name}>
-                    {getStatusText(status.name)} ({status.count})
-                  </option>
-                ))}
-              </select>
-
-              {/* Progress Filter */}
-              <select
-                value={filters.progress}
-                onChange={(e) => handleFilterChange('progress', e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Progress</option>
-                <option value="0-25">0-25%</option>
-                <option value="26-50">26-50%</option>
-                <option value="51-75">51-75%</option>
-                <option value="76-100">76-100%</option>
-              </select>
-
-              {/* Last Accessed Filter */}
-              <select
-                value={filters.lastAccessed}
-                onChange={(e) => handleFilterChange('lastAccessed', e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Time</option>
-                <option value="today">Today</option>
-                <option value="this_week">This Week</option>
-                <option value="this_month">This Month</option>
-                <option value="older">Older</option>
-              </select>
-
-              {/* Clear Filters Button */}
+              {/* Filter Button */}
               <button
-                onClick={clearFilters}
-                className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-2 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
+                  showFilters || Object.values(filters).some(f => f)
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                }`}
               >
-                Clear All
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+                </svg>
+                <span className="font-medium">Filter</span>
+                {Object.values(filters).some(f => f) && (
+                  <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                    {Object.values(filters).filter(f => f).length}
+                  </span>
+                )}
               </button>
+
+              {/* Sort Button */}
+              <div className="relative sort-dropdown-container">
+                <button
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className="flex items-center gap-2 px-6 py-4 rounded-xl border-2 border-gray-300 bg-white text-gray-700 hover:border-gray-400 transition-all duration-200"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                  </svg>
+                  <span className="font-medium">Sort</span>
+                  <span className="text-sm text-gray-500">
+                    {sortBy.charAt(0).toUpperCase() + sortBy.slice(1)} ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
+                  </span>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Sort Dropdown */}
+                {showSortDropdown && (
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div className="p-2">
+                      <div className="text-sm font-medium text-gray-700 mb-2 px-3 py-1">Sort by:</div>
+                      {[
+                        { key: 'title', label: 'Title' },
+                        { key: 'subject', label: 'Subject' },
+                        { key: 'grade', label: 'Grade' },
+                        { key: 'progress', label: 'Progress' },
+                        { key: 'lastAccessed', label: 'Last Accessed' }
+                      ].map(({ key, label }) => (
+                        <div key={key} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 rounded">
+                          <span className="text-sm">{label}</span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => {
+                                setSortBy(key);
+                                setSortOrder('asc');
+                                setCurrentPage(1);
+                                setShowSortDropdown(false);
+                              }}
+                              className={`px-2 py-1 text-xs rounded ${
+                                sortBy === key && sortOrder === 'asc'
+                                  ? 'bg-blue-500 text-white'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              A-Z
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSortBy(key);
+                                setSortOrder('desc');
+                                setCurrentPage(1);
+                                setShowSortDropdown(false);
+                              }}
+                              className={`px-2 py-1 text-xs rounded ${
+                                sortBy === key && sortOrder === 'desc'
+                                  ? 'bg-blue-500 text-white'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              Z-A
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Clear All Button */}
+              {(searchQuery || Object.values(filters).some(f => f)) && (
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-2 px-6 py-4 rounded-xl border-2 border-red-300 bg-red-50 text-red-700 hover:border-red-400 transition-all duration-200"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span className="font-medium">Clear All</span>
+                </button>
+              )}
             </div>
 
-            {/* Sort Options */}
-            <div className="flex flex-wrap gap-2">
-              <span className="text-sm text-gray-600 py-2">Sort by:</span>
-              {['title', 'subject', 'grade', 'progress', 'lastAccessed'].map(field => (
-                <button
-                  key={field}
-                  onClick={() => handleSortChange(field)}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                    sortBy === field
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {field.charAt(0).toUpperCase() + field.slice(1)}
-                  {sortBy === field && (
-                    <span className="ml-1">
-                      {sortOrder === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            {/* Collapsible Filters */}
+            {showFilters && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Advanced Filters</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Subject Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
+                    <select
+                      value={filters.subject}
+                      onChange={(e) => handleFilterChange('subject', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">All Subjects</option>
+                      {availableFilters.subjects.map(subject => (
+                        <option key={subject.name} value={subject.name}>
+                          {subject.name} ({subject.count})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Grade Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Grade</label>
+                    <select
+                      value={filters.grade}
+                      onChange={(e) => handleFilterChange('grade', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">All Grades</option>
+                      {availableFilters.grades.map(grade => (
+                        <option key={grade.name} value={grade.name}>
+                          Grade {grade.name} ({grade.count})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <select
+                      value={filters.status}
+                      onChange={(e) => handleFilterChange('status', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">All Status</option>
+                      {availableFilters.statuses.map(status => (
+                        <option key={status.name} value={status.name}>
+                          {getStatusText(status.name)} ({status.count})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Progress Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Progress</label>
+                    <select
+                      value={filters.progress}
+                      onChange={(e) => handleFilterChange('progress', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">All Progress</option>
+                      <option value="0-25">0-25%</option>
+                      <option value="26-50">26-50%</option>
+                      <option value="51-75">51-75%</option>
+                      <option value="76-100">76-100%</option>
+                    </select>
+                  </div>
+
+                  {/* Last Accessed Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Last Accessed</label>
+                    <select
+                      value={filters.lastAccessed}
+                      onChange={(e) => handleFilterChange('lastAccessed', e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">All Time</option>
+                      <option value="today">Today</option>
+                      <option value="this_week">This Week</option>
+                      <option value="this_month">This Month</option>
+                      <option value="older">Older</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Error Message */}
