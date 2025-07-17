@@ -42,8 +42,8 @@ const Signup = () => {
         console.log("Current hostname:", hostname);
         
         // Check for CP domain
-        const isCPDomain = hostname === 'chatbot-backend-v-4-cp.onrender.com' || 
-                         hostname.includes('chatbot-backend-v-4-cp.onrender.com');
+                const isCPDomain = hostname === 'chatbot-backend-v-4.onrender.com' ||
+            hostname.includes('chatbot-backend-v-4.onrender.com');
         
         if (isCPDomain) {
             console.log("CP domain detected, setting publisher to CP");
