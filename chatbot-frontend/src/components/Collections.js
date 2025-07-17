@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_ENDPOINTS } from "../config";
-import { updateLastActivity, isAuthenticated } from "../utils/auth"; // Import auth utilities
-import { useNavigate } from "react-router-dom"; // Import for navigation
-import ChaptersModal from "./ChaptersModal"; // Import the new ChaptersModal component
+import { updateLastActivity, isAuthenticated } from "../utils/auth";
+import { useNavigate } from "react-router-dom";
+import ChaptersModal from "./ChaptersModal";
 
 export default function Collections() {
   const [books, setBooks] = useState([]);
@@ -14,12 +14,12 @@ export default function Collections() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
-  const [subscribedBookIds, setSubscribedBookIds] = useState([]); // Track subscribed book IDs
+  const [subscribedBookIds, setSubscribedBookIds] = useState([]);
   const [noChaptersModal, setNoChaptersModal] = useState({ show: false, bookTitle: "" });
   const [showChaptersModal, setShowChaptersModal] = useState(false);
-  const navigate = useNavigate(); // For navigation
+  const navigate = useNavigate();
 
-  // New state for search and filters
+  // Enhanced UI state
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     subject: "",
@@ -52,11 +52,9 @@ export default function Collections() {
 
   // Update activity timestamp on component mount
   useEffect(() => {
-    // Check if user is authenticated and update activity timestamp
     if (isAuthenticated()) {
       updateLastActivity();
     } else {
-      // Redirect to login if not authenticated
       navigate("/login");
     }
   }, [navigate]);
@@ -98,7 +96,6 @@ export default function Collections() {
           }
         });
         
-        // Extract book IDs from subscriptions
         const bookIds = response.data.map(sub => sub.bookId);
         setSubscribedBookIds(bookIds);
       } catch (error) {
@@ -146,7 +143,6 @@ export default function Collections() {
           return;
         }
 
-        // Build query parameters
         const params = new URLSearchParams();
         
         if (searchQuery) params.append('search', searchQuery);
@@ -201,7 +197,7 @@ export default function Collections() {
   // Handle search input change
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
-    setCurrentPage(1); // Reset to first page when searching
+    setCurrentPage(1);
   };
 
   // Handle filter changes
@@ -210,7 +206,7 @@ export default function Collections() {
       ...prev,
       [filterType]: value
     }));
-    setCurrentPage(1); // Reset to first page when filtering
+    setCurrentPage(1);
   };
 
   // Handle sort changes
@@ -221,7 +217,7 @@ export default function Collections() {
       setSortBy(field);
       setSortOrder('asc');
     }
-    setCurrentPage(1); // Reset to first page when sorting
+    setCurrentPage(1);
   };
 
   // Clear all filters
@@ -251,25 +247,21 @@ export default function Collections() {
       return;
     }
     
-    // Find the book data for the selected book
     const bookData = books.find(book => book.bookId === bookId);
     setSelectedBookData(bookData);
     
     try {
-      // Use a direct axios call with the correct endpoint
       const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
       
-      // If we get a response, check if it has chapters
       if (response.data && response.data.length > 0) {
         setChapters(response.data);
         setSelectedBook(bookId);
         setShowChaptersModal(true);
       } else {
-        // No chapters in response
         setChapters([]);
         setSelectedBook(bookId);
         setShowChaptersModal(true);
@@ -277,17 +269,13 @@ export default function Collections() {
     } catch (error) {
       console.log("Caught error in fetchChapters:", error.message);
       
-      // Handle authentication errors without redirecting
       if (error.response && error.response.status === 401) {
         setError("Your session has expired. Please log in again.");
-      } 
-      // Specifically handle 404 errors as "No chapters found"
-      else if (error.response && error.response.status === 404) {
+      } else if (error.response && error.response.status === 404) {
         setChapters([]);
         setSelectedBook(bookId);
         setShowChaptersModal(true);
       } else {
-        // For other errors, don't set the full error state, just log it
         console.error("Error fetching chapters:", error);
         setError("Failed to load chapters. Please try again later.");
       }
@@ -320,7 +308,6 @@ export default function Collections() {
         }
       );
 
-      // Add this book ID to the subscribed list
       setSubscribedBookIds([...subscribedBookIds, bookId]);
 
       setNotification({
@@ -331,7 +318,6 @@ export default function Collections() {
     } catch (error) {
       console.error("Subscription error:", error.response?.data?.error || error.message);
       
-      // Handle "Already subscribed" message differently
       if (error.response?.data?.error === "Already subscribed to this book") {
         setNotification({
           show: true,
@@ -364,7 +350,6 @@ export default function Collections() {
         }
       );
 
-      // Remove this book ID from the subscribed list
       setSubscribedBookIds(subscribedBookIds.filter(id => id !== bookId));
 
       setNotification({
@@ -444,8 +429,13 @@ export default function Collections() {
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-            📚 My Collection
+            📚 My Collection - Enhanced UI Test
           </h1>
+
+          {/* Test Message */}
+          <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded-lg mb-6">
+            <p className="text-sm">✅ Enhanced UI is working! The Collections component has been successfully updated.</p>
+          </div>
 
           {/* Collection Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
@@ -475,16 +465,15 @@ export default function Collections() {
             </div>
           </div>
 
-          {/* Search and Filters */}
+          {/* Enhanced Search and Filters */}
           <div className="bg-gray-50 rounded-xl p-6 mb-6">
-            {/* Search Bar and Action Buttons */}
             <div className="flex flex-col md:flex-row gap-4 mb-6">
               {/* Enhanced Search Bar */}
               <div className="flex-1 relative">
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Search books by title, subject, or author..."
+                    placeholder="🔍 Search books by title, subject, or author..."
                     value={searchQuery}
                     onChange={handleSearchChange}
                     className="w-full p-4 pl-12 pr-4 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-lg"
@@ -519,7 +508,7 @@ export default function Collections() {
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
                 </svg>
-                <span className="font-medium">Filter</span>
+                <span className="font-medium">🎛️ Filter</span>
                 {Object.values(filters).some(f => f) && (
                   <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
                     {Object.values(filters).filter(f => f).length}
@@ -536,7 +525,7 @@ export default function Collections() {
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                   </svg>
-                  <span className="font-medium">Sort</span>
+                  <span className="font-medium">🔄 Sort</span>
                   <span className="text-sm text-gray-500">
                     {sortBy.charAt(0).toUpperCase() + sortBy.slice(1)} ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
                   </span>
@@ -607,7 +596,7 @@ export default function Collections() {
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  <span className="font-medium">Clear All</span>
+                  <span className="font-medium">🗑️ Clear All</span>
                 </button>
               )}
             </div>
@@ -615,7 +604,7 @@ export default function Collections() {
             {/* Collapsible Filters */}
             {showFilters && (
               <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Advanced Filters</h3>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">🎯 Advanced Filters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Subject Filter */}
                   <div>
