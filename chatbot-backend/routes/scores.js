@@ -646,7 +646,7 @@ router.get("/recent-activity/:userId", authenticateUser, async (req, res) => {
             studentId: userId,
             updatedAt: { $gte: startDate }
         })
-        .populate('bookId', 'title subject grade')
+        .populate('bookId', 'title subject grade bookCoverImgLink')
         .populate('chapterId', 'title')
         .sort({ updatedAt: -1 })
         .limit(parseInt(limit));
@@ -662,7 +662,7 @@ router.get("/recent-activity/:userId", authenticateUser, async (req, res) => {
 
         // Get all user's historical data for progress calculation
         const allQnaRecords = await QnALists.find({ studentId: userId })
-            .populate('bookId', 'title subject grade')
+            .populate('bookId', 'title subject grade bookCoverImgLink')
             .populate('chapterId', 'title');
 
         // Process recent activities
@@ -738,6 +738,7 @@ router.get("/recent-activity/:userId", authenticateUser, async (req, res) => {
                         title: record.bookId.title,
                         subject: record.bookId.subject,
                         grade: record.bookId.grade,
+                        bookCoverImgLink: record.bookId.bookCoverImgLink, // <-- Add this line
                         chaptersAttempted: new Set(),
                         chaptersCompleted: new Set(),
                         questionsAnswered: 0,
@@ -786,6 +787,7 @@ router.get("/recent-activity/:userId", authenticateUser, async (req, res) => {
             title: book.title,
             subject: book.subject,
             grade: book.grade,
+            bookCoverImgLink: book.bookCoverImgLink, // <-- Add this line
             chaptersAttempted: book.chaptersAttempted.size,
             chaptersCompleted: book.chaptersCompleted.size,
             questionsAnswered: book.questionsAnswered,
