@@ -1157,33 +1157,8 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             return res.status(400).json({ error: "Couldn't transcribe audio. The file might be empty or corrupted." });
         }
         
-        // Get the user's chat history
-        const chatHistory = await Chat.findOne({ 
-            userId: req.body.userId,
-            chapterId: req.body.chapterId || null 
-        });
-
-        // Create or update chat history with this transcribed message
-        if (chatHistory) {
-            // Add this message to existing chat
-            chatHistory.messages.push({
-                role: "user",
-                content: transcription.text,
-                isAudio: true
-            });
-            await chatHistory.save();
-        } else {
-            // Create a new chat with this message
-            await Chat.create({
-                userId: req.body.userId,
-                chapterId: req.body.chapterId || null,
-                messages: [{
-                    role: "user",
-                    content: transcription.text,
-                    isAudio: true
-                }]
-            });
-        }
+        // Note: Transcribed text will be saved to chat history when sent to /send endpoint
+        // This prevents duplicate saving of the same message
 
         // Return the transcribed text and redirect to text processing
         return res.status(200).json({
