@@ -8,6 +8,7 @@ const Chat = () => {
   const [chatHistory, setChatHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [audioUploading, setAudioUploading] = useState(false);
   const navigate = useNavigate();
 
   // Check authentication and load initial welcome message
@@ -89,6 +90,54 @@ const Chat = () => {
     }
   };
 
+  // New: Handle audio upload and transcription
+  const handleAudioUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAudioUploading(true);
+    try {
+      const userId = localStorage.getItem("userId");
+      const token = localStorage.getItem("token");
+      if (!userId || !token) {
+        navigate("/login");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("audio", file);
+      formData.append("userId", userId);
+      // Optionally add chapterId if needed
+      const transcribeRes = await axios.post(`${API_ENDPOINTS.CHAT}/transcribe`, formData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      if (transcribeRes.data && transcribeRes.data.transcription) {
+        // 1. Show transcribed text as user message
+        const transcribedText = transcribeRes.data.transcription;
+        setChatHistory(prev => [...prev, { role: "user", content: transcribedText }]);
+        // 2. Send transcribed text to /send endpoint
+        const sendRes = await axios.post(`${API_ENDPOINTS.CHAT}/send`, {
+          message: transcribedText,
+          userId: userId
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (sendRes.data && sendRes.data.response) {
+          setChatHistory(prev => [...prev, { role: "assistant", content: sendRes.data.response }]);
+        }
+      } else {
+        setChatHistory(prev => [...prev, { role: "system", content: "Could not transcribe audio." }]);
+      }
+    } catch (error) {
+      setChatHistory(prev => [...prev, { role: "system", content: "Audio upload or transcription failed." }]);
+    } finally {
+      setAudioUploading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -119,7 +168,6 @@ const Chat = () => {
           </div>
         ))}
       </div>
-      
       <form onSubmit={handleSendMessage} className="flex">
         <input
           type="text"
@@ -135,6 +183,11 @@ const Chat = () => {
           Send
         </button>
       </form>
+      {/* Audio upload input */}
+      <div className="mt-2">
+        <input type="file" accept="audio/*" onChange={handleAudioUpload} disabled={audioUploading} />
+        {audioUploading && <span className="ml-2 text-blue-500">Transcribing...</span>}
+      </div>
     </div>
   );
 };
