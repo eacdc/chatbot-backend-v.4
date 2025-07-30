@@ -353,7 +353,10 @@ router.post("/login", async (req, res) => {
         }
 
         // Check if request is from JD frontend and if user's publisher is JD
-        if (hostname === 'chatbot-frontend-v-4-jd-1.onrender.com' || requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com')) {
+        if (hostname === 'chatbot-frontend-v-4-jd-1.onrender.com' || 
+            hostname === 'testyourlearning.com' || 
+            requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com') ||
+            requestOrigin.includes('testyourlearning.com')) {
             console.log("🔒 JD Frontend detected, checking publisher...");
             if (!user.publisher || user.publisher !== 'JD') {
                 console.log("❌ Access denied: Non-JD user attempting to login via JD frontend");
