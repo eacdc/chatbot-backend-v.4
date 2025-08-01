@@ -109,11 +109,10 @@ router.post("/send-otp", async (req, res) => {
             return res.status(400).json({ message: "Email already registered" });
         }
 
-        // 🚀 DEVELOPMENT MODE: Use dummy OTP or real OTP based on environment
-        const isDevelopmentMode = process.env.NODE_ENV === 'development' || process.env.USE_DUMMY_OTP === 'true';
-        const otp = isDevelopmentMode ? '123456' : crypto.randomInt(100000, 999999).toString();
+        // Generate real OTP for email verification
+        const otp = crypto.randomInt(100000, 999999).toString();
         
-        console.log(`🔧 OTP Mode: ${isDevelopmentMode ? 'DUMMY' : 'REAL'} - OTP: ${otp}`);
+        console.log(`🔧 OTP Mode: REAL - OTP: ${otp}`);
         
         // Prepare user data to store temporarily
         const userData = {
@@ -140,34 +139,23 @@ router.post("/send-otp", async (req, res) => {
         await newOTP.save();
         console.log("✅ OTP saved to database");
 
-        // 🚀 DEVELOPMENT MODE: Skip email sending if using dummy OTP
-        if (isDevelopmentMode) {
-            console.log("🚀 DEVELOPMENT MODE: Using dummy OTP - 123456");
+        // Send OTP email
+        const emailResult = await sendOTPEmail(email.toLowerCase().trim(), otp, fullname);
+        
+        if (emailResult.success) {
+            console.log("✅ OTP email sent successfully");
             res.status(200).json({ 
-                message: "OTP generated successfully. Use dummy OTP: 123456 to verify.",
+                message: "OTP sent to your email address. Please check your inbox and verify to complete registration.",
                 email: email.toLowerCase().trim(),
-                developmentMode: true,
-                dummyOTP: "123456"
+                developmentMode: false
             });
         } else {
-            // Send OTP email (real mode)
-            const emailResult = await sendOTPEmail(email.toLowerCase().trim(), otp, fullname);
-            
-            if (emailResult.success) {
-                console.log("✅ OTP email sent successfully");
-                res.status(200).json({ 
-                    message: "OTP sent to your email address. Please check your inbox and verify to complete registration.",
-                    email: email.toLowerCase().trim(),
-                    developmentMode: false
-                });
-            } else {
-                console.error("❌ Failed to send OTP email:", emailResult.error);
-                // Delete the OTP record if email failed
-                await OTP.deleteOne({ email: email.toLowerCase().trim() });
-                res.status(500).json({ 
-                    message: "Failed to send OTP email. Please check your email address and try again." 
-                });
-            }
+            console.error("❌ Failed to send OTP email:", emailResult.error);
+            // Delete the OTP record if email failed
+            await OTP.deleteOne({ email: email.toLowerCase().trim() });
+            res.status(500).json({ 
+                message: "Failed to send OTP email. Please check your email address and try again." 
+            });
         }
 
     } catch (error) {
@@ -260,47 +248,35 @@ router.post("/resend-otp", async (req, res) => {
             });
         }
 
-        // 🚀 DEVELOPMENT MODE: Use dummy OTP or real OTP based on environment
-        const isDevelopmentMode = process.env.NODE_ENV === 'development' || process.env.USE_DUMMY_OTP === 'true';
-        const newOTP = isDevelopmentMode ? '123456' : crypto.randomInt(100000, 999999).toString();
+        // Generate new real OTP for resend
+        const newOTP = crypto.randomInt(100000, 999999).toString();
         
-        console.log(`🔧 Resend OTP Mode: ${isDevelopmentMode ? 'DUMMY' : 'REAL'} - OTP: ${newOTP}`);
+        console.log(`🔧 Resend OTP Mode: REAL - OTP: ${newOTP}`);
         
         // Update OTP record
         otpRecord.otp = newOTP;
         otpRecord.createdAt = new Date(); // Reset expiration timer
         await otpRecord.save();
 
-        // 🚀 DEVELOPMENT MODE: Skip email sending if using dummy OTP
-        if (isDevelopmentMode) {
-            console.log("🚀 DEVELOPMENT MODE: Using dummy OTP - 123456");
+        // Send new OTP email
+        const emailResult = await sendOTPEmail(
+            email.toLowerCase().trim(), 
+            newOTP, 
+            otpRecord.userData.fullname
+        );
+        
+        if (emailResult.success) {
+            console.log("✅ OTP resent successfully");
             res.status(200).json({ 
-                message: "New OTP generated. Use dummy OTP: 123456 to verify.",
+                message: "New OTP sent to your email address.",
                 email: email.toLowerCase().trim(),
-                developmentMode: true,
-                dummyOTP: "123456"
+                developmentMode: false
             });
         } else {
-            // Send new OTP email (real mode)
-            const emailResult = await sendOTPEmail(
-                email.toLowerCase().trim(), 
-                newOTP, 
-                otpRecord.userData.fullname
-            );
-            
-            if (emailResult.success) {
-                console.log("✅ OTP resent successfully");
-                res.status(200).json({ 
-                    message: "New OTP sent to your email address.",
-                    email: email.toLowerCase().trim(),
-                    developmentMode: false
-                });
-            } else {
-                console.error("❌ Failed to resend OTP email:", emailResult.error);
-                res.status(500).json({ 
-                    message: "Failed to send OTP email. Please try again." 
-                });
-            }
+            console.error("❌ Failed to resend OTP email:", emailResult.error);
+            res.status(500).json({ 
+                message: "Failed to send OTP email. Please try again." 
+            });
         }
 
     } catch (error) {
