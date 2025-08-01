@@ -39,7 +39,7 @@ export default function Collections() {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
-  const [viewMode, setViewMode] = useState("all"); // "all" for all books, "subscribed" for user's collection
+  const [viewMode, setViewMode] = useState("subscribed"); // "all" for all books, "subscribed" for user's collection
 
   // Update activity timestamp on component mount
   useEffect(() => {
@@ -126,17 +126,26 @@ export default function Collections() {
           params.append('page', currentPage.toString());
           params.append('limit', '20');
 
+          console.log(`🔍 Fetching subscribed books with params:`, params.toString());
+          console.log(`🔍 API URL: ${API_ENDPOINTS.GET_USER_COLLECTION}?${params.toString()}`);
+
           response = await axios.get(`${API_ENDPOINTS.GET_USER_COLLECTION}?${params.toString()}`, {
             headers: {
               Authorization: `Bearer ${token}`
             }
           });
           
+          console.log(`✅ API Response:`, response.data);
+          
           if (response.data.success) {
             setBooks(response.data.data.books);
             setPagination(response.data.pagination);
             setAvailableFilters(response.data.data.availableFilters);
+            console.log(`✅ Available filters set:`, response.data.data.availableFilters);
             console.log(`Loaded ${response.data.data.books.length} books from user collection`);
+          } else {
+            console.error(`❌ API returned success: false`, response.data);
+            setError("Failed to fetch books");
           }
         } else {
           // Fetch all available books
@@ -202,7 +211,18 @@ export default function Collections() {
         }
       } catch (error) {
         console.error("Error fetching books:", error);
-        setError("Failed to fetch books");
+        console.error("Error response:", error.response?.data);
+        console.error("Error status:", error.response?.status);
+        
+        if (error.response?.status === 401) {
+          setError("Please log in to view collections");
+        } else if (error.response?.status === 500) {
+          setError("Server error. Please try again later.");
+        } else if (error.response?.data?.error) {
+          setError(error.response.data.error);
+        } else {
+          setError("Failed to fetch books. Please check your connection.");
+        }
       } finally {
         setLoading(false);
       }
@@ -231,6 +251,7 @@ export default function Collections() {
 
   // Handle filter changes
   const handleFilterChange = (filterType, value) => {
+    console.log(`🔍 Filter changed: ${filterType} = ${value}`);
     setFilters(prev => ({
       ...prev,
       [filterType]: value
@@ -557,7 +578,7 @@ export default function Collections() {
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Subjects</option>
-                  {availableFilters.subjects.map(subject => (
+                  {((availableFilters || {}).subjects || []).map(subject => (
                     <option key={subject} value={subject}>{subject}</option>
                   ))}
                 </select>
@@ -571,7 +592,7 @@ export default function Collections() {
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Grades</option>
-                  {availableFilters.grades.map(grade => (
+                  {((availableFilters || {}).grades || []).map(grade => (
                     <option key={grade} value={grade}>{grade}</option>
                   ))}
                 </select>
@@ -585,7 +606,7 @@ export default function Collections() {
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Publishers</option>
-                  {availableFilters.publishers.map(publisher => (
+                  {((availableFilters || {}).publishers || []).map(publisher => (
                     <option key={publisher} value={publisher}>{publisher}</option>
                   ))}
                 </select>
