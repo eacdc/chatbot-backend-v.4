@@ -164,6 +164,13 @@ const Login = () => {
                 Sign in as Admin
               </a>
             </p>
+
+            {/* JD Publisher Login Notice */}
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-800 text-xs">
+                <strong>JD Publisher Users:</strong> You can login from any URL - no restrictions!
+              </p>
+            </div>
           </div>
         </form>
       </div>

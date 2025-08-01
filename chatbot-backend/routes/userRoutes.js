@@ -328,8 +328,13 @@ router.post("/login", async (req, res) => {
             return res.status(400).json({ message: "Invalid username or password" });
         }
 
+        // Allow JD publisher users to login from any URL
+        if (user.publisher === 'JD') {
+            console.log("🌐 JD publisher detected - allowing login from any URL");
+            console.log("✅ JD publisher verified, continuing with login");
+        }
         // Check if request is from JD frontend and if user's publisher is JD
-        if (hostname === 'chatbot-frontend-v-4-jd-1.onrender.com' || 
+        else if (hostname === 'chatbot-frontend-v-4-jd-1.onrender.com' || 
             hostname === 'testyourlearning.com' || 
             requestOrigin.includes('chatbot-frontend-v-4-jd-1.onrender.com') ||
             requestOrigin.includes('testyourlearning.com')) {
