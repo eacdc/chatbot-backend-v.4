@@ -53,6 +53,7 @@ export const API_ENDPOINTS = {
   // New Search and Collection APIs
   SEARCH_BOOKS: `${API_URL}/api/books/search`,
   SEARCH_SUGGESTIONS: `${API_URL}/api/books/search-suggestions`,
+  SEARCH_WITH_STATUS: `${API_URL}/api/books/search-with-status`,
   GET_USER_COLLECTION: `${API_URL}/api/subscriptions/collection`,
   GET_COLLECTION_SUMMARY: `${API_URL}/api/subscriptions/collection/summary`,
   

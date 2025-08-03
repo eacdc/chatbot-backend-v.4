@@ -48,11 +48,11 @@ const upload = multer({
 // NEW SEARCH AND COLLECTION APIS
 // ================================================================
 
-// Search books API
-router.get("/search", async (req, res) => {
+// Search books API with subscription status
+router.get("/search-with-status", authenticateUser, async (req, res) => {
   try {
     const { 
-      q, 
+      q = "", 
       limit = 20, 
       page = 1,
       subject,
@@ -62,7 +62,7 @@ router.get("/search", async (req, res) => {
       sortOrder = 'asc'
     } = req.query;
 
-    console.log(`🔍 Book search request:`, {
+    console.log(`🔍 Enhanced book search request with subscription status:`, {
       query: q,
       limit,
       page,
@@ -70,30 +70,26 @@ router.get("/search", async (req, res) => {
       grade,
       publisher,
       sortBy,
-      sortOrder
+      sortOrder,
+      userId: req.user.userId
     });
-
-    if (!q || q.trim().length < 2) {
-      console.log(`❌ Search query too short: "${q}"`);
-      return res.status(400).json({ 
-        success: false, 
-        error: "Search query must be at least 2 characters long" 
-      });
-    }
 
     const pageNum = parseInt(page);
     const limitNum = Math.min(parseInt(limit), 100);
     const skip = (pageNum - 1) * limitNum;
 
     // Build search filter
-    const searchFilter = {
-      $or: [
+    const searchFilter = {};
+    
+    // Only add search criteria if query is provided
+    if (q && q.trim().length >= 2) {
+      searchFilter.$or = [
         { title: { $regex: q, $options: 'i' } },
         { subject: { $regex: q, $options: 'i' } },
         { publisher: { $regex: q, $options: 'i' } },
         { language: { $regex: q, $options: 'i' } }
-      ]
-    };
+      ];
+    }
 
     // Add additional filters
     if (subject) {
@@ -122,6 +118,13 @@ router.get("/search", async (req, res) => {
 
     console.log(`🔍 Search filter:`, searchFilter);
 
+    // Get user's subscriptions
+    const userId = req.user.userId;
+    const userSubscriptions = await Subscription.find({ userId }).select('bookId');
+    const subscribedBookIds = userSubscriptions.map(sub => sub.bookId.toString());
+
+    console.log(`👤 User ${userId} has ${subscribedBookIds.length} subscribed books`);
+
     // Execute search
     const [books, totalCount] = await Promise.all([
       Book.find(searchFilter)
@@ -133,19 +136,33 @@ router.get("/search", async (req, res) => {
 
     console.log(`✅ Found ${books.length} books out of ${totalCount} total matches`);
 
-    // Generate search suggestions
-    const suggestions = await generateSearchSuggestions(q);
+    // Add subscription status to each book
+    const booksWithStatus = books.map(book => {
+      const isSubscribed = subscribedBookIds.includes(book._id.toString());
+      return {
+        ...book.toObject(),
+        isSubscribed
+      };
+    });
+
+    // Generate search suggestions if query provided
+    const suggestions = q && q.trim().length >= 2 ? 
+      await generateSearchSuggestions(q) : [];
 
     const response = {
       success: true,
       data: {
-        books: books.map(book => ({
-          ...book.toObject(),
-          isInCollection: false // Will be updated by frontend if user is logged in
-        })),
+        books: booksWithStatus,
         totalResults: totalCount,
         searchQuery: q,
-        suggestions
+        suggestions,
+        appliedFilters: {
+          subject,
+          grade,
+          publisher,
+          sortBy,
+          sortOrder
+        }
       },
       pagination: {
         currentPage: pageNum,
@@ -157,12 +174,12 @@ router.get("/search", async (req, res) => {
       }
     };
 
-    console.log(`✅ Returning search response with ${books.length} books`);
+    console.log(`✅ Returning enhanced search response with ${booksWithStatus.length} books`);
     res.json(response);
 
   } catch (error) {
-    console.error("❌ Search error:", error);
-    console.error("❌ Search error stack:", error.stack);
+    console.error("❌ Enhanced search error:", error);
+    console.error("❌ Enhanced search error stack:", error.stack);
     res.status(500).json({ 
       success: false, 
       error: "Search failed", 
