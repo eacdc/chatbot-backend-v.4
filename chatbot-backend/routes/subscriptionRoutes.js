@@ -209,16 +209,33 @@ router.get("/collection", authenticateUser, async (req, res) => {
     let filteredBooks = processedBooks.filter(book => book !== null);
     console.log(`📚 Processed ${filteredBooks.length} books successfully`);
 
-    // Apply search filter
+    // Apply search filter - search only in chapter names if search is provided
     if (search) {
       const searchLower = search.toLowerCase();
       const originalCount = filteredBooks.length;
+      
+      // Get all book IDs from filtered books
+      const bookIds = filteredBooks.map(book => book.bookId);
+      
+      // Find chapters that match the search term
+      const Chapter = require("../models/Chapter");
+      const matchingChapters = await Chapter.find({
+        bookId: { $in: bookIds },
+        title: { $regex: search, $options: 'i' }
+      }).select('bookId');
+      
+      // Get unique book IDs from matching chapters
+      const matchingBookIds = [...new Set(matchingChapters.map(chapter => 
+        chapter.bookId.toString()
+      ))];
+      
+      console.log(`🔍 Found ${matchingChapters.length} chapters matching search term across ${matchingBookIds.length} books`);
+      
+      // Filter books to only those with matching chapters
       filteredBooks = filteredBooks.filter(book => 
-        book.title.toLowerCase().includes(searchLower) ||
-        book.subject.toLowerCase().includes(searchLower) ||
-        book.author.toLowerCase().includes(searchLower) ||
-        (book.description && book.description.toLowerCase().includes(searchLower))
+        matchingBookIds.includes(book.bookId.toString())
       );
+      
       console.log(`🔍 Search filter applied: ${originalCount} → ${filteredBooks.length} books`);
     }
 
