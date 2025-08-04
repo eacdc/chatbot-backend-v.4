@@ -185,7 +185,7 @@ router.get("/collection", authenticateUser, async (req, res) => {
         totalChapters,
         addedToCollection: subscription.subscribedAt,
         lastAccessed: bookChats.length > 0 ? 
-          Math.max(...bookChats.map(chat => new Date(chat.lastActive || chat.updatedAt))) : 
+          new Date(Math.max(...bookChats.map(chat => new Date(chat.lastActive || chat.updatedAt).getTime()))).toISOString() : 
           subscription.subscribedAt,
         userProgress: {
           chaptersCompleted: completedChapters.size,
@@ -200,7 +200,7 @@ router.get("/collection", authenticateUser, async (req, res) => {
             bookChats[bookChats.length - 1].chapterId?.title : null,
           lastScore: bookQnARecords.length > 0 ? averageScore : null,
           lastQuizDate: bookQnARecords.length > 0 ? 
-            Math.max(...bookQnARecords.map(qna => new Date(qna.updatedAt))) : null
+            new Date(Math.max(...bookQnARecords.map(qna => new Date(qna.updatedAt).getTime()))).toISOString() : null
         }
       };
     }));
