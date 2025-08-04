@@ -296,6 +296,13 @@ export default function Collections() {
   const fetchChapters = async (bookId) => {
     try {
       const token = localStorage.getItem("token");
+      
+      // First, find the book data from our current books array
+      const bookData = books.find(book => book.bookId === bookId);
+      if (bookData) {
+        setSelectedBookData(bookData);
+      }
+      
       const response = await axios.get(API_ENDPOINTS.GET_BOOK_CHAPTERS.replace(':bookId', bookId), {
         headers: {
           Authorization: `Bearer ${token}`
@@ -307,7 +314,9 @@ export default function Collections() {
     } catch (error) {
       console.error("Error fetching chapters:", error);
       if (error.response?.status === 404) {
-        setNoChaptersModal({ show: true, bookTitle: selectedBookData?.title || "Book" });
+        // Find the book title for the error message
+        const bookTitle = books.find(book => book.bookId === bookId)?.title || "Book";
+        setNoChaptersModal({ show: true, bookTitle });
       } else {
         showNotification("error", "Failed to fetch chapters");
       }
@@ -785,6 +794,7 @@ export default function Collections() {
       {/* Chapters Modal */}
       {showChaptersModal && (
         <ChaptersModal
+          isOpen={showChaptersModal}
           book={selectedBookData}
           chapters={chapters}
           onClose={closeChaptersModal}
