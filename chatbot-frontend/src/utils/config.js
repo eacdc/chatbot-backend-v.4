@@ -251,6 +251,20 @@ export const ENDPOINTS = {
     DELETE: '/file/:id',
     METADATA: '/file/:id/metadata',
     SHARE: '/file/:id/share'
+  },
+  SEARCH: {
+    ALL: '/books/search-with-status',
+    CHATS: '/chat/search',
+    FILES: '/files/search',
+    MESSAGES: '/messages/search',
+    SUGGESTIONS: '/books/search-suggestions',
+    FILTERS: '/books/available-filters',
+    APPLY_FILTERS: '/books/apply-filters',
+    SAVE: '/search/save',
+    SAVED: '/search/saved',
+    DELETE_SAVED: '/search/saved',
+    HISTORY: '/search/history',
+    CLEAR_HISTORY: '/search/history/clear'
   }
 };
 
