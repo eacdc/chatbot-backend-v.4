@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ChaptersModal from "./ChaptersModal";
+import BookFilterToolbar from "./BookFilterToolbar";
+import axios from "../utils/axios";
+import { API_ENDPOINTS } from "../utils/config";
 
 // Helper function to fix image URLs
 const fixImageUrl = (url) => {
@@ -19,10 +22,84 @@ const fixImageUrl = (url) => {
   return url;
 };
 
-const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, loading }) => {
+const SubscribedBooksView = ({ onSelectChapter, fetchChapters: propsFetchChapters, initialBooks = [], loading: initialLoading = false }) => {
   const [showChaptersModal, setShowChaptersModal] = useState(false);
   const [selectedBookData, setSelectedBookData] = useState(null);
   const [chapters, setChapters] = useState([]);
+  const [subscribedBooks, setSubscribedBooks] = useState(initialBooks);
+  const [loading, setLoading] = useState(initialLoading);
+  
+  // Search, filter, and sort state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState({
+    subject: "",
+    grade: "",
+    author: "",
+    publisher: "",
+    status: ""
+  });
+  const [sortBy, setSortBy] = useState("title");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({});
+  const [availableFilters, setAvailableFilters] = useState({
+    subjects: [],
+    grades: [],
+    authors: [],
+    publishers: []
+  });
+
+  // Fetch books with filters
+  useEffect(() => {
+    const fetchBooks = async () => {
+      try {
+        setLoading(true);
+        
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        // Build query parameters
+        const params = new URLSearchParams();
+        
+        if (searchQuery) params.append('search', searchQuery);
+        if (filters.subject) params.append('subject', filters.subject);
+        if (filters.grade) params.append('grade', filters.grade);
+        if (filters.author) params.append('author', filters.author);
+        if (filters.status) params.append('status', filters.status);
+        
+        params.append('sortBy', sortBy);
+        params.append('sortOrder', sortOrder);
+        params.append('page', currentPage.toString());
+        params.append('limit', '20');
+
+        console.log(`🔍 Fetching subscribed books with params:`, params.toString());
+
+        const response = await axios.get(`${API_ENDPOINTS.GET_USER_COLLECTION}?${params.toString()}`);
+        
+        console.log(`✅ API Response:`, response.data);
+        
+        if (response.data.success) {
+          setSubscribedBooks(response.data.data.books);
+          setPagination(response.data.pagination);
+          setAvailableFilters(response.data.data.availableFilters);
+        } else {
+          console.error(`❌ API returned success: false`, response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching books:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    // Only fetch if we weren't provided books via props
+    if (!initialBooks.length) {
+      fetchBooks();
+    }
+  }, [searchQuery, filters, sortBy, sortOrder, currentPage, initialBooks.length]);
 
   // Handler for viewing chapters of a book
   const handleViewChapters = async (book) => {
@@ -30,7 +107,7 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
     setChapters([]); // Reset chapters
     
     try {
-      const chaptersData = await fetchChapters(book.bookId);
+      const chaptersData = await propsFetchChapters(book.bookId);
       setChapters(chaptersData || []);
       setShowChaptersModal(true);
     } catch (error) {
@@ -50,6 +127,38 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
     // Call the parent component's handleChapterSelect with the correct parameters
     onSelectChapter(bookId, chapter._id, chapter.title);
     setShowChaptersModal(false);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilters({
+      subject: "",
+      grade: "",
+      author: "",
+      publisher: "",
+      status: ""
+    });
+    setSortBy("title");
+    setSortOrder("asc");
+    setCurrentPage(1);
+  };
+
+  // Pagination handlers
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleNextPage = () => {
+    if (pagination.hasNext) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (pagination.hasPrev) {
+      setCurrentPage(currentPage - 1);
+    }
   };
   
   // Enhanced ChaptersModal component with test functionality
@@ -162,12 +271,52 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
     </div>
   );
 
+  // Helper function to format progress
+  const formatProgress = (value) => {
+    return Math.round(value || 0);
+  };
+
+  // Helper function to get status color
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'in_progress': return 'bg-blue-100 text-blue-800';
+      case 'not_started': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Helper function to get status text
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'completed': return 'Completed';
+      case 'in_progress': return 'In Progress';
+      case 'not_started': return 'Not Started';
+      default: return 'Unknown';
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="bg-white bg-opacity-95 px-6 py-4 border-b border-gray-200 shadow-sm">
         <h1 className="text-xl font-bold text-gray-900">My Subscribed Books</h1>
         <p className="text-sm text-gray-600 mt-1">Select a book to view its chapters and start testing</p>
       </div>
+
+      {/* Add filter toolbar */}
+      <BookFilterToolbar 
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        filters={filters}
+        setFilters={setFilters}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        sortOrder={sortOrder}
+        setSortOrder={setSortOrder}
+        availableFilters={availableFilters}
+        clearAllFilters={clearFilters}
+        viewMode="subscribed"
+      />
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 flex-1 bg-white bg-opacity-90">
@@ -192,6 +341,28 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
               <div className="p-4 flex-1 flex flex-col">
                 <h2 className="font-bold text-lg text-gray-900 line-clamp-2 mb-2 text-center">{book.bookTitle}</h2>
                 {book.publisher && <p className="text-sm text-gray-600 mb-4 text-center">{book.publisher}</p>}
+                
+                {/* Progress info */}
+                {book.userProgress && (
+                  <div className="mt-auto mb-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-gray-600">Progress:</span>
+                      <span className="text-sm font-medium">{formatProgress(book.userProgress.progressPercentage)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${book.userProgress.progressPercentage}%` }}
+                      ></div>
+                    </div>
+                    <div className="mt-2">
+                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(book.userProgress.status)}`}>
+                        {getStatusText(book.userProgress.status)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="mt-auto pt-2">
                   <button
                     className="w-full inline-flex items-center justify-center px-4 py-3 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
@@ -216,7 +387,19 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-3">No Books Available</h2>
-            <p className="text-gray-600 mb-6">You haven't subscribed to any books yet. Visit collections to find books.</p>
+            <p className="text-gray-600 mb-6">
+              {searchQuery || Object.values(filters).some(f => f) 
+                ? "Try adjusting your search or filters"
+                : "You haven't subscribed to any books yet. Visit collections to find books."}
+            </p>
+            {searchQuery || Object.values(filters).some(f => f) ? (
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 mr-4"
+              >
+                Clear Filters
+              </button>
+            ) : null}
             <button
               onClick={() => window.location.href = "/collections"}
               className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
@@ -224,6 +407,39 @@ const SubscribedBooksView = ({ subscribedBooks, onSelectChapter, fetchChapters, 
               Browse Collections
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-8 mb-4">
+          <button
+            onClick={handlePrevPage}
+            disabled={!pagination.hasPrev}
+            className={`px-4 py-2 rounded-lg ${
+              pagination.hasPrev
+                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            Previous
+          </button>
+          
+          <span className="px-4 py-2 text-gray-600">
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </span>
+          
+          <button
+            onClick={handleNextPage}
+            disabled={!pagination.hasNext}
+            className={`px-4 py-2 rounded-lg ${
+              pagination.hasNext
+                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            Next
+          </button>
         </div>
       )}
 
