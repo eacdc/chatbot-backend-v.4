@@ -167,48 +167,31 @@ export default function Collections() {
             params.append('publisher', user.publisher);
           }
 
-          response = await axios.get(`${API_ENDPOINTS.GET_BOOKS}?${params.toString()}`, {
+          console.log(`🔍 Fetching all books with params:`, params.toString());
+          console.log(`🔍 API URL: ${API_ENDPOINTS.SEARCH_WITH_STATUS}?${params.toString()}`);
+
+          response = await axios.get(`${API_ENDPOINTS.SEARCH_WITH_STATUS}?${params.toString()}`, {
             headers: {
               Authorization: `Bearer ${token}`
             }
           });
           
-          // Transform books to match expected structure
-          const transformedBooks = response.data.map(book => ({
-            bookId: book._id,
-            title: book.title,
-            subject: book.subject,
-            grade: book.grade,
-            author: book.publisher,
-            publisher: book.publisher,
-            coverImage: book.bookCoverImgLink,
-            description: book.description,
-            totalChapters: book.totalChapters || 0,
-            createdAt: book.createdAt
-          }));
+          console.log(`✅ API Response:`, response.data);
           
-          setBooks(transformedBooks);
-          setPagination({
-            currentPage: currentPage,
-            totalPages: Math.ceil(response.data.length / 20),
-            totalItems: response.data.length,
-            hasNext: currentPage < Math.ceil(response.data.length / 20),
-            hasPrev: currentPage > 1
-          });
-          
-          // Get unique values for filters
-          const subjects = [...new Set(response.data.map(book => book.subject))];
-          const grades = [...new Set(response.data.map(book => book.grade))];
-          const publishers = [...new Set(response.data.map(book => book.publisher))];
-          
-          setAvailableFilters({
-            subjects,
-            grades,
-            publishers,
-            authors: publishers
-          });
-          
-          console.log(`Loaded ${transformedBooks.length} books from all available books`);
+          if (response.data.success) {
+            // The response format matches the collection API
+            setBooks(response.data.data.books);
+            setPagination(response.data.pagination);
+            setAvailableFilters(response.data.data.availableFilters || {
+              subjects: [...new Set(response.data.data.books.map(book => book.subject))],
+              grades: [...new Set(response.data.data.books.map(book => book.grade))],
+              publishers: [...new Set(response.data.data.books.map(book => book.publisher))]
+            });
+            console.log(`Loaded ${response.data.data.books.length} books from all available books`);
+          } else {
+            console.error(`❌ API returned success: false`, response.data);
+            setError("Failed to fetch books");
+          }
         }
       } catch (error) {
         console.error("Error fetching books:", error);
