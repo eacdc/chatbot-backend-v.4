@@ -134,10 +134,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Set port and start server
+// Set port and start server with improved connection handling
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// Configure server timeouts to prevent connection resets
+server.keepAliveTimeout = 65000; // 65 seconds
+server.headersTimeout = 66000; // 66 seconds (slightly higher than keepAliveTimeout)
+console.log(`Server configured with keepAliveTimeout: ${server.keepAliveTimeout}ms, headersTimeout: ${server.headersTimeout}ms`);
 
 module.exports = app; 

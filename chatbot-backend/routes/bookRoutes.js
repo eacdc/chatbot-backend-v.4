@@ -50,6 +50,16 @@ const upload = multer({
 
 // Search books API with subscription status and chapter search
 router.get("/search-with-status", authenticateUser, async (req, res) => {
+  // Set a timeout for this request to prevent hanging connections
+  const requestTimeout = setTimeout(() => {
+    console.error('❌ Search request timed out');
+    res.status(504).json({ 
+      success: false, 
+      error: "Request timed out", 
+      details: "The search operation took too long to complete" 
+    });
+  }, 30000); // 30 seconds timeout
+  
   try {
     const { 
       q = "", 
@@ -204,16 +214,28 @@ router.get("/search-with-status", authenticateUser, async (req, res) => {
     };
 
     console.log(`✅ Returning enhanced search response with ${booksWithStatus.length} books`);
+    clearTimeout(requestTimeout); // Clear the timeout since we're about to respond
     res.json(response);
 
   } catch (error) {
     console.error("❌ Enhanced search error:", error);
     console.error("❌ Enhanced search error stack:", error.stack);
-    res.status(500).json({ 
-      success: false, 
-      error: "Search failed", 
-      details: error.message 
-    });
+    clearTimeout(requestTimeout); // Clear the timeout on error too
+    
+    // Handle specific error types
+    if (error.name === 'MongoNetworkError' || error.name === 'MongoTimeoutError') {
+      res.status(503).json({ 
+        success: false, 
+        error: "Database connection issue", 
+        details: "The server is experiencing database connectivity issues. Please try again later." 
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: "Search failed", 
+        details: error.message 
+      });
+    }
   }
 });
 

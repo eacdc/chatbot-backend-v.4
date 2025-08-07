@@ -6,7 +6,9 @@ const instance = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  // Add timeout to prevent hanging requests
+  timeout: 30000, // 30 seconds
 });
 
 // Request interceptor
@@ -42,6 +44,38 @@ instance.interceptors.response.use(
     }
     
     const originalRequest = error.config;
+    
+    // Add retry mechanism for network errors (like "Connection reset by peer")
+    // Only retry if this is a network error and we haven't retried too many times already
+    if (error.code === 'ECONNRESET' || error.message.includes('Connection reset by peer') || 
+        error.code === 'ECONNABORTED' || error.message.includes('timeout') || 
+        !error.response && error.request) {
+      
+      // Track retry count
+      originalRequest.retryCount = originalRequest.retryCount || 0;
+      const maxRetries = 3;
+      
+      // If we haven't reached max retries
+      if (originalRequest.retryCount < maxRetries) {
+        console.log(`Network error detected. Retrying request (${originalRequest.retryCount + 1}/${maxRetries})...`);
+        
+        // Increment retry count
+        originalRequest.retryCount += 1;
+        
+        // Implement exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, originalRequest.retryCount - 1), 10000);
+        console.log(`Waiting ${delay}ms before retry...`);
+        
+        return new Promise(resolve => {
+          setTimeout(() => {
+            console.log(`Retrying request to ${originalRequest.url}`);
+            resolve(axios(originalRequest));
+          }, delay);
+        });
+      } else {
+        console.error(`Request to ${originalRequest.url} failed after ${maxRetries} retries`);
+      }
+    }
 
     // If error is 401 and we haven't tried to refresh token yet
     if (error.response?.status === 401 && !originalRequest._retry) {
