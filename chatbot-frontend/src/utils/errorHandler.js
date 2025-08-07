@@ -33,6 +33,16 @@ export const handleApiError = (error) => {
     if (!navigator.onLine) {
       return 'You are offline. Please check your internet connection.';
     }
+    
+    // Handle specific network errors
+    if (error.code === 'ECONNRESET' || error.message.includes('Connection reset by peer')) {
+      return 'Connection was interrupted. Please try again.';
+    }
+    
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      return 'Request timed out. Please try again later.';
+    }
+    
     return 'Unable to reach the server. Please try again later.';
   } else {
     // Something happened in setting up the request
