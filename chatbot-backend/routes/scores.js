@@ -159,6 +159,14 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
             ? (stats.totalMarksEarned / stats.totalMarksAvailable) * 100 
             : 0;
 
+        // Get chapter details for completed and in-progress chapters
+        const completedChapterIds = Array.from(stats.chaptersCompleted);
+        const inProgressChapterIds = Array.from(stats.chaptersInProgress).filter(id => !stats.chaptersCompleted.has(id));
+        
+        // Get chapter details from the database
+        const completedChapters = await Chapter.find({ _id: { $in: completedChapterIds } }, 'title bookId');
+        const inProgressChapters = await Chapter.find({ _id: { $in: inProgressChapterIds } }, 'title bookId');
+        
         // Format response
         const response = {
             success: true,
@@ -166,7 +174,7 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
                 userId,
                 booksStarted: stats.booksStarted.size,
                 chaptersCompleted: stats.chaptersCompleted.size,
-                chaptersInProgress: stats.chaptersInProgress.size,
+                chaptersInProgress: inProgressChapterIds.length, // Use filtered in-progress count
                 quizzesTaken: stats.quizzesTaken,
                 totalQuestionsAnswered: stats.totalQuestionsAnswered,
                 overallScore: parseFloat(overallScore.toFixed(2)),
@@ -174,6 +182,18 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
                 totalMarksAvailable: parseFloat(stats.totalMarksAvailable.toFixed(2)),
                 totalTimeSpentMinutes: stats.totalTimeSpentMinutes,
                 totalTimeSpentHours: parseFloat((stats.totalTimeSpentMinutes / 60).toFixed(2)),
+                chapterDetails: {
+                    completed: completedChapters.map(chapter => ({
+                        id: chapter._id,
+                        title: chapter.title,
+                        bookId: chapter.bookId
+                    })),
+                    inProgress: inProgressChapters.map(chapter => ({
+                        id: chapter._id,
+                        title: chapter.title,
+                        bookId: chapter.bookId
+                    }))
+                },
                 breakdown: {
                     bySubject: Array.from(stats.subjects.entries()).map(([subject, data]) => ({
                         subject,
