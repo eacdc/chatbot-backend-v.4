@@ -113,8 +113,15 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
                     // Check if chapter is completed (>= 80% questions answered)
                     const totalQuestions = record.qnaDetails.length;
                     const completionPercentage = (answeredQuestions.length / totalQuestions) * 100;
+                    
+                    // Add detailed logging for chapter completion criteria
+                    console.log(`📊 Chapter ${chapterId} - ${record.chapterId.title || 'Unknown'}: ${answeredQuestions.length}/${totalQuestions} questions answered (${completionPercentage.toFixed(1)}%)`);
+                    
                     if (completionPercentage >= 80) {
                         stats.chaptersCompleted.add(chapterId);
+                        console.log(`✅ Chapter ${chapterId} marked as COMPLETED (${completionPercentage.toFixed(1)}% >= 80%)`);
+                    } else {
+                        console.log(`⏳ Chapter ${chapterId} marked as IN PROGRESS (${completionPercentage.toFixed(1)}% < 80%)`);
                     }
 
                     // Update subject stats
@@ -223,7 +230,12 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
             }
         };
 
+        // Add detailed logging for chapter counts
         console.log(`📊 Progress details calculated for user ${userId}: ${overallScore.toFixed(1)}% overall`);
+        console.log(`📚 Chapter statistics: ${completedChapterIds.length} completed, ${inProgressChapterIds.length} in progress`);
+        console.log(`🔍 Completed chapters: ${completedChapterIds.join(', ') || 'none'}`);
+        console.log(`🔍 In-progress chapters: ${inProgressChapterIds.join(', ') || 'none'}`);
+        
         res.json(response);
 
     } catch (error) {
