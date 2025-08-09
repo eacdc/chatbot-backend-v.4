@@ -29,19 +29,78 @@ async function isQuestionModeEnabled() {
   return true;
 }
 
-if (!process.env.OPENAI_API_KEY) {
-    console.error("ERROR: Missing OpenAI API Key in environment variables.");
-    process.exit(1);
+// Import node-fetch for OpenAI
+const fetch = require('node-fetch');
+
+// Create mock OpenAI clients if API keys are missing
+let openai, openaiSelector, openaiTranscription;
+
+try {
+    // Create an OpenAI client using DeepSeek for chat completions if key is available
+    if (process.env.OPENAI_API_KEY_D) {
+        openai = new OpenAI({ 
+            apiKey: process.env.OPENAI_API_KEY_D, 
+            baseURL: 'https://api.deepseek.com',
+            fetch: fetch // Use node-fetch as the fetch implementation
+        });
+        console.log("DeepSeek OpenAI client initialized successfully");
+    } else {
+        console.warn("OPENAI_API_KEY_D not found. DeepSeek features will be disabled.");
+        // Create a mock OpenAI client
+        openai = createMockOpenAIClient();
+    }
+
+    // Create a separate OpenAI client for agent selection using the standard OpenAI API
+    if (process.env.OPENAI_API_KEY) {
+        openaiSelector = new OpenAI({ 
+            apiKey: process.env.OPENAI_API_KEY,
+            fetch: fetch // Use node-fetch as the fetch implementation
+        });
+        console.log("OpenAI selector client initialized successfully");
+    } else {
+        console.warn("OPENAI_API_KEY not found. OpenAI selector features will be disabled.");
+        openaiSelector = createMockOpenAIClient();
+    }
+
+    // Create a separate OpenAI client for audio transcription using the standard OpenAI API
+    if (process.env.OPENAI_API_KEY) {
+        openaiTranscription = new OpenAI({ 
+            apiKey: process.env.OPENAI_API_KEY,
+            fetch: fetch // Use node-fetch as the fetch implementation
+        });
+        console.log("OpenAI transcription client initialized successfully");
+    } else {
+        console.warn("OPENAI_API_KEY not found. OpenAI transcription features will be disabled.");
+        openaiTranscription = createMockOpenAIClient();
+    }
+} catch (error) {
+    console.error("Error initializing OpenAI clients:", error);
+    // Create mock clients if initialization fails
+    openai = createMockOpenAIClient();
+    openaiSelector = createMockOpenAIClient();
+    openaiTranscription = createMockOpenAIClient();
 }
 
-// Create an OpenAI client using DeepSeek for chat completions
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_D, baseURL: 'https://api.deepseek.com' });
-
-// Create a separate OpenAI client for agent selection using the standard OpenAI API
-const openaiSelector = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Create a separate OpenAI client for audio transcription using the standard OpenAI API
-const openaiTranscription = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Helper function to create a mock OpenAI client
+function createMockOpenAIClient() {
+    return {
+        chat: {
+            completions: {
+                create: async () => ({ 
+                    choices: [{ message: { content: "OpenAI API is not available. Please configure your API key." } }] 
+                })
+            }
+        },
+        embeddings: {
+            create: async () => ({ data: [{ embedding: Array(1536).fill(0) }] })
+        },
+        audio: {
+            transcriptions: {
+                create: async () => ({ text: "OpenAI API is not available for transcription." })
+            }
+        }
+    };
+}
 
 // Configure multer storage for audio files
 const storage = multer.diskStorage({

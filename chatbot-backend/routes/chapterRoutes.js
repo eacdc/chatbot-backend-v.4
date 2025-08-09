@@ -62,12 +62,50 @@ function makeHttpsRequest(url, options = {}) {
     });
 }
 
-if (!process.env.OPENAI_API_KEY) {
-    console.error("ERROR: Missing OpenAI API Key in environment variables.");
-    process.exit(1);
-}
+// Import node-fetch for OpenAI
+const fetch = require('node-fetch');
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Initialize OpenAI client with fetch polyfill
+let openai;
+try {
+    if (process.env.OPENAI_API_KEY) {
+        openai = new OpenAI({ 
+            apiKey: process.env.OPENAI_API_KEY,
+            fetch: fetch // Use node-fetch as the fetch implementation
+        });
+        console.log("OpenAI client initialized successfully in chapterRoutes.js");
+    } else {
+        console.warn("OPENAI_API_KEY not found in environment variables. OpenAI features in chapterRoutes will be disabled.");
+        // Create a mock OpenAI client to prevent errors
+        openai = {
+            chat: {
+                completions: {
+                    create: async () => ({ 
+                        choices: [{ message: { content: "OpenAI API is not available. Please configure your API key." } }] 
+                    })
+                }
+            },
+            embeddings: {
+                create: async () => ({ data: [{ embedding: Array(1536).fill(0) }] })
+            }
+        };
+    }
+} catch (error) {
+    console.error("Error initializing OpenAI client in chapterRoutes:", error);
+    // Create a mock OpenAI client to prevent errors
+    openai = {
+        chat: {
+            completions: {
+                create: async () => ({ 
+                    choices: [{ message: { content: "OpenAI API is not available. Please configure your API key." } }] 
+                })
+            }
+        },
+        embeddings: {
+            create: async () => ({ data: [{ embedding: Array(1536).fill(0) }] })
+        }
+    };
+}
 
 // In routes/chapters.js
 router.post("/", authenticateAdmin, async (req, res) => {

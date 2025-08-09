@@ -41,8 +41,36 @@ const chapterSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Initialize OpenAI client - use environment variable
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Import node-fetch for OpenAI
+const fetch = require('node-fetch');
+
+// Initialize OpenAI client - use environment variable if available
+let openai;
+try {
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ 
+      apiKey: process.env.OPENAI_API_KEY,
+      fetch: fetch // Use node-fetch as the fetch implementation
+    });
+    console.log("OpenAI client initialized successfully in Chapter.js");
+  } else {
+    console.warn("OPENAI_API_KEY not found in environment variables. OpenAI features will be disabled.");
+    // Create a mock OpenAI client to prevent errors
+    openai = {
+      embeddings: {
+        create: async () => ({ data: [{ embedding: Array(1536).fill(0) }] })
+      }
+    };
+  }
+} catch (error) {
+  console.error("Error initializing OpenAI client in Chapter.js:", error);
+  // Create a mock OpenAI client to prevent errors
+  openai = {
+    embeddings: {
+      create: async () => ({ data: [{ embedding: Array(1536).fill(0) }] })
+    }
+  };
+}
 
 // Method to generate embedding for a chapter
 chapterSchema.methods.generateEmbedding = async function() {

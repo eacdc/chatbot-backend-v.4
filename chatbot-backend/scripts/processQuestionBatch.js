@@ -8,9 +8,43 @@
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require("openai");
+const fetch = require('node-fetch');
 
-// Create the OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Create the OpenAI client with fetch polyfill
+let openai;
+try {
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ 
+      apiKey: process.env.OPENAI_API_KEY,
+      fetch: fetch // Use node-fetch as the fetch implementation
+    });
+    console.log("OpenAI client initialized successfully in processQuestionBatch.js");
+  } else {
+    console.warn("OPENAI_API_KEY not found in environment variables. OpenAI features in processQuestionBatch will be disabled.");
+    // Create a mock OpenAI client to prevent errors
+    openai = {
+      chat: {
+        completions: {
+          create: async () => ({ 
+            choices: [{ message: { content: "keep" } }] 
+          })
+        }
+      }
+    };
+  }
+} catch (error) {
+  console.error("Error initializing OpenAI client in processQuestionBatch:", error);
+  // Create a mock OpenAI client to prevent errors
+  openai = {
+    chat: {
+      completions: {
+        create: async () => ({ 
+          choices: [{ message: { content: "keep" } }] 
+        })
+      }
+    }
+  };
+}
 
 /**
  * Validate a question using OpenAI to check if it's complete and doesn't reference external elements
