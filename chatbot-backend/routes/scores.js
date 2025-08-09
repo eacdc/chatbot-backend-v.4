@@ -56,7 +56,7 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
             publishers: new Map()
         };
 
-        // Process QnA records
+        // First, process basic stats from QnA records (no async operations)
         qnaRecords.forEach(record => {
             if (record.bookId) {
                 stats.booksStarted.add(record.bookId._id.toString());
@@ -111,18 +111,19 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
                     stats.totalMarksAvailable += chapterMarksAvailable;
                     
                     // Check if chapter is completed (>= 80% questions answered)
-                    const totalQuestions = record.qnaDetails.length;
-                    const completionPercentage = (answeredQuestions.length / totalQuestions) * 100;
+                    const recordedQuestions = record.qnaDetails.length;
+                    const completionPercentage = (answeredQuestions.length / recordedQuestions) * 100;
                     
-                    // Add detailed logging for chapter completion criteria
-                    console.log(`📊 Chapter ${chapterId} - ${record.chapterId.title || 'Unknown'}: ${answeredQuestions.length}/${totalQuestions} questions answered (${completionPercentage.toFixed(1)}%)`);
+                    // Mark as in-progress only initially
+                    // We'll determine final completion status after checking actual question counts
                     
-                    if (completionPercentage >= 80) {
-                        stats.chaptersCompleted.add(chapterId);
-                        console.log(`✅ Chapter ${chapterId} marked as COMPLETED (${completionPercentage.toFixed(1)}% >= 80%)`);
-                    } else {
-                        console.log(`⏳ Chapter ${chapterId} marked as IN PROGRESS (${completionPercentage.toFixed(1)}% < 80%)`);
-                    }
+                    // Store data for later detailed processing
+                    record._chapterData = {
+                        chapterId,
+                        title: record.chapterId.title,
+                        answeredQuestions: answeredQuestions.length,
+                        recordedQuestions
+                    };
 
                     // Update subject stats
                     if (record.bookId && record.bookId.subject) {
@@ -154,6 +155,69 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
             }
         });
 
+        // Now process chapter data with async operations
+        // Get all chapters that need detailed processing
+        const chaptersToProcess = qnaRecords
+            .filter(record => record._chapterData)
+            .map(record => record._chapterData);
+            
+        // Process each chapter to get detailed question counts
+        for (const chapterData of chaptersToProcess) {
+            try {
+                // Get the chapter to find its total questions (if available)
+                const chapter = await Chapter.findById(chapterData.chapterId);
+                if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt) && chapter.questionPrompt.length > 0) {
+                    // Use the questionPrompt array length as the total questions
+                    const chapterTotalQuestions = chapter.questionPrompt.length;
+                    const completionPercentage = (chapterData.answeredQuestions / chapterTotalQuestions) * 100;
+                    
+                    // Add detailed logging for chapter completion criteria
+                    console.log(`📊 Chapter ${chapterData.chapterId} - ${chapterData.title || 'Unknown'}: ${chapterData.answeredQuestions}/${chapterTotalQuestions} questions answered (${completionPercentage.toFixed(1)}%)`);
+                    console.log(`📝 Note: ${chapterData.recordedQuestions} questions in QnA record vs ${chapterTotalQuestions} total in chapter`);
+                    
+                    // Update completion status based on actual total questions
+                    if (completionPercentage >= 80) {
+                        stats.chaptersCompleted.add(chapterData.chapterId);
+                        console.log(`✅ Chapter ${chapterData.chapterId} marked as COMPLETED (${completionPercentage.toFixed(1)}% >= 80%)`);
+                    } else {
+                        // Make sure it's not in the completed set if it doesn't meet the threshold
+                        stats.chaptersCompleted.delete(chapterData.chapterId);
+                        console.log(`⏳ Chapter ${chapterData.chapterId} marked as IN PROGRESS (${completionPercentage.toFixed(1)}% < 80%)`);
+                    }
+                } else {
+                    // Fall back to using the record's question count
+                    const fallbackPercentage = chapterData.answeredQuestions / chapterData.recordedQuestions * 100;
+                    console.log(`📊 Chapter ${chapterData.chapterId} - ${chapterData.title || 'Unknown'}: ${chapterData.answeredQuestions}/${chapterData.recordedQuestions} questions answered (${fallbackPercentage.toFixed(1)}%)`);
+                    console.log(`⚠️ Warning: Using QnA record for total questions count. Chapter question list not available.`);
+                    
+                    // Apply the same completion logic with fallback percentage
+                    if (fallbackPercentage >= 80) {
+                        stats.chaptersCompleted.add(chapterData.chapterId);
+                        console.log(`✅ Chapter ${chapterData.chapterId} marked as COMPLETED (${fallbackPercentage.toFixed(1)}% >= 80%)`);
+                    } else {
+                        // Make sure it's not in the completed set if it doesn't meet the threshold
+                        stats.chaptersCompleted.delete(chapterData.chapterId);
+                        console.log(`⏳ Chapter ${chapterData.chapterId} marked as IN PROGRESS (${fallbackPercentage.toFixed(1)}% < 80%)`);
+                    }
+                }
+            } catch (err) {
+                console.error(`Error fetching chapter ${chapterData.chapterId} for question count:`, err);
+                // Fall back to using the record's question count in case of error
+                const errorFallbackPercentage = chapterData.answeredQuestions / chapterData.recordedQuestions * 100;
+                console.log(`📊 Chapter ${chapterData.chapterId} - ${chapterData.title || 'Unknown'}: ${chapterData.answeredQuestions}/${chapterData.recordedQuestions} questions answered (${errorFallbackPercentage.toFixed(1)}%)`);
+                
+                // Apply the same completion logic with fallback percentage
+                if (errorFallbackPercentage >= 80) {
+                    stats.chaptersCompleted.add(chapterData.chapterId);
+                    console.log(`✅ Chapter ${chapterData.chapterId} marked as COMPLETED (${errorFallbackPercentage.toFixed(1)}% >= 80%)`);
+                } else {
+                    // Make sure it's not in the completed set if it doesn't meet the threshold
+                    stats.chaptersCompleted.delete(chapterData.chapterId);
+                    console.log(`⏳ Chapter ${chapterData.chapterId} marked as IN PROGRESS (${errorFallbackPercentage.toFixed(1)}% < 80%)`);
+                }
+            }
+        }
+        
         // Calculate time spent from chat sessions
         userChats.forEach(chat => {
             if (chat.metadata && chat.metadata.timeSpentMinutes) {
@@ -165,15 +229,21 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
         const overallScore = stats.totalMarksAvailable > 0 
             ? (stats.totalMarksEarned / stats.totalMarksAvailable) * 100 
             : 0;
-
-        // Get chapter details for completed and in-progress chapters
+            
+        // Get chapter IDs for completed and in-progress chapters
         const completedChapterIds = Array.from(stats.chaptersCompleted);
-        const inProgressChapterIds = Array.from(stats.chaptersInProgress).filter(id => !stats.chaptersCompleted.has(id));
-        
-        // Get chapter details from the database
-        const completedChapters = await Chapter.find({ _id: { $in: completedChapterIds } }, 'title bookId');
-        const inProgressChapters = await Chapter.find({ _id: { $in: inProgressChapterIds } }, 'title bookId');
-        
+        const inProgressChapterIds = Array.from(stats.chaptersInProgress)
+            .filter(id => !stats.chaptersCompleted.has(id)); // Exclude chapters that are already completed
+            
+        // Fetch chapter details for completed and in-progress chapters
+        const completedChapters = await Chapter.find({ _id: { $in: completedChapterIds } })
+            .select('_id title bookId')
+            .lean();
+            
+        const inProgressChapters = await Chapter.find({ _id: { $in: inProgressChapterIds } })
+            .select('_id title bookId')
+            .lean();
+
         // Format response
         const response = {
             success: true,
@@ -181,7 +251,7 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
                 userId,
                 booksStarted: stats.booksStarted.size,
                 chaptersCompleted: stats.chaptersCompleted.size,
-                chaptersInProgress: inProgressChapterIds.length, // Use filtered in-progress count
+                chaptersInProgress: stats.chaptersInProgress.size,
                 quizzesTaken: stats.quizzesTaken,
                 totalQuestionsAnswered: stats.totalQuestionsAnswered,
                 overallScore: parseFloat(overallScore.toFixed(2)),
@@ -249,7 +319,247 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
 });
 
 // ================================================================
-// 2. ASSESSMENT DATA API
+// 2. CHAPTER COMPLETION STATS API
+// ================================================================
+
+/**
+ * @route GET /api/scores/chapter-stats/:userId
+ * @desc Get chapter completion statistics for a book or all books
+ * @access Private
+ * @query {string} bookId - Optional book ID to filter by
+ * @query {string} startDate - Optional start date (YYYY-MM-DD)
+ * @query {string} endDate - Optional end date (YYYY-MM-DD)
+ */
+router.get("/chapter-stats/:userId", authenticateUser, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { bookId, startDate, endDate } = req.query;
+        
+        console.log(`📊 Fetching chapter completion stats for user: ${userId}`);
+        if (bookId) console.log(`📚 Filtering by book: ${bookId}`);
+        if (startDate || endDate) console.log(`📅 Date range: ${startDate || 'any'} to ${endDate || 'any'}`);
+
+        // Verify user authorization
+        if (req.user.userId !== userId && req.user.role !== 'admin') {
+            return res.status(403).json({ 
+                success: false, 
+                error: "Unauthorized access" 
+            });
+        }
+
+        // Build query for QnA records
+        const qnaQuery = { studentId: userId };
+        if (bookId) qnaQuery.bookId = bookId;
+        
+        // Add date range if provided
+        if (startDate || endDate) {
+            qnaQuery.updatedAt = {};
+            if (startDate) qnaQuery.updatedAt.$gte = new Date(startDate);
+            if (endDate) qnaQuery.updatedAt.$lte = new Date(endDate + 'T23:59:59.999Z');
+        }
+
+        // Get QnA records
+        const qnaRecords = await QnALists.find(qnaQuery)
+            .populate('bookId', 'title subject grade publisher')
+            .populate('chapterId', 'title')
+            .sort({ updatedAt: -1 });
+
+        // Get all books to fetch their chapters
+        const bookIds = bookId ? [bookId] : [...new Set(qnaRecords.map(record => 
+            record.bookId && record.bookId._id ? record.bookId._id.toString() : null
+        ).filter(id => id !== null))];
+
+        // Get all chapters for these books
+        const allChapters = await Chapter.find({ bookId: { $in: bookIds } })
+            .select('_id title bookId')
+            .lean();
+
+        // Group chapters by book
+        const chaptersByBook = {};
+        allChapters.forEach(chapter => {
+            const bookIdStr = chapter.bookId.toString();
+            if (!chaptersByBook[bookIdStr]) {
+                chaptersByBook[bookIdStr] = [];
+            }
+            chaptersByBook[bookIdStr].push(chapter);
+        });
+
+        // Process QnA records to track chapter completion
+        const stats = {
+            chaptersCompleted: new Set(),
+            chaptersInProgress: new Set(),
+            booksWithActivity: new Set()
+        };
+
+        // First, process basic stats from QnA records
+        qnaRecords.forEach(record => {
+            if (record.bookId && record.chapterId) {
+                const bookIdStr = record.bookId._id.toString();
+                const chapterId = record.chapterId._id.toString();
+                
+                stats.booksWithActivity.add(bookIdStr);
+                
+                const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
+                if (answeredQuestions.length > 0) {
+                    stats.chaptersInProgress.add(chapterId);
+                    
+                    // Store data for later detailed processing
+                    record._chapterData = {
+                        chapterId,
+                        title: record.chapterId.title,
+                        bookId: bookIdStr,
+                        bookTitle: record.bookId.title,
+                        answeredQuestions: answeredQuestions.length,
+                        recordedQuestions: record.qnaDetails.length
+                    };
+                }
+            }
+        });
+
+        // Process chapter data with async operations
+        const chaptersToProcess = qnaRecords
+            .filter(record => record._chapterData)
+            .map(record => record._chapterData);
+            
+        // Process each chapter to get detailed question counts
+        for (const chapterData of chaptersToProcess) {
+            try {
+                // Get the chapter to find its total questions
+                const chapter = await Chapter.findById(chapterData.chapterId);
+                if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt) && chapter.questionPrompt.length > 0) {
+                    // Use the questionPrompt array length as the total questions
+                    const chapterTotalQuestions = chapter.questionPrompt.length;
+                    const completionPercentage = (chapterData.answeredQuestions / chapterTotalQuestions) * 100;
+                    
+                    // Update completion status based on actual total questions
+                    if (completionPercentage >= 80) {
+                        stats.chaptersCompleted.add(chapterData.chapterId);
+                        stats.chaptersInProgress.delete(chapterData.chapterId); // Remove from in-progress if completed
+                    }
+                } else {
+                    // Fall back to using the record's question count
+                    const fallbackPercentage = chapterData.answeredQuestions / chapterData.recordedQuestions * 100;
+                    
+                    // Apply the same completion logic with fallback percentage
+                    if (fallbackPercentage >= 80) {
+                        stats.chaptersCompleted.add(chapterData.chapterId);
+                        stats.chaptersInProgress.delete(chapterData.chapterId); // Remove from in-progress if completed
+                    }
+                }
+            } catch (err) {
+                console.error(`Error processing chapter ${chapterData.chapterId}:`, err);
+            }
+        }
+
+        // Prepare result by book
+        const bookStats = {};
+        
+        // Process each book
+        for (const bookIdStr of bookIds) {
+            const chaptersInBook = chaptersByBook[bookIdStr] || [];
+            const bookChapterIds = new Set(chaptersInBook.map(ch => ch._id.toString()));
+            
+            // Count completed and in-progress chapters for this book
+            const completedChapters = Array.from(stats.chaptersCompleted)
+                .filter(chId => bookChapterIds.has(chId));
+                
+            const inProgressChapters = Array.from(stats.chaptersInProgress)
+                .filter(chId => bookChapterIds.has(chId));
+            
+            // Calculate not started chapters
+            const notStartedChapters = chaptersInBook
+                .filter(ch => !stats.chaptersCompleted.has(ch._id.toString()) && 
+                              !stats.chaptersInProgress.has(ch._id.toString()))
+                .map(ch => ch._id.toString());
+            
+            // Get book details
+            const bookRecord = qnaRecords.find(r => r.bookId && r.bookId._id.toString() === bookIdStr);
+            const bookTitle = bookRecord && bookRecord.bookId ? bookRecord.bookId.title : 'Unknown Book';
+            
+            // Store stats for this book
+            bookStats[bookIdStr] = {
+                bookId: bookIdStr,
+                title: bookTitle,
+                totalChapters: chaptersInBook.length,
+                completed: {
+                    count: completedChapters.length,
+                    percentage: chaptersInBook.length > 0 ? 
+                        parseFloat(((completedChapters.length / chaptersInBook.length) * 100).toFixed(1)) : 0,
+                    chapters: completedChapters.map(chId => {
+                        const chapter = chaptersInBook.find(ch => ch._id.toString() === chId);
+                        return chapter ? { id: chId, title: chapter.title } : { id: chId, title: 'Unknown' };
+                    })
+                },
+                inProgress: {
+                    count: inProgressChapters.length,
+                    percentage: chaptersInBook.length > 0 ? 
+                        parseFloat(((inProgressChapters.length / chaptersInBook.length) * 100).toFixed(1)) : 0,
+                    chapters: inProgressChapters.map(chId => {
+                        const chapter = chaptersInBook.find(ch => ch._id.toString() === chId);
+                        return chapter ? { id: chId, title: chapter.title } : { id: chId, title: 'Unknown' };
+                    })
+                },
+                notStarted: {
+                    count: notStartedChapters.length,
+                    percentage: chaptersInBook.length > 0 ? 
+                        parseFloat(((notStartedChapters.length / chaptersInBook.length) * 100).toFixed(1)) : 0,
+                    chapters: notStartedChapters.map(chId => {
+                        const chapter = chaptersInBook.find(ch => ch._id.toString() === chId);
+                        return chapter ? { id: chId, title: chapter.title } : { id: chId, title: 'Unknown' };
+                    })
+                }
+            };
+        }
+
+        // Calculate overall stats across all books
+        const totalChapters = allChapters.length;
+        const totalCompleted = stats.chaptersCompleted.size;
+        const totalInProgress = stats.chaptersInProgress.size;
+        const totalNotStarted = totalChapters - totalCompleted - totalInProgress;
+
+        // Format response
+        const response = {
+            success: true,
+            data: {
+                userId,
+                dateRange: {
+                    start: startDate || null,
+                    end: endDate || null
+                },
+                overall: {
+                    totalBooks: bookIds.length,
+                    totalChapters,
+                    completed: {
+                        count: totalCompleted,
+                        percentage: totalChapters > 0 ? parseFloat(((totalCompleted / totalChapters) * 100).toFixed(1)) : 0
+                    },
+                    inProgress: {
+                        count: totalInProgress,
+                        percentage: totalChapters > 0 ? parseFloat(((totalInProgress / totalChapters) * 100).toFixed(1)) : 0
+                    },
+                    notStarted: {
+                        count: totalNotStarted,
+                        percentage: totalChapters > 0 ? parseFloat(((totalNotStarted / totalChapters) * 100).toFixed(1)) : 0
+                    }
+                },
+                bookStats: Object.values(bookStats)
+            }
+        };
+        
+        res.json(response);
+
+    } catch (error) {
+        console.error("📊 Error fetching chapter stats:", error);
+        res.status(500).json({ 
+            success: false, 
+            error: "Failed to fetch chapter statistics", 
+            details: error.message 
+        });
+    }
+});
+
+// ================================================================
+// 3. ASSESSMENT DATA API
 // ================================================================
 
 /**
