@@ -31,6 +31,61 @@ async function isQuestionModeEnabled() {
 
 // Import node-fetch for OpenAI
 const fetch = require('node-fetch');
+// Import Headers from node-fetch for compatibility
+const { Headers } = require('node-fetch');
+
+// Ensure Headers is available globally for OpenAI client
+if (typeof global.Headers === 'undefined') {
+    global.Headers = Headers;
+}
+
+// Add Blob polyfill for Node.js compatibility with OpenAI
+if (typeof global.Blob === 'undefined') {
+    try {
+        const { Blob } = require('buffer');
+        global.Blob = Blob;
+    } catch (err) {
+        // Fallback Blob implementation for older Node.js versions
+        global.Blob = class Blob {
+            constructor(parts = [], options = {}) {
+                this.size = 0;
+                this.type = options.type || '';
+                this._parts = parts;
+                
+                // Calculate size
+                for (const part of parts) {
+                    if (typeof part === 'string') {
+                        this.size += Buffer.byteLength(part);
+                    } else if (part instanceof Buffer) {
+                        this.size += part.length;
+                    }
+                }
+            }
+            
+            async text() {
+                return Buffer.concat(this._parts.map(p => 
+                    typeof p === 'string' ? Buffer.from(p) : p
+                )).toString();
+            }
+            
+            async arrayBuffer() {
+                return Buffer.concat(this._parts.map(p => 
+                    typeof p === 'string' ? Buffer.from(p) : p
+                )).buffer;
+            }
+        };
+    }
+}
+
+// Add FormData polyfill if not available
+if (typeof global.FormData === 'undefined') {
+    try {
+        const FormData = require('form-data');
+        global.FormData = FormData;
+    } catch (err) {
+        console.warn('FormData polyfill not available, some OpenAI features may not work');
+    }
+}
 
 // Create mock OpenAI clients if API keys are missing
 let openai, openaiSelector, openaiTranscription;
@@ -41,7 +96,9 @@ try {
         openai = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY_D, 
             baseURL: 'https://api.deepseek.com',
-            fetch: fetch // Use node-fetch as the fetch implementation
+            fetch: fetch, // Use node-fetch as the fetch implementation
+            // Provide Headers for compatibility
+            Headers: Headers
         });
         console.log("DeepSeek OpenAI client initialized successfully");
     } else {
@@ -54,7 +111,8 @@ try {
     if (process.env.OPENAI_API_KEY) {
         openaiSelector = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY,
-            fetch: fetch // Use node-fetch as the fetch implementation
+            fetch: fetch, // Use node-fetch as the fetch implementation
+            Headers: Headers
         });
         console.log("OpenAI selector client initialized successfully");
     } else {
@@ -66,7 +124,8 @@ try {
     if (process.env.OPENAI_API_KEY) {
         openaiTranscription = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY,
-            fetch: fetch // Use node-fetch as the fetch implementation
+            fetch: fetch, // Use node-fetch as the fetch implementation
+            Headers: Headers
         });
         console.log("OpenAI transcription client initialized successfully");
     } else {
@@ -188,15 +247,41 @@ DO NOT:
 
 // Send Message & Get AI Response with Question Prompts
 router.post("/send", authenticateUser, async (req, res) => {
+    // Declare variables outside try block so they're available in catch block
+    let userId, message, chapterId;
+    
     try {
-        const { userId, message, chapterId } = req.body;
+        ({ userId, message, chapterId } = req.body);
+        
+        // Validate required fields
+        if (!userId || !message || !chapterId) {
+            return res.status(400).json({ 
+                error: "Missing required fields", 
+                details: "User ID, chapter ID, and message are required",
+                received: {
+                    hasUserId: !!userId,
+                    hasMessage: !!message,
+                    hasChapterId: !!chapterId
+                }
+            });
+        }
+        
+        // Validate chapterId format (MongoDB ObjectId should be 24 characters)
+        if (!isValidObjectId(chapterId)) {
+            return res.status(400).json({ 
+                error: "Invalid chapter ID format", 
+                details: "Chapter ID must be a 24-character hexadecimal string",
+                received: {
+                    chapterId: chapterId,
+                    length: chapterId ? chapterId.length : 0,
+                    isValidFormat: isValidObjectId(chapterId)
+                }
+            });
+        }
+        
         // Initialize variables for scoring that will be used later in the function
         let marksAwarded = 0;
         let maxScore = 1;
-
-        if (!userId || !message || !chapterId) {
-            return res.status(400).json({ error: "User ID, chapter ID, and message are required" });
-        }
 
         // Get the questionMode config
         const questionModeEnabled = await isQuestionModeEnabled();
@@ -1088,8 +1173,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             stack: error.stack,
             name: error.name,
             requestDetails: { 
-                userId, 
-                chapterId,
+                userId: userId || 'undefined', 
+                chapterId: chapterId || 'undefined',
                 messageLength: message ? message.length : 0
             }
         });
@@ -1112,6 +1197,16 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 error: "AI service unavailable", 
                 details: "The AI service is currently unavailable. Please try again later.",
                 code: "AI_SERVICE_ERROR"
+            });
+        }
+        
+        // Handle MongoDB ObjectId casting errors
+        if (error.name === "CastError" && error.message.includes("ObjectId")) {
+            return res.status(400).json({ 
+                error: "Invalid ID format", 
+                details: "The provided ID is not in the correct format. Please check your chapter ID.",
+                code: "INVALID_ID_FORMAT",
+                field: error.path || "unknown"
             });
         }
         
@@ -1806,6 +1901,11 @@ router.get("/audio/:fileId", authenticateUser, async (req, res) => {
         res.status(500).json({ error: "Failed to retrieve audio file" });
     }
 });
+
+// Helper function to validate MongoDB ObjectId format
+function isValidObjectId(id) {
+    return typeof id === 'string' && id.length === 24 && /^[0-9a-fA-F]{24}$/.test(id);
+}
 
 // Add a health check endpoint to verify chat API is working
 router.get("/health", (req, res) => {
