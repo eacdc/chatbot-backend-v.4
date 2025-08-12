@@ -1055,14 +1055,71 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 console.error(`Invalid chapterId format: ${chapterId}`);
                 return res.status(400).json({ error: "Invalid chapter ID format" });
             }
-            return res.status(500).json({ error: "Error fetching chapter details", details: chapterError.message });
+            // Provide more helpful error message and log more details
+            console.error("Detailed chapter fetch error:", {
+                error: chapterError,
+                stack: chapterError.stack,
+                chapterId: chapterId
+            });
+            
+            // Check if it's a connection error
+            const isConnectionError = 
+                chapterError.message.includes("connect") || 
+                chapterError.message.includes("ECONNREFUSED") ||
+                chapterError.name === "MongooseServerSelectionError";
+                
+            if (isConnectionError) {
+                return res.status(500).json({ 
+                    error: "Error fetching chapter details", 
+                    details: "Database connection error. Please check your MongoDB connection.",
+                    code: "DB_CONNECTION_ERROR"
+                });
+            }
+            
+            return res.status(500).json({ 
+                error: "Error fetching chapter details", 
+                details: chapterError.message || "Unknown error occurred while fetching chapter data"
+            });
         }
     } catch (error) {
-        console.error("Error processing message:", error);
-        console.error("Request details:", { userId, chapterId });
+        // Enhanced error logging for better debugging
+        console.error("Error processing chat message:", {
+            error: error.message,
+            stack: error.stack,
+            name: error.name,
+            requestDetails: { 
+                userId, 
+                chapterId,
+                messageLength: message ? message.length : 0
+            }
+        });
+        
+        // Check for specific error types to provide better user feedback
+        if (error.name === "MongooseServerSelectionError" || 
+            error.message.includes("connect") || 
+            error.message.includes("ECONNREFUSED")) {
+            return res.status(503).json({ 
+                error: "Database connection error", 
+                details: "Unable to connect to the database. Please try again later.",
+                code: "DB_CONNECTION_ERROR"
+            });
+        }
+        
+        if (error.name === "OpenAIError" || 
+            error.message.includes("OpenAI") || 
+            error.message.includes("API key")) {
+            return res.status(503).json({ 
+                error: "AI service unavailable", 
+                details: "The AI service is currently unavailable. Please try again later.",
+                code: "AI_SERVICE_ERROR"
+            });
+        }
+        
+        // Default error response
         return res.status(500).json({ 
             error: "Error processing message", 
-            details: error.message || "Unknown error"
+            details: error.message || "Unknown error",
+            code: "GENERAL_ERROR"
         });
     }
 });
@@ -1748,6 +1805,15 @@ router.get("/audio/:fileId", authenticateUser, async (req, res) => {
         console.error("Error retrieving audio file:", error);
         res.status(500).json({ error: "Failed to retrieve audio file" });
     }
+});
+
+// Add a health check endpoint to verify chat API is working
+router.get("/health", (req, res) => {
+    res.json({
+        status: "ok",
+        message: "Chat API is operational",
+        timestamp: new Date().toISOString()
+    });
 });
 
 // Add the missing export statement
