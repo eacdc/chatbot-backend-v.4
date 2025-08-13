@@ -29,13 +29,17 @@ async function isQuestionModeEnabled() {
   return true;
 }
 
-// Import node-fetch for OpenAI
-const fetch = require('node-fetch');
-// Import Headers from node-fetch for compatibility
-const { Headers } = require('node-fetch');
+// Import node-fetch for OpenAI with compatibility for CJS/ESM
+const nodeFetch = require('node-fetch');
+const fetch = nodeFetch.default || nodeFetch; // Ensure we have a function
+// Import Headers from node-fetch for compatibility (v2/v3)
+const Headers = (nodeFetch && nodeFetch.Headers) ? nodeFetch.Headers : (typeof global.Headers !== 'undefined' ? global.Headers : undefined);
 
-// Ensure Headers is available globally for OpenAI client
-if (typeof global.Headers === 'undefined') {
+// Ensure fetch and Headers are available globally for OpenAI client
+if (typeof global.fetch === 'undefined' && typeof fetch === 'function') {
+    global.fetch = fetch;
+}
+if (typeof global.Headers === 'undefined' && typeof Headers !== 'undefined') {
     global.Headers = Headers;
 }
 
