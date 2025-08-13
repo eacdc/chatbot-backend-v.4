@@ -10,7 +10,7 @@ export const API_ENDPOINTS = {
   VERIFY_OTP: `${API_URL}/api/users/verify-otp`,
   RESEND_OTP: `${API_URL}/api/users/resend-otp`,
   CHECK_USERNAME: `${API_URL}/api/users/check-username`,
-  CHAT: `${API_URL}/api/chat/send`,
+  CHAT: `${API_URL}/api/chat`,
   BOOKS: `${API_URL}/api/books`,
   CHAPTERS: `${API_URL}/api/chapters`,
   SUBSCRIPTIONS: `${API_URL}/api/subscriptions`,

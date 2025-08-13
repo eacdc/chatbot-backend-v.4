@@ -29,63 +29,11 @@ async function isQuestionModeEnabled() {
   return true;
 }
 
-// Import node-fetch for OpenAI
+// Import node-fetch for OpenAI (CommonJS version)
 const fetch = require('node-fetch');
-// Import Headers from node-fetch for compatibility
-const { Headers } = require('node-fetch');
 
-// Ensure Headers is available globally for OpenAI client
-if (typeof global.Headers === 'undefined') {
-    global.Headers = Headers;
-}
-
-// Add Blob polyfill for Node.js compatibility with OpenAI
-if (typeof global.Blob === 'undefined') {
-    try {
-        const { Blob } = require('buffer');
-        global.Blob = Blob;
-    } catch (err) {
-        // Fallback Blob implementation for older Node.js versions
-        global.Blob = class Blob {
-            constructor(parts = [], options = {}) {
-                this.size = 0;
-                this.type = options.type || '';
-                this._parts = parts;
-                
-                // Calculate size
-                for (const part of parts) {
-                    if (typeof part === 'string') {
-                        this.size += Buffer.byteLength(part);
-                    } else if (part instanceof Buffer) {
-                        this.size += part.length;
-                    }
-                }
-            }
-            
-            async text() {
-                return Buffer.concat(this._parts.map(p => 
-                    typeof p === 'string' ? Buffer.from(p) : p
-                )).toString();
-            }
-            
-            async arrayBuffer() {
-                return Buffer.concat(this._parts.map(p => 
-                    typeof p === 'string' ? Buffer.from(p) : p
-                )).buffer;
-            }
-        };
-    }
-}
-
-// Add FormData polyfill if not available
-if (typeof global.FormData === 'undefined') {
-    try {
-        const FormData = require('form-data');
-        global.FormData = FormData;
-    } catch (err) {
-        console.warn('FormData polyfill not available, some OpenAI features may not work');
-    }
-}
+// We'll use this as the fetch implementation for OpenAI client
+// Note: node-fetch@2 exports a function directly, not an object with a fetch method
 
 // Create mock OpenAI clients if API keys are missing
 let openai, openaiSelector, openaiTranscription;
@@ -96,9 +44,7 @@ try {
         openai = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY_D, 
             baseURL: 'https://api.deepseek.com',
-            fetch: fetch, // Use node-fetch as the fetch implementation
-            // Provide Headers for compatibility
-            Headers: Headers
+            fetch // Use node-fetch as the fetch implementation (pass the function directly)
         });
         console.log("DeepSeek OpenAI client initialized successfully");
     } else {
@@ -111,8 +57,7 @@ try {
     if (process.env.OPENAI_API_KEY) {
         openaiSelector = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY,
-            fetch: fetch, // Use node-fetch as the fetch implementation
-            Headers: Headers
+            fetch // Use node-fetch as the fetch implementation (pass the function directly)
         });
         console.log("OpenAI selector client initialized successfully");
     } else {
@@ -124,8 +69,7 @@ try {
     if (process.env.OPENAI_API_KEY) {
         openaiTranscription = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY,
-            fetch: fetch, // Use node-fetch as the fetch implementation
-            Headers: Headers
+            fetch // Use node-fetch as the fetch implementation (pass the function directly)
         });
         console.log("OpenAI transcription client initialized successfully");
     } else {
