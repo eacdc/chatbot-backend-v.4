@@ -1,0 +1,20 @@
+[33m4a9605df[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m fix(chat): ensure fetch is callable and set global fallbacks; chore: ignore .env and remove from repo (no secrets in history)
+[33m165edfa7[m fix(chat): ensure fetch is a callable function; set global.fetch and global.Headers fallbacks; remove incorrect Headers option when constructing OpenAI clients
+[33mfaa813e3[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix Node.js compatibility issues with OpenAI client - add Headers, Blob, and FormData polyfills
+[33m3a6adc14[m Fix chat API connection error and improve error handling
+[33m30005d65[m Add chapter completion statistics API and fix chapter counting logic
+[33m1fe746de[m Add detailed logging for chapter completion criteria and statistics
+[33mcc731035[m Enhanced progress-details API with detailed chapter information for completed and in-progress chapters
+[33mba6f5738[m Fix connection reset by peer errors by implementing retry logic, improving error handling, and optimizing backend connection settings
+[33m29569412[m Update book routes and subscription routes functionality
+[33m04911fc0[m Fix inconsistent lastAccessed date format
+[33m0767871a[m Fix search, sort, and filter functionality in All Books view
+[33me757d48f[m Add consistent search, filter, and sort functionality to both all books and subscribed books UI
+[33m19fdad61[m Fix View Chapters button functionality in Collections component
+[33mff436254[m Add new search-with-status endpoint to combine book search with subscription status
+[33mc9081046[m Fix filter button blank page issue and map error in Collections component
+[33mbc3a9abf[m feat: Enable JD publisher login from any URL - Remove origin restrictions for JD users - Update login logic to allow JD users universal access - Add documentation for JD universal login feature - Update frontend to show JD users can login from any URL
+[33me3df7cc5[m Fix duplicate MongoDB index warnings - remove redundant schema.index() calls
+[33mcdb44990[m Disable dummy OTP functionality - enable real email OTP verification
+[33m60c54cf1[m fix(transcribe): remove duplicate chat history saving from transcribe endpoint
+[33m387f543d[m feat(auth): allow JD users to login from testyourlearning.com domain

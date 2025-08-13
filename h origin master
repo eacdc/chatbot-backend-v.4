@@ -1,0 +1,5 @@
+[33m75b67884[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m fix(chat): ensure fetch is callable; ignore .env file
+[33m4a9605df[m fix(chat): ensure fetch is callable and set global fallbacks; chore: ignore .env and remove from repo (no secrets in history)
+[33m165edfa7[m fix(chat): ensure fetch is a callable function; set global.fetch and global.Headers fallbacks; remove incorrect Headers option when constructing OpenAI clients
+[33mfaa813e3[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix Node.js compatibility issues with OpenAI client - add Headers, Blob, and FormData polyfills
+[33m3a6adc14[m Fix chat API connection error and improve error handling
