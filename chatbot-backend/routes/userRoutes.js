@@ -400,6 +400,9 @@ router.post("/login", async (req, res) => {
             );
 
             console.log("✅ Login successful!");
+            console.log("✅ Generated token length:", token.length);
+            console.log("✅ Token first 20 chars:", token.substring(0, 20) + "...");
+            console.log("✅ Token last 20 chars:", "..." + token.substring(token.length - 20));
             return res.json({ 
                 token, 
                 userId: user._id, 

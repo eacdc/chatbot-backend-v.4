@@ -37,12 +37,19 @@ if (!hasConfirmation) {
 }
 
 // Connect to MongoDB
+console.log('Connecting to MongoDB...');
+console.log('MONGO_URI:', process.env.MONGO_URI);
 mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI)
   .then(() => console.log('\x1b[32m%s\x1b[0m', 'MongoDB connected'))
   .catch(err => {
     console.error('\x1b[31m%s\x1b[0m', 'MongoDB connection error:', err);
     process.exit(1);
   });
+
+mongoose.connection.on('connected', () => {
+  console.log('✅ Connected to MongoDB!');
+  console.log('Database Name:', mongoose.connection.name);
+});
 
 async function clearCollections() {
   // Display warning
