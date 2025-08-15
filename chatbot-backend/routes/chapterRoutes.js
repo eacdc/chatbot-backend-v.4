@@ -100,8 +100,9 @@ try {
                 ...options,
                 body: form,
                 headers: {
-                    ...originalHeaders,  // Keep Authorization and other original headers
-                    ...formHeaders       // Add form-data headers
+                    ...originalHeaders,  // Keep any existing headers
+                    ...formHeaders,      // Add form-data headers
+                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` // Ensure API key is present
                 }
             };
             
