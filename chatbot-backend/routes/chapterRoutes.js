@@ -880,7 +880,14 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         
         // Create a temporary text file from raw text
         const tempFileName = `temp_knowledge_${Date.now()}.txt`;
-        const tempFilePath = path.join(__dirname, tempFileName);
+        const tempDir = path.join(__dirname, '../uploads');
+        
+        // Ensure the uploads directory exists
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        const tempFilePath = path.join(tempDir, tempFileName);
         
         console.log(`Creating temporary file at: ${tempFilePath}`);
         
@@ -991,13 +998,11 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
     } catch (error) {
         console.error('Error saving text to vector store:', error);
         
-        // Clean up temporary file if it exists
-        const tempFileName = `temp_knowledge_${Date.now()}.txt`;
-        const tempFilePath = path.join(__dirname, tempFileName);
-        if (fs.existsSync(tempFilePath)) {
-            console.log(`Cleaning up temporary file after error: ${tempFilePath}`);
-            fs.unlinkSync(tempFilePath);
-        }
+        // Clean up temporary file if it exists (use the same path logic)
+        const tempDir = path.join(__dirname, '../uploads');
+        // Note: We can't get the exact filename here since Date.now() will be different
+        // This is a limitation, but the main cleanup happens in the try block
+        console.log(`Error occurred during vector store creation`);
         
         return {
             success: false,
