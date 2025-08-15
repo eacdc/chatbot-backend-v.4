@@ -69,13 +69,28 @@ const FormData = require('form-data');
 // Initialize OpenAI client with fetch polyfill
 let openai;
 try {
-    if (process.env.OPENAI_API_KEY) {
-        openai = new OpenAI({ 
-            apiKey: process.env.OPENAI_API_KEY,
-            fetch // Use node-fetch as the fetch implementation (pass the function directly)
-        });
-        console.log("OpenAI client initialized successfully in chapterRoutes.js");
-    } else {
+  if (process.env.OPENAI_API_KEY) {
+    // Configure fetch with FormData support
+    const fetchWithFormData = (url, options = {}) => {
+        if (options.body && typeof options.body === 'object' && options.body.constructor.name === 'FormData') {
+            // Handle FormData with form-data package
+            const FormData = require('form-data');
+            if (options.body instanceof FormData) {
+                options.headers = {
+                    ...options.headers,
+                    ...options.body.getHeaders()
+                };
+            }
+        }
+        return fetch(url, options);
+    };
+
+    openai = new OpenAI({ 
+        apiKey: process.env.OPENAI_API_KEY,
+        fetch: fetchWithFormData
+    });
+    console.log("OpenAI client initialized successfully in chapterRoutes.js");
+} else {
         console.warn("OPENAI_API_KEY not found in environment variables. OpenAI features in chapterRoutes will be disabled.");
         // Create a mock OpenAI client to prevent errors
         openai = {
