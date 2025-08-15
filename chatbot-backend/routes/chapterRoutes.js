@@ -70,33 +70,9 @@ const FormData = require('form-data');
 let openai;
 try {
   if (process.env.OPENAI_API_KEY) {
-    // Configure fetch with proper Authorization header
-    const fetchWithAuth = async (url, options = {}) => {
-        console.log(`Custom fetch called for URL: ${url}`);
-        console.log(`Method: ${options.method || 'GET'}`);
-        console.log(`Has body: ${!!options.body}`);
-        
-        // Always ensure Authorization header is present for OpenAI requests
-        if (url.includes('openai.com')) {
-            const newOptions = {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-                }
-            };
-            
-            console.log(`Added Authorization header for OpenAI request`);
-            return fetch(url, newOptions);
-        }
-        
-        // For non-OpenAI requests, use regular fetch
-        return fetch(url, options);
-    };
-
     openai = new OpenAI({ 
         apiKey: process.env.OPENAI_API_KEY,
-        fetch: fetchWithAuth
+        fetch // Use node-fetch as the fetch implementation (pass the function directly)
     });
     console.log("OpenAI client initialized successfully in chapterRoutes.js");
 } else {
