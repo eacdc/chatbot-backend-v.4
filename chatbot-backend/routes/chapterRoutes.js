@@ -70,15 +70,27 @@ const FormData = require('form-data');
 let openai;
 try {
   if (process.env.OPENAI_API_KEY) {
-    // Configure fetch with FormData support
-    const fetchWithFormData = (url, options = {}) => {
-        // If this is a file upload, we need to handle FormData properly
-        if (options.body && options.body instanceof require('form-data')) {
-            // Set proper headers for form-data
-            options.headers = {
-                ...options.headers,
-                ...options.body.getHeaders()
-            };
+    // Configure fetch with FormData support for file uploads
+    const fetchWithFormData = async (url, options = {}) => {
+        // Check if this is a file upload by looking at the URL and method
+        if (options.method === 'POST' && url.includes('/files') && options.body) {
+            const FormData = require('form-data');
+            
+            // If body contains file data, convert to proper FormData
+            if (options.body.file) {
+                const form = new FormData();
+                form.append('file', options.body.file);
+                form.append('purpose', options.body.purpose);
+                
+                // Update options with FormData
+                options.body = form;
+                options.headers = {
+                    ...options.headers,
+                    ...form.getHeaders()
+                };
+                // Remove content-type to let form-data set it
+                delete options.headers['content-type'];
+            }
         }
         return fetch(url, options);
     };
