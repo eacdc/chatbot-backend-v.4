@@ -71,7 +71,7 @@ try {
     if (process.env.OPENAI_API_KEY) {
         openai = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY,
-            fetch: fetch // Use node-fetch as the fetch implementation
+            fetch // Use node-fetch as the fetch implementation (pass the function directly)
         });
         console.log("OpenAI client initialized successfully in chapterRoutes.js");
     } else {

@@ -100,7 +100,7 @@ try {
         openai = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY_D, 
             baseURL: 'https://api.deepseek.com',
-            fetch: fetch // Use node-fetch as the fetch implementation
+            fetch // Use node-fetch as the fetch implementation (pass the function directly)
         });
         console.log("DeepSeek OpenAI client initialized successfully");
     } else {
@@ -113,7 +113,7 @@ try {
     if (process.env.OPENAI_API_KEY) {
         openaiSelector = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY,
-            fetch: fetch // Use node-fetch as the fetch implementation
+            fetch // Use node-fetch as the fetch implementation (pass the function directly)
         });
         console.log("OpenAI selector client initialized successfully");
     } else {
@@ -125,7 +125,7 @@ try {
     if (process.env.OPENAI_API_KEY) {
         openaiTranscription = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY,
-            fetch: fetch // Use node-fetch as the fetch implementation
+            fetch // Use node-fetch as the fetch implementation (pass the function directly)
         });
         console.log("OpenAI transcription client initialized successfully");
     } else {
