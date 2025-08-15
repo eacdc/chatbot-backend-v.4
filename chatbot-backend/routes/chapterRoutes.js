@@ -92,21 +92,26 @@ try {
                 }
             }
             
-            // Update request options
+            // Preserve original headers and add form headers
+            const originalHeaders = options.headers || {};
+            const formHeaders = form.getHeaders();
+            
             const newOptions = {
                 ...options,
                 body: form,
                 headers: {
-                    ...options.headers,
-                    ...form.getHeaders()
+                    ...originalHeaders,  // Keep Authorization and other original headers
+                    ...formHeaders       // Add form-data headers
                 }
             };
             
-            // Remove any conflicting content-type headers
+            // Remove any conflicting content-type headers (form-data will set the correct one)
             delete newOptions.headers['content-type'];
             delete newOptions.headers['Content-Type'];
             
-            console.log(`Updated headers:`, Object.keys(newOptions.headers));
+            console.log(`Original headers:`, Object.keys(originalHeaders));
+            console.log(`Form headers:`, Object.keys(formHeaders));
+            console.log(`Final headers:`, Object.keys(newOptions.headers));
             return fetch(url, newOptions);
         }
         
