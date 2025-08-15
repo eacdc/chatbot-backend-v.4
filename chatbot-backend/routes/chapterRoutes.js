@@ -64,6 +64,7 @@ function makeHttpsRequest(url, options = {}) {
 
 // Import node-fetch for OpenAI
 const fetch = require('node-fetch');
+const FormData = require('form-data');
 
 // Initialize OpenAI client with fetch polyfill
 let openai;
