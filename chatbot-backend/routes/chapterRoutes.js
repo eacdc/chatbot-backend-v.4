@@ -66,6 +66,14 @@ function makeHttpsRequest(url, options = {}) {
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 
+// Set global polyfills for OpenAI SDK compatibility
+if (!global.FormData) {
+    global.FormData = FormData;
+}
+if (!global.fetch) {
+    global.fetch = fetch;
+}
+
 // Initialize OpenAI client with fetch polyfill
 let openai;
 try {
