@@ -72,15 +72,13 @@ try {
   if (process.env.OPENAI_API_KEY) {
     // Configure fetch with FormData support
     const fetchWithFormData = (url, options = {}) => {
-        if (options.body && typeof options.body === 'object' && options.body.constructor.name === 'FormData') {
-            // Handle FormData with form-data package
-            const FormData = require('form-data');
-            if (options.body instanceof FormData) {
-                options.headers = {
-                    ...options.headers,
-                    ...options.body.getHeaders()
-                };
-            }
+        // If this is a file upload, we need to handle FormData properly
+        if (options.body && options.body instanceof require('form-data')) {
+            // Set proper headers for form-data
+            options.headers = {
+                ...options.headers,
+                ...options.body.getHeaders()
+            };
         }
         return fetch(url, options);
     };
@@ -902,8 +900,11 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         try {
             // First, upload the file to OpenAI Files API
             console.log(`Uploading file to OpenAI files API`);
+            const fileStream = fs.createReadStream(tempFilePath);
+            fileStream.path = tempFileName; // Set the filename for proper content-type detection
+            
             const fileResponse = await openai.files.create({
-                file: fs.createReadStream(tempFilePath),
+                file: fileStream,
                 purpose: "assistants"
             });
             
