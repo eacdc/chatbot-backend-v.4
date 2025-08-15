@@ -62,25 +62,15 @@ function makeHttpsRequest(url, options = {}) {
     });
 }
 
-// Import node-fetch for OpenAI
-const fetch = require('node-fetch');
-const FormData = require('form-data');
-
-// Set global polyfills for OpenAI SDK compatibility
-if (!global.FormData) {
-    global.FormData = FormData;
-}
-if (!global.fetch) {
-    global.fetch = fetch;
-}
+// Don't import node-fetch - let OpenAI SDK use native fetch or handle it internally
 
 // Initialize OpenAI client with fetch polyfill
 let openai;
 try {
   if (process.env.OPENAI_API_KEY) {
     openai = new OpenAI({ 
-        apiKey: process.env.OPENAI_API_KEY,
-        fetch // Use node-fetch as the fetch implementation (pass the function directly)
+        apiKey: process.env.OPENAI_API_KEY
+        // Let OpenAI SDK handle fetch internally
     });
     console.log("OpenAI client initialized successfully in chapterRoutes.js");
 } else {
