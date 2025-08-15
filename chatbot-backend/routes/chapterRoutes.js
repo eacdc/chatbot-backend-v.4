@@ -70,69 +70,33 @@ const FormData = require('form-data');
 let openai;
 try {
   if (process.env.OPENAI_API_KEY) {
-    // Configure fetch with FormData support for file uploads
-    const fetchWithFormData = async (url, options = {}) => {
+    // Configure fetch with proper Authorization header
+    const fetchWithAuth = async (url, options = {}) => {
         console.log(`Custom fetch called for URL: ${url}`);
         console.log(`Method: ${options.method || 'GET'}`);
         console.log(`Has body: ${!!options.body}`);
         
-        // Check if this is a file upload
-        if (options.method === 'POST' && url.includes('/files')) {
-            console.log(`Detected file upload request`);
-            const FormDataLib = require('form-data');
-            
-            // Create proper FormData
-            const form = new FormDataLib();
-            
-            // Handle the OpenAI client's way of passing file data
-            if (options.body && typeof options.body === 'object') {
-                console.log(`Request body keys:`, Object.keys(options.body));
-                for (const [key, value] of Object.entries(options.body)) {
-                    console.log(`Adding form field: ${key}, value type: ${typeof value}`);
-                    if (key === 'file') {
-                        console.log(`File value details:`, {
-                            isStream: value && typeof value.pipe === 'function',
-                            hasPath: value && value.path,
-                            constructor: value && value.constructor.name
-                        });
-                    }
-                    form.append(key, value);
-                }
-            } else {
-                console.log(`No body or body is not object:`, typeof options.body);
-            }
-            
-            // Preserve original headers and add form headers
-            const originalHeaders = options.headers || {};
-            const formHeaders = form.getHeaders();
-            
+        // Always ensure Authorization header is present for OpenAI requests
+        if (url.includes('openai.com')) {
             const newOptions = {
                 ...options,
-                body: form,
                 headers: {
-                    ...originalHeaders,  // Keep any existing headers
-                    ...formHeaders,      // Add form-data headers
-                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` // Ensure API key is present
+                    ...options.headers,
+                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
                 }
             };
             
-            // Remove any conflicting content-type headers (form-data will set the correct one)
-            delete newOptions.headers['content-type'];
-            delete newOptions.headers['Content-Type'];
-            
-            console.log(`Original headers:`, Object.keys(originalHeaders));
-            console.log(`Form headers:`, Object.keys(formHeaders));
-            console.log(`Final headers:`, Object.keys(newOptions.headers));
+            console.log(`Added Authorization header for OpenAI request`);
             return fetch(url, newOptions);
         }
         
-        // For non-file uploads, use regular fetch
+        // For non-OpenAI requests, use regular fetch
         return fetch(url, options);
     };
 
     openai = new OpenAI({ 
         apiKey: process.env.OPENAI_API_KEY,
-        fetch: fetchWithFormData
+        fetch: fetchWithAuth
     });
     console.log("OpenAI client initialized successfully in chapterRoutes.js");
 } else {
