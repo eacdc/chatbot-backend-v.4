@@ -916,33 +916,18 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         console.log(`Vector store object: ${JSON.stringify(vectorStore)}`);
         
         try {
-            // First, upload the file to OpenAI Files API
-            console.log(`Uploading file to OpenAI files API`);
+            // Use the new upload_and_poll method which handles both upload and vector store addition
+            console.log(`Uploading file directly to vector store using upload_and_poll`);
             const fileStream = fs.createReadStream(tempFilePath);
-            // Keep the original path, just set the name property for OpenAI
-            Object.defineProperty(fileStream, 'name', {
-                value: tempFileName,
-                writable: false
-            });
             
-            const fileResponse = await openai.files.create({
-                file: fileStream,
-                purpose: "assistants"
-            });
-            
-            console.log(`File uploaded to OpenAI files API with ID: ${fileResponse.id}`);
-            console.log(`File response object: ${JSON.stringify(fileResponse)}`);
-            
-            // Now add the file to the vector store using the file ID
-            console.log(`Adding file to vector store ${vectorStore.id}`);
-            const vectorStoreFile = await openai.vectorStores.files.create(
+            const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
                 vectorStore.id,
                 {
-                    file_id: fileResponse.id
+                    file: fileStream
                 }
             );
             
-            console.log(`Successfully added file to vector store: ${fileResponse.id}`);
+            console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
             console.log(`Vector store file object: ${JSON.stringify(vectorStoreFile)}`);
             
             // Poll for status - with detailed logging
@@ -999,7 +984,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             const result = {
                 success: true,
                 vectorStoreId: vectorStore.id,
-                fileId: fileResponse.id,
+                fileId: vectorStoreFile.id,
                 message: 'Text successfully saved to vector store'
             };
             
