@@ -86,10 +86,20 @@ try {
             
             // Handle the OpenAI client's way of passing file data
             if (options.body && typeof options.body === 'object') {
+                console.log(`Request body keys:`, Object.keys(options.body));
                 for (const [key, value] of Object.entries(options.body)) {
-                    console.log(`Adding form field: ${key}`);
+                    console.log(`Adding form field: ${key}, value type: ${typeof value}`);
+                    if (key === 'file') {
+                        console.log(`File value details:`, {
+                            isStream: value && typeof value.pipe === 'function',
+                            hasPath: value && value.path,
+                            constructor: value && value.constructor.name
+                        });
+                    }
                     form.append(key, value);
                 }
+            } else {
+                console.log(`No body or body is not object:`, typeof options.body);
             }
             
             // Preserve original headers and add form headers
