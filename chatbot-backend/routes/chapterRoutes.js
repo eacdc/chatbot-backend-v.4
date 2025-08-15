@@ -72,26 +72,45 @@ try {
   if (process.env.OPENAI_API_KEY) {
     // Configure fetch with FormData support for file uploads
     const fetchWithFormData = async (url, options = {}) => {
-        // Check if this is a file upload by looking at the URL and method
-        if (options.method === 'POST' && url.includes('/files') && options.body) {
-            const FormData = require('form-data');
+        console.log(`Custom fetch called for URL: ${url}`);
+        console.log(`Method: ${options.method || 'GET'}`);
+        console.log(`Has body: ${!!options.body}`);
+        
+        // Check if this is a file upload
+        if (options.method === 'POST' && url.includes('/files')) {
+            console.log(`Detected file upload request`);
+            const FormDataLib = require('form-data');
             
-            // If body contains file data, convert to proper FormData
-            if (options.body.file) {
-                const form = new FormData();
-                form.append('file', options.body.file);
-                form.append('purpose', options.body.purpose);
-                
-                // Update options with FormData
-                options.body = form;
-                options.headers = {
+            // Create proper FormData
+            const form = new FormDataLib();
+            
+            // Handle the OpenAI client's way of passing file data
+            if (options.body && typeof options.body === 'object') {
+                for (const [key, value] of Object.entries(options.body)) {
+                    console.log(`Adding form field: ${key}`);
+                    form.append(key, value);
+                }
+            }
+            
+            // Update request options
+            const newOptions = {
+                ...options,
+                body: form,
+                headers: {
                     ...options.headers,
                     ...form.getHeaders()
-                };
-                // Remove content-type to let form-data set it
-                delete options.headers['content-type'];
-            }
+                }
+            };
+            
+            // Remove any conflicting content-type headers
+            delete newOptions.headers['content-type'];
+            delete newOptions.headers['Content-Type'];
+            
+            console.log(`Updated headers:`, Object.keys(newOptions.headers));
+            return fetch(url, newOptions);
         }
+        
+        // For non-file uploads, use regular fetch
         return fetch(url, options);
     };
 
