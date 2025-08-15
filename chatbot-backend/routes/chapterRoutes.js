@@ -908,7 +908,11 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             // First, upload the file to OpenAI Files API
             console.log(`Uploading file to OpenAI files API`);
             const fileStream = fs.createReadStream(tempFilePath);
-            fileStream.path = tempFileName; // Set the filename for proper content-type detection
+            // Keep the original path, just set the name property for OpenAI
+            Object.defineProperty(fileStream, 'name', {
+                value: tempFileName,
+                writable: false
+            });
             
             const fileResponse = await openai.files.create({
                 file: fileStream,
