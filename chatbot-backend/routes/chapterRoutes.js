@@ -896,9 +896,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             
             const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
                 vectorStore.id,
-                {
-                    file: fileStream
-                }
+                fileStream
             );
             
             console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
