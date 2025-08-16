@@ -1334,9 +1334,14 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
         });
 
         // Transcribe the audio using OpenAI's API
+        // IMPORTANT: Using transcriptions (not translations) to maintain original language
+        console.log('Starting audio transcription with Whisper model...');
         const transcriptionPromise = openaiTranscription.audio.transcriptions.create({
             file: fs.createReadStream(filePathToTranscribe),
-            model: "whisper-1"
+            model: "whisper-1",
+            response_format: "verbose_json", // Get detailed response with language detection
+            temperature: 0.0, // Use deterministic transcription
+            prompt: "Transcribe the audio exactly as spoken without translating to another language." // Instruction to not translate
         });
 
         // Use Promise.race to implement the timeout
@@ -1348,8 +1353,15 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
             fs.unlinkSync(filePathToTranscribe);
         }
         
+        // Handle verbose_json response format
+        const transcribedText = transcription.text || "";
+        const detectedLanguage = transcription.language || "unknown";
+        
+        console.log(`Transcription completed. Detected language: ${detectedLanguage}`);
+        console.log(`Transcribed text: "${transcribedText.substring(0, 100)}..."`);
+        
         // Check for empty transcription
-        if (!transcription.text || transcription.text.trim() === "") {
+        if (!transcribedText || transcribedText.trim() === "") {
             return res.status(400).json({ error: "Couldn't transcribe audio. The file might be empty or corrupted." });
         }
         
@@ -1358,7 +1370,8 @@ router.post("/transcribe", authenticateUser, upload.single("audio"), async (req,
 
         // Return the transcribed text and redirect to text processing
         return res.status(200).json({
-            transcription: transcription.text,
+            transcription: transcribedText,
+            detectedLanguage: detectedLanguage,
             redirect: true
         });
     } catch (error) {
