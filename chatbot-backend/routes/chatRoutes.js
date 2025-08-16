@@ -29,19 +29,9 @@ async function isQuestionModeEnabled() {
   return true;
 }
 
-// Import node-fetch for OpenAI with compatibility for CJS/ESM
-const nodeFetch = require('node-fetch');
-const fetch = nodeFetch.default || nodeFetch; // Ensure we have a function
-// Import Headers from node-fetch for compatibility (v2/v3)
-const Headers = (nodeFetch && nodeFetch.Headers) ? nodeFetch.Headers : (typeof global.Headers !== 'undefined' ? global.Headers : undefined);
-
-// Ensure fetch and Headers are available globally for OpenAI client
-if (typeof global.fetch === 'undefined' && typeof fetch === 'function') {
-    global.fetch = fetch;
-}
-if (typeof global.Headers === 'undefined' && typeof Headers !== 'undefined') {
-    global.Headers = Headers;
-}
+// Remove fetch polyfill to allow OpenAI SDK to handle HTTP requests natively
+// The OpenAI SDK in Node.js 18+ can use the built-in fetch API
+console.log('Allowing OpenAI SDK to use native fetch implementation');
 
 // Add Blob polyfill for Node.js compatibility with OpenAI
 if (typeof global.Blob === 'undefined') {
@@ -81,15 +71,10 @@ if (typeof global.Blob === 'undefined') {
     }
 }
 
-// Add FormData polyfill if not available
-if (typeof global.FormData === 'undefined') {
-    try {
-        const FormData = require('form-data');
-        global.FormData = FormData;
-    } catch (err) {
-        console.warn('FormData polyfill not available, some OpenAI features may not work');
-    }
-}
+// Add FormData polyfill for Node.js compatibility with OpenAI
+// For OpenAI SDK compatibility, we need to avoid setting a global FormData
+// and let the OpenAI SDK handle file uploads internally
+console.log('Skipping FormData polyfill to allow OpenAI SDK to handle file uploads natively');
 
 // Create mock OpenAI clients if API keys are missing
 let openai, openaiSelector, openaiTranscription;
@@ -99,8 +84,8 @@ try {
     if (process.env.OPENAI_API_KEY_D) {
         openai = new OpenAI({ 
             apiKey: process.env.OPENAI_API_KEY_D, 
-            baseURL: 'https://api.deepseek.com',
-            fetch // Use node-fetch as the fetch implementation (pass the function directly)
+            baseURL: 'https://api.deepseek.com'
+            // Let OpenAI SDK handle fetch internally
         });
         console.log("DeepSeek OpenAI client initialized successfully");
     } else {
@@ -112,8 +97,8 @@ try {
     // Create a separate OpenAI client for agent selection using the standard OpenAI API
     if (process.env.OPENAI_API_KEY) {
         openaiSelector = new OpenAI({ 
-            apiKey: process.env.OPENAI_API_KEY,
-            fetch // Use node-fetch as the fetch implementation (pass the function directly)
+            apiKey: process.env.OPENAI_API_KEY
+            // Let OpenAI SDK handle fetch internally
         });
         console.log("OpenAI selector client initialized successfully");
     } else {
@@ -124,8 +109,8 @@ try {
     // Create a separate OpenAI client for audio transcription using the standard OpenAI API
     if (process.env.OPENAI_API_KEY) {
         openaiTranscription = new OpenAI({ 
-            apiKey: process.env.OPENAI_API_KEY,
-            fetch // Use node-fetch as the fetch implementation (pass the function directly)
+            apiKey: process.env.OPENAI_API_KEY
+            // Don't pass fetch directly for file uploads - let OpenAI SDK handle it
         });
         console.log("OpenAI transcription client initialized successfully");
     } else {
