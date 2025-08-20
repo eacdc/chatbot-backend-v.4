@@ -6,6 +6,8 @@ const SubscriptionSchema = new mongoose.Schema({
   bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true },
   bookTitle: { type: String, required: true },
   publisher: { type: String, default: "" },
+  subject: { type: String, default: "" },
+  grade: { type: String, default: "" },
   bookCoverImgLink: { type: String, default: "" },
   subscribedAt: { type: Date, default: Date.now }
 });

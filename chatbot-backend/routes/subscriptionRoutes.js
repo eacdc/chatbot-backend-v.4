@@ -592,6 +592,8 @@ router.post("/", authenticateUser, async (req, res) => {
       bookId,
       bookTitle: book.title,
       publisher: book.publisher,
+      subject: book.subject,
+      grade: book.grade,
       bookCoverImgLink: book.bookCoverImgLink
     });
 
