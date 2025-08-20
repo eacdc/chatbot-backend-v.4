@@ -81,6 +81,7 @@ const chapterRoutes = require("./routes/chapterRoutes");
 const promptRoutes = require("./routes/promptRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const scoresRoutes = require("./routes/scores");
+const unifiedScoresRoutes = require("./routes/unifiedScores");
 const statsRoutesNew = require("./routes/statsRoutesNew");
 
 // Use routes
@@ -92,6 +93,7 @@ app.use("/api/chapters", chapterRoutes);
 app.use("/api/prompts", promptRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/scores", scoresRoutes);
+app.use("/api/unified-scores", unifiedScoresRoutes);
 app.use("/api/stats", statsRoutesNew);
 
 // Health check endpoint
