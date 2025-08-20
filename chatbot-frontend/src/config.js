@@ -50,6 +50,9 @@ export const API_ENDPOINTS = {
   GET_ASSESSMENT_DATA: `${API_URL}/api/scores/assessment-data/:userId`,
   GET_PERFORMANCE_OVERVIEW: `${API_URL}/api/scores/performance-overview/:userId`,
   
+  // Unified scores endpoint (NEW - replaces all above)
+  GET_UNIFIED_SCORES: `${API_URL}/api/unified-scores/:userId`,
+  
   // New Search and Collection APIs
   SEARCH_BOOKS: `${API_URL}/api/books/search`,
   SEARCH_SUGGESTIONS: `${API_URL}/api/books/search-suggestions`,
