@@ -495,45 +495,46 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 const pointsEarned = Math.round(quizMarksEarned * 10);
                 totalPointsEarned += pointsEarned;
 
+                // Initialize quiz data with record values
+                let actualTotalQuestions = totalQuestions;
+                let isCompleted = false;
+                
+                // First get the actual total questions from the chapter
+                try {
+                    const chapter = await Chapter.findById(record.chapterId?._id);
+                    if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt)) {
+                        actualTotalQuestions = chapter.questionPrompt.length;
+                        isCompleted = answeredQuestions.length >= actualTotalQuestions;
+                    }
+                } catch (err) {
+                    console.error(`Error getting chapter data for quiz ${record.chapterId?._id}:`, err);
+                }
+                
+                // Calculate the real completion percentage based on actual total questions
+                const actualCompletionPercentage = actualTotalQuestions > 0 ? 
+                    (answeredQuestions.length / actualTotalQuestions) * 100 : 0;
+                
                 const quizData = {
                     chapterId: record.chapterId?._id,
                     chapterTitle: record.chapterId?.title || 'Unknown Chapter',
                     bookTitle: record.bookId?.title || 'Unknown Book',
                     subject: record.bookId?.subject || 'Unknown',
                     questionsAnswered: answeredQuestions.length,
-                    totalQuestions,
-                    completionPercentage: parseFloat(completionPercentage.toFixed(1)),
+                    totalQuestions: actualTotalQuestions,
+                    completionPercentage: parseFloat(actualCompletionPercentage.toFixed(1)),
                     marksEarned: parseFloat(quizMarksEarned.toFixed(2)),
                     marksAvailable: parseFloat(quizMarksAvailable.toFixed(2)),
                     scorePercentage: parseFloat(quizPercentage.toFixed(1)),
                     pointsEarned,
                     lastAttempted: record.updatedAt,
-                    status: answeredQuestions.length >= totalQuestions ? 'completed' : 'in_progress'
+                    status: isCompleted ? 'completed' : 'in_progress'
                 };
 
-                // Try to get actual chapter data to determine completion
-                try {
-                    const chapter = await Chapter.findById(record.chapterId?._id);
-                    if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt)) {
-                        // Check if ALL questions have been answered
-                        if (answeredQuestions.length >= chapter.questionPrompt.length) {
-                            completedQuizzes.push(quizData);
-                        } else {
-                            quizzesInProgress.push(quizData);
-                        }
-                    } else if (answeredQuestions.length >= totalQuestions) {
-                        completedQuizzes.push(quizData);
-                    } else {
-                        quizzesInProgress.push(quizData);
-                    }
-                } catch (err) {
-                    console.error(`Error checking quiz completion for ${record.chapterId?._id}:`, err);
-                    // Fallback to percentage-based logic
-                    if (completionPercentage >= 100) {
-                        completedQuizzes.push(quizData);
-                    } else {
-                        quizzesInProgress.push(quizData);
-                    }
+                // We already determined completion status when creating quizData
+                if (isCompleted) {
+                    completedQuizzes.push(quizData);
+                } else {
+                    quizzesInProgress.push(quizData);
                 }
                         }
 
