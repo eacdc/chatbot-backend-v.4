@@ -171,18 +171,19 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                         basicStats.totalMarksEarned += chapterMarksEarned;
                         basicStats.totalMarksAvailable += chapterMarksAvailable;
                         
-                        // Check if chapter is completed (>= 80% questions answered)
+                        // Check if chapter is completed (all questions answered from total available)
                         try {
                             const chapter = await Chapter.findById(chapterId);
-                            let totalQuestions = record.qnaDetails.length;
+                            let totalQuestions = 0;
                             
+                            // Always use the chapter's question count as the source of truth
                             if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt)) {
                                 totalQuestions = chapter.questionPrompt.length;
-                            }
-                            
-                            const completionPercentage = (answeredQuestions.length / totalQuestions) * 100;
-                            if (completionPercentage >= 80) {
-                                basicStats.chaptersCompleted.add(chapterId);
+                                
+                                // Check if ALL questions have been answered
+                                if (answeredQuestions.length >= totalQuestions) {
+                                    basicStats.chaptersCompleted.add(chapterId);
+                                }
                             }
                         } catch (err) {
                             console.error(`Error checking chapter completion for ${chapterId}:`, err);
@@ -191,11 +192,29 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 }
             }
 
-            // Calculate time spent from chat sessions
+            // Calculate time spent from chat sessions based on first and last message timestamps
             if (userChats) {
                 userChats.forEach(chat => {
+                    // First try to use existing metadata if available
                     if (chat.metadata && chat.metadata.timeSpentMinutes) {
                         basicStats.totalTimeSpentMinutes += chat.metadata.timeSpentMinutes;
+                    } 
+                    // Otherwise calculate time based on first and last message
+                    else if (chat.messages && chat.messages.length >= 2) {
+                        const messages = chat.messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                        const firstMsg = messages[0];
+                        const lastMsg = messages[messages.length - 1];
+                        
+                        if (firstMsg && lastMsg && firstMsg.timestamp && lastMsg.timestamp) {
+                            const startTime = new Date(firstMsg.timestamp);
+                            const endTime = new Date(lastMsg.timestamp);
+                            const diffMinutes = Math.round((endTime - startTime) / (1000 * 60));
+                            
+                            // Only count if the session was reasonable (between 1 min and 2 hours)
+                            if (diffMinutes >= 1 && diffMinutes <= 120) {
+                                basicStats.totalTimeSpentMinutes += diffMinutes;
+                            }
+                        }
                     }
                 });
             }
@@ -294,7 +313,21 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
                     // Check chapter completion for detailed list
                     if (record.chapterId) {
-                        const completionPercentage = (answeredQuestions.length / record.qnaDetails.length) * 100;
+                        // Get the actual total questions from the chapter
+                        let totalQuestions = record.qnaDetails.length;
+                        let isCompleted = false;
+                        
+                        try {
+                            const chapter = await Chapter.findById(record.chapterId._id);
+                            if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt)) {
+                                totalQuestions = chapter.questionPrompt.length;
+                                isCompleted = answeredQuestions.length >= totalQuestions;
+                            }
+                        } catch (err) {
+                            console.error(`Error getting chapter data for ${record.chapterId._id}:`, err);
+                        }
+                        
+                        const completionPercentage = (answeredQuestions.length / totalQuestions) * 100;
                         const chapterData = {
                             id: record.chapterId._id,
                             title: record.chapterId.title,
@@ -309,7 +342,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                             lastAttempted: record.updatedAt
                         };
 
-                        if (completionPercentage >= 80) {
+                        if (isCompleted || answeredQuestions.length >= totalQuestions) {
                             completedChapters.push(chapterData);
                         } else {
                             inProgressChapters.push(chapterData);
@@ -475,21 +508,60 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     scorePercentage: parseFloat(quizPercentage.toFixed(1)),
                     pointsEarned,
                     lastAttempted: record.updatedAt,
-                    status: completionPercentage >= 80 ? 'completed' : 'in_progress'
+                    status: answeredQuestions.length >= totalQuestions ? 'completed' : 'in_progress'
                 };
 
-                if (completionPercentage >= 80) {
-                    completedQuizzes.push(quizData);
-                } else if (answeredQuestions.length > 0) {
-                    quizzesInProgress.push(quizData);
+                // Try to get actual chapter data to determine completion
+                try {
+                    const chapter = await Chapter.findById(record.chapterId?._id);
+                    if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt)) {
+                        // Check if ALL questions have been answered
+                        if (answeredQuestions.length >= chapter.questionPrompt.length) {
+                            completedQuizzes.push(quizData);
+                        } else {
+                            quizzesInProgress.push(quizData);
+                        }
+                    } else if (answeredQuestions.length >= totalQuestions) {
+                        completedQuizzes.push(quizData);
+                    } else {
+                        quizzesInProgress.push(quizData);
+                    }
+                } catch (err) {
+                    console.error(`Error checking quiz completion for ${record.chapterId?._id}:`, err);
+                    // Fallback to percentage-based logic
+                    if (completionPercentage >= 100) {
+                        completedQuizzes.push(quizData);
+                    } else {
+                        quizzesInProgress.push(quizData);
+                    }
+                }
+                // Skip the original if/else since we handled it above
                 }
             });
 
-            // Calculate time spent
+            // Calculate time spent based on first and last message timestamps
             if (userChats) {
                 userChats.forEach(chat => {
+                    // First try to use existing metadata if available
                     if (chat.metadata && chat.metadata.timeSpentMinutes) {
                         totalMinutesSpent += chat.metadata.timeSpentMinutes;
+                    } 
+                    // Otherwise calculate time based on first and last message
+                    else if (chat.messages && chat.messages.length >= 2) {
+                        const messages = chat.messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                        const firstMsg = messages[0];
+                        const lastMsg = messages[messages.length - 1];
+                        
+                        if (firstMsg && lastMsg && firstMsg.timestamp && lastMsg.timestamp) {
+                            const startTime = new Date(firstMsg.timestamp);
+                            const endTime = new Date(lastMsg.timestamp);
+                            const diffMinutes = Math.round((endTime - startTime) / (1000 * 60));
+                            
+                            // Only count if the session was reasonable (between 1 min and 2 hours)
+                            if (diffMinutes >= 1 && diffMinutes <= 120) {
+                                totalMinutesSpent += diffMinutes;
+                            }
+                        }
                     }
                 });
             }
