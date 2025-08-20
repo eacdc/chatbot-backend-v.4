@@ -482,8 +482,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             let totalPointsEarned = 0;
             let totalMinutesSpent = 0;
 
-            // Process quizzes for scoreboard
-            qnaRecords.forEach(record => {
+            // Process quizzes for scoreboard - using for...of loop for async/await support
+            for (const record of qnaRecords) {
                 const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
                 const totalQuestions = record.qnaDetails.length;
                 const completionPercentage = totalQuestions > 0 ? (answeredQuestions.length / totalQuestions) * 100 : 0;
@@ -535,9 +535,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                         quizzesInProgress.push(quizData);
                     }
                 }
-                // Skip the original if/else since we handled it above
-                }
-            });
+                        }
 
             // Calculate time spent based on first and last message timestamps
             if (userChats) {
