@@ -24,6 +24,28 @@ const notificationSchema = new mongoose.Schema({
   created_at: {
     type: Date,
     default: Date.now
+  },
+  // Reference to notification template (optional)
+  templateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'NotificationTemplate',
+    required: false
+  },
+  // Additional fields for better categorization
+  type: {
+    type: String,
+    enum: ['system', 'promotional', 'achievement', 'update', 'announcement'],
+    default: 'system'
+  },
+  category: {
+    type: String,
+    enum: ['welcome', 'book_subscription', 'chapter_completion', 'score_achievement', 'new_book', 'offer', 'maintenance', 'general'],
+    default: 'general'
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'urgent'],
+    default: 'medium'
   }
 });
 

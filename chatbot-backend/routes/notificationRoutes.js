@@ -24,4 +24,7 @@ router.put('/mark-all-seen', authenticateUser, notificationController.markAllAsS
 // Seed test notifications (for development/testing)
 router.post('/seed', authenticateUser, notificationController.seedTestNotifications);
 
+// Get notification statistics (Admin only)
+router.get('/stats', authenticateUser, notificationController.getNotificationStats);
+
 module.exports = router; 

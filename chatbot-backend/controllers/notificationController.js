@@ -1,4 +1,5 @@
 const Notification = require('../models/Notification');
+const NotificationService = require('../utils/notificationService');
 
 // Get all notifications for a user
 exports.getUserNotifications = async (req, res) => {
@@ -198,6 +199,17 @@ exports.markAllAsSeen = async (req, res) => {
     });
   } catch (error) {
     console.error('Error marking all notifications as seen:', error);
+    res.status(500).json({ error: error.message || 'Server Error' });
+  }
+};
+
+// Get notification statistics (Admin only)
+exports.getNotificationStats = async (req, res) => {
+  try {
+    const stats = await NotificationService.getNotificationStats();
+    res.status(200).json(stats);
+  } catch (error) {
+    console.error('Error getting notification stats:', error);
     res.status(500).json({ error: error.message || 'Server Error' });
   }
 }; 

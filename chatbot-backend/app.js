@@ -85,6 +85,7 @@ const unifiedScoresRoutes = require("./routes/unifiedScores");
 const statsRoutesNew = require("./routes/statsRoutesNew");
 const staticContentRoutes = require("./routes/staticContentRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const notificationTemplateRoutes = require("./routes/notificationTemplateRoutes");
 
 // Use routes
 app.use("/api/chat", chatRoutes);
@@ -99,6 +100,7 @@ app.use("/api/unified-scores", unifiedScoresRoutes);
 app.use("/api/stats", statsRoutesNew);
 app.use("/api/static", staticContentRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/notification-templates", notificationTemplateRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
