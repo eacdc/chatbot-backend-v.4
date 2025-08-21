@@ -3,15 +3,22 @@ const Notification = require('../models/Notification');
 // Get all notifications for a user
 exports.getUserNotifications = async (req, res) => {
   try {
+    console.log('🔔 getUserNotifications called');
+    console.log('🔔 User ID:', req.user?.userId);
+    
     const userId = req.user.userId;
+    
+    console.log('🔔 Fetching notifications for user:', userId);
     
     const notifications = await Notification.find({ userId })
       .sort({ created_at: -1 }) // Newest first
       .limit(50); // Limit to last 50 notifications
     
+    console.log('🔔 Found notifications:', notifications.length);
+    
     res.status(200).json(notifications);
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+    console.error('🔔 Error fetching notifications:', error);
     res.status(500).json({ error: error.message || 'Server Error' });
   }
 };

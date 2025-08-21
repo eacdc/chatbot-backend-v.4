@@ -3,6 +3,12 @@ const router = express.Router();
 const notificationController = require('../controllers/notificationController');
 const authenticateUser = require('../middleware/authMiddleware');
 
+// Debug middleware for notification routes
+router.use((req, res, next) => {
+  console.log('🔔 Notification route accessed:', req.method, req.path);
+  next();
+});
+
 // Get all notifications for the authenticated user
 router.get('/', authenticateUser, notificationController.getUserNotifications);
 

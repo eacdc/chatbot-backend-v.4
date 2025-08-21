@@ -118,20 +118,39 @@ app.get("/", (req, res) => {
       "/api/users/login",
       "/api/users/signup",
       "/api/books",
-      "/api/subscriptions"
+      "/api/subscriptions",
+      "/api/notifications"
     ]
   });
 });
 
-// Serve static files if in production
+// Serve static files if in production - AFTER all API routes
 if (process.env.NODE_ENV === 'production') {
   // Serve any static files
-  app.use(express.static(path.join(__dirname, '../client/build')));
+  const staticPath = path.join(__dirname, '../client/build');
+  
+  // Check if the static directory exists before serving
+  if (require('fs').existsSync(staticPath)) {
+    app.use(express.static(staticPath));
 
-  // Handle React routing, return all requests to React app
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
-  });
+    // Handle React routing, return all requests to React app
+    // Only for non-API routes
+    app.get('*', (req, res, next) => {
+      // Skip API routes
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
+      
+      const indexPath = path.join(staticPath, 'index.html');
+      if (require('fs').existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).json({ error: 'Frontend not found' });
+      }
+    });
+  } else {
+    console.log('Static files directory not found, skipping static file serving');
+  }
 }
 
 // Error handling middleware
