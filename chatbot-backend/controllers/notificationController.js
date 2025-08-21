@@ -51,15 +51,32 @@ exports.updateNotification = async (req, res) => {
     const { notificationId } = req.params;
     const userId = req.user.userId;
     
-    // Find notification and ensure it belongs to the requesting user
-    const notification = await Notification.findOne({ 
+    console.log('🔔 Marking notification as seen:', { notificationId, userId });
+    
+    // First try to find by notification ID (actual notification _id)
+    let notification = await Notification.findOne({ 
       _id: notificationId,
       userId
     });
     
+    // If not found, try to find by template ID (templateId field)
     if (!notification) {
-      return res.status(404).json({ error: 'Notification not found' });
+      console.log('🔔 Not found by _id, trying templateId...');
+      notification = await Notification.findOne({ 
+        templateId: notificationId,
+        userId
+      });
     }
+    
+    if (!notification) {
+      console.log('🔔 Notification not found by either _id or templateId');
+      return res.status(404).json({ 
+        error: 'Notification not found',
+        message: 'Please check if the notification ID is correct or if the notification belongs to you'
+      });
+    }
+    
+    console.log('🔔 Found notification:', notification._id);
     
     // Update the seen status
     notification.seen_status = 'yes';
@@ -199,6 +216,32 @@ exports.markAllAsSeen = async (req, res) => {
     });
   } catch (error) {
     console.error('Error marking all notifications as seen:', error);
+    res.status(500).json({ error: error.message || 'Server Error' });
+  }
+};
+
+// Mark notifications as read by template ID
+exports.markNotificationsByTemplateAsSeen = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const userId = req.user.userId;
+    
+    console.log('🔔 Marking notifications by template as seen:', { templateId, userId });
+    
+    const result = await Notification.updateMany(
+      { userId, templateId, seen_status: 'no' },
+      { $set: { seen_status: 'yes' } }
+    );
+    
+    console.log('🔔 Updated notifications count:', result.modifiedCount);
+    
+    res.status(200).json({ 
+      message: 'Notifications marked as seen', 
+      templateId,
+      count: result.modifiedCount 
+    });
+  } catch (error) {
+    console.error('Error marking notifications by template as seen:', error);
     res.status(500).json({ error: error.message || 'Server Error' });
   }
 };

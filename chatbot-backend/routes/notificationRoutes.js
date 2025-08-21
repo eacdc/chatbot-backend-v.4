@@ -18,6 +18,9 @@ router.get('/first-unseen', authenticateUser, notificationController.getFirstUns
 // Mark a notification as seen
 router.put('/:notificationId/mark-seen', authenticateUser, notificationController.updateNotification);
 
+// Mark notifications as read by template ID
+router.put('/template/:templateId/mark-seen', authenticateUser, notificationController.markNotificationsByTemplateAsSeen);
+
 // Mark all notifications as seen
 router.put('/mark-all-seen', authenticateUser, notificationController.markAllAsSeen);
 
