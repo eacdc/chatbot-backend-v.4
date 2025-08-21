@@ -605,8 +605,8 @@ router.put("/profile", authenticateUser, async (req, res) => {
     }
 });
 
-// ✅ Update User Password (for fixing hashing issues)
-router.post("/reset-password", async (req, res) => {
+// ✅ Update User Password (for fixing hashing issues) - DEPRECATED: Use /update-password instead
+router.post("/update-password", async (req, res) => {
     try {
         const { username, oldPassword, newPassword } = req.body;
         
