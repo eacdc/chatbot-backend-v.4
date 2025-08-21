@@ -8,7 +8,8 @@ const fs = require("fs");
 const cloudinary = require("cloudinary").v2;
 const User = require("../models/User");
 const OTP = require("../models/OTP");
-const { sendOTPEmail } = require("../services/emailService");
+const PasswordResetOTP = require("../models/PasswordResetOTP");
+const { sendOTPEmail, sendPasswordResetOTPEmail } = require("../services/emailService");
 const authenticateUser = require("../middleware/authMiddleware");
 require("dotenv").config();
 
@@ -832,6 +833,204 @@ router.delete("/delete-profile-picture", authenticateUser, async (req, res) => {
             error: "Failed to delete profile picture", 
             details: error.message 
         });
+    }
+});
+
+// ✅ Send Password Reset OTP
+router.post("/forgot-password", async (req, res) => {
+    try {
+        console.log("🔐 Received password reset request:", req.body);
+        
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+            return res.status(400).json({ message: "Please provide a valid email address" });
+        }
+
+        // Check if user exists with this email
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!user) {
+            return res.status(404).json({ 
+                message: "No account found with this email address. Please check your email or register a new account." 
+            });
+        }
+
+        // Generate OTP for password reset
+        const otp = crypto.randomInt(100000, 999999).toString();
+        
+        console.log(`🔧 Password Reset OTP: ${otp}`);
+        
+        // Remove any existing password reset OTP for this email
+        await PasswordResetOTP.deleteMany({ email: email.toLowerCase().trim() });
+
+        // Store password reset OTP
+        const newPasswordResetOTP = new PasswordResetOTP({
+            email: email.toLowerCase().trim(),
+            otp: otp
+        });
+        
+        await newPasswordResetOTP.save();
+        console.log("✅ Password reset OTP saved to database");
+
+        // Send password reset OTP email
+        const emailResult = await sendPasswordResetOTPEmail(
+            email.toLowerCase().trim(), 
+            otp, 
+            user.fullname
+        );
+        
+        if (emailResult.success) {
+            console.log("✅ Password reset OTP email sent successfully");
+            res.status(200).json({ 
+                message: "Password reset OTP sent to your email address. Please check your inbox and enter the code to reset your password.",
+                email: email.toLowerCase().trim()
+            });
+        } else {
+            console.error("❌ Failed to send password reset OTP email:", emailResult.error);
+            // Delete the OTP record if email failed
+            await PasswordResetOTP.deleteOne({ email: email.toLowerCase().trim() });
+            res.status(500).json({ 
+                message: "Failed to send password reset OTP email. Please check your email address and try again." 
+            });
+        }
+
+    } catch (error) {
+        console.error("❌ Error in forgot-password:", error);
+        res.status(500).json({ message: error.message || "Server error" });
+    }
+});
+
+// ✅ Verify Password Reset OTP and Reset Password
+router.post("/reset-password", async (req, res) => {
+    try {
+        console.log("🔍 Received password reset verification request:", req.body);
+        
+        const { email, otp, newPassword } = req.body;
+
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: "Email, OTP, and new password are required" });
+        }
+
+        // Validate password strength
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters long" });
+        }
+
+        // Find password reset OTP record
+        const otpRecord = await PasswordResetOTP.findOne({ 
+            email: email.toLowerCase().trim(),
+            otp: otp.trim()
+        });
+
+        if (!otpRecord) {
+            return res.status(400).json({ 
+                message: "Invalid or expired OTP. Please request a new password reset OTP." 
+            });
+        }
+
+        // Check if OTP is expired (additional check, though MongoDB TTL should handle this)
+        const now = new Date();
+        const otpAge = (now - otpRecord.createdAt) / 1000 / 60; // age in minutes
+        if (otpAge > 10) {
+            await PasswordResetOTP.deleteOne({ _id: otpRecord._id });
+            return res.status(400).json({ 
+                message: "OTP has expired. Please request a new password reset OTP." 
+            });
+        }
+
+        // Find user and update password
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!user) {
+            await PasswordResetOTP.deleteOne({ _id: otpRecord._id });
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Hash the new password
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(newPassword.trim(), saltRounds);
+
+        // Update user's password
+        user.password = hashedPassword;
+        await user.save();
+        
+        // Clean up OTP record
+        await PasswordResetOTP.deleteOne({ _id: otpRecord._id });
+        
+        console.log("✅ Password reset successfully!");
+        res.status(200).json({ 
+            message: "Password reset successfully! You can now login with your new password." 
+        });
+
+    } catch (error) {
+        console.error("❌ Error in reset-password:", error);
+        res.status(500).json({ message: error.message || "Server error" });
+    }
+});
+
+// ✅ Resend Password Reset OTP
+router.post("/resend-password-reset-otp", async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        // Check if user exists
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!user) {
+            return res.status(404).json({ 
+                message: "No account found with this email address." 
+            });
+        }
+
+        // Find existing password reset OTP record
+        const otpRecord = await PasswordResetOTP.findOne({ email: email.toLowerCase().trim() });
+        if (!otpRecord) {
+            return res.status(400).json({ 
+                message: "No pending password reset found for this email. Please request a new password reset." 
+            });
+        }
+
+        // Generate new OTP for resend
+        const newOTP = crypto.randomInt(100000, 999999).toString();
+        
+        console.log(`🔧 Resend Password Reset OTP: ${newOTP}`);
+        
+        // Update OTP record
+        otpRecord.otp = newOTP;
+        otpRecord.createdAt = new Date(); // Reset expiration timer
+        await otpRecord.save();
+
+        // Send new password reset OTP email
+        const emailResult = await sendPasswordResetOTPEmail(
+            email.toLowerCase().trim(), 
+            newOTP, 
+            user.fullname
+        );
+        
+        if (emailResult.success) {
+            console.log("✅ Password reset OTP resent successfully");
+            res.status(200).json({ 
+                message: "New password reset OTP sent to your email address.",
+                email: email.toLowerCase().trim()
+            });
+        } else {
+            console.error("❌ Failed to resend password reset OTP email:", emailResult.error);
+            res.status(500).json({ 
+                message: "Failed to send password reset OTP email. Please try again." 
+            });
+        }
+
+    } catch (error) {
+        console.error("❌ Error in resend-password-reset-otp:", error);
+        res.status(500).json({ message: error.message || "Server error" });
     }
 });
 
