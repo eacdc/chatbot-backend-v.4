@@ -13,83 +13,102 @@ router.use((req, res, next) => {
   next();
 });
 
+// Helper function to check if OAuth strategy is available
+const isStrategyAvailable = (strategyName) => {
+  return passport._strategies && passport._strategies[strategyName];
+};
+
 // Google OAuth routes
-router.get('/google', passport.authenticate('google', {
-    scope: ['profile', 'email']
-}));
+router.get('/google', (req, res, next) => {
+  if (!isStrategyAvailable('google')) {
+    return res.status(503).json({ 
+      message: "Google OAuth is not configured. Please contact administrator." 
+    });
+  }
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
 
-router.get('/google/callback', 
-    passport.authenticate('google', { session: false, failureRedirect: '/login' }),
-    async (req, res) => {
-        try {
-            console.log('🔐 Google OAuth callback received:', req.user);
-            
-            if (!req.user) {
-                return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`);
-            }
-
-            // Generate JWT token
-            const token = jwt.sign(
-                { 
-                    userId: req.user._id, 
-                    name: req.user.fullname, 
-                    role: req.user.role, 
-                    grade: req.user.grade,
-                    authProvider: req.user.authProvider
-                },
-                process.env.JWT_SECRET,
-                { expiresIn: "7d" }
-            );
-
-            // Redirect to frontend with token
-            const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?token=${token}&provider=google`;
-            res.redirect(redirectUrl);
-
-        } catch (error) {
-            console.error('❌ Google OAuth callback error:', error);
-            res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`);
+router.get('/google/callback', (req, res, next) => {
+  if (!isStrategyAvailable('google')) {
+    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_not_configured`);
+  }
+  passport.authenticate('google', { session: false, failureRedirect: '/login' })(req, res, next);
+}, async (req, res) => {
+    try {
+        console.log('🔐 Google OAuth callback received:', req.user);
+        
+        if (!req.user) {
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`);
         }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                userId: req.user._id, 
+                name: req.user.fullname, 
+                role: req.user.role, 
+                grade: req.user.grade,
+                authProvider: req.user.authProvider
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        // Redirect to frontend with token
+        const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?token=${token}&provider=google`;
+        res.redirect(redirectUrl);
+
+    } catch (error) {
+        console.error('❌ Google OAuth callback error:', error);
+        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`);
     }
-);
+});
 
 // Facebook OAuth routes
-router.get('/facebook', passport.authenticate('facebook', {
-    scope: ['email', 'public_profile']
-}));
+router.get('/facebook', (req, res, next) => {
+  if (!isStrategyAvailable('facebook')) {
+    return res.status(503).json({ 
+      message: "Facebook OAuth is not configured. Please contact administrator." 
+    });
+  }
+  passport.authenticate('facebook', { scope: ['email', 'public_profile'] })(req, res, next);
+});
 
-router.get('/facebook/callback', 
-    passport.authenticate('facebook', { session: false, failureRedirect: '/login' }),
-    async (req, res) => {
-        try {
-            console.log('🔐 Facebook OAuth callback received:', req.user);
-            
-            if (!req.user) {
-                return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=facebook_auth_failed`);
-            }
-
-            // Generate JWT token
-            const token = jwt.sign(
-                { 
-                    userId: req.user._id, 
-                    name: req.user.fullname, 
-                    role: req.user.role, 
-                    grade: req.user.grade,
-                    authProvider: req.user.authProvider
-                },
-                process.env.JWT_SECRET,
-                { expiresIn: "7d" }
-            );
-
-            // Redirect to frontend with token
-            const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?token=${token}&provider=facebook`;
-            res.redirect(redirectUrl);
-
-        } catch (error) {
-            console.error('❌ Facebook OAuth callback error:', error);
-            res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=facebook_auth_failed`);
+router.get('/facebook/callback', (req, res, next) => {
+  if (!isStrategyAvailable('facebook')) {
+    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=facebook_not_configured`);
+  }
+  passport.authenticate('facebook', { session: false, failureRedirect: '/login' })(req, res, next);
+}, async (req, res) => {
+    try {
+        console.log('🔐 Facebook OAuth callback received:', req.user);
+        
+        if (!req.user) {
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=facebook_auth_failed`);
         }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                userId: req.user._id, 
+                name: req.user.fullname, 
+                role: req.user.role, 
+                grade: req.user.grade,
+                authProvider: req.user.authProvider
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        // Redirect to frontend with token
+        const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?token=${token}&provider=facebook`;
+        res.redirect(redirectUrl);
+
+    } catch (error) {
+        console.error('❌ Facebook OAuth callback error:', error);
+        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=facebook_auth_failed`);
     }
-);
+});
 
 // Link social account to existing user (requires authentication)
 router.post('/link-google', authenticateUser, async (req, res) => {
@@ -254,6 +273,19 @@ router.get('/linked-accounts', authenticateUser, async (req, res) => {
         console.error('❌ Get linked accounts error:', error);
         res.status(500).json({ message: error.message || "Server error" });
     }
+});
+
+// Get available OAuth providers
+router.get('/available-providers', (req, res) => {
+    const availableProviders = {
+        google: isStrategyAvailable('google'),
+        facebook: isStrategyAvailable('facebook')
+    };
+    
+    res.json({
+        availableProviders,
+        message: "OAuth provider availability status"
+    });
 });
 
 module.exports = router;
