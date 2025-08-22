@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
+const passport = require("passport");
+const session = require("express-session");
 
 // Load environment variables
 dotenv.config();
@@ -64,6 +66,24 @@ app.options('*', cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Session configuration for Passport
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Import and configure Passport strategies
+require('./config/passport');
+
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI)
   .then(() => console.log("Connected to MongoDB"))
@@ -86,6 +106,7 @@ const statsRoutesNew = require("./routes/statsRoutesNew");
 const staticContentRoutes = require("./routes/staticContentRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const notificationTemplateRoutes = require("./routes/notificationTemplateRoutes");
+const socialAuthRoutes = require("./routes/socialAuthRoutes");
 
 // Use routes
 app.use("/api/chat", chatRoutes);
@@ -101,6 +122,7 @@ app.use("/api/stats", statsRoutesNew);
 app.use("/api/static", staticContentRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/notification-templates", notificationTemplateRoutes);
+app.use("/api/social-auth", socialAuthRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

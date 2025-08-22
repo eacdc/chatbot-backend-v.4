@@ -83,13 +83,23 @@ router.post("/send-otp", async (req, res) => {
     try {
         console.log("📩 Received OTP request:", req.body);
         
-        const { username, fullname, email, phone, role, grade, publisher, password } = req.body;
+        const { username, fullname, email, phone, role, grade, publisher, password, authMethod } = req.body;
 
-        // Check required fields including email
-        if (!username || !fullname || !email || !phone || !role || !password) {
-            return res.status(400).json({ 
-                message: "Username, full name, email, phone, role, and password are required" 
-            });
+        // Check required fields based on authentication method
+        if (authMethod === 'social') {
+            // For social auth, we don't need password
+            if (!username || !fullname || !email || !phone || !role) {
+                return res.status(400).json({ 
+                    message: "Username, full name, email, phone, and role are required for social authentication" 
+                });
+            }
+        } else {
+            // For email OTP, password is required
+            if (!username || !fullname || !email || !phone || !role || !password) {
+                return res.status(400).json({ 
+                    message: "Username, full name, email, phone, role, and password are required" 
+                });
+            }
         }
 
         // Validate email format
@@ -124,7 +134,9 @@ router.post("/send-otp", async (req, res) => {
             role: role.trim(),
             grade: grade || "1",
             publisher: publisher ? publisher.trim() : undefined,
-            password: password.trim()
+            password: authMethod === 'social' ? undefined : password.trim(),
+            authProvider: authMethod === 'social' ? 'email' : 'email',
+            isEmailVerified: authMethod === 'social' ? true : false
         };
 
         // Remove any existing OTP for this email
@@ -282,6 +294,103 @@ router.post("/resend-otp", async (req, res) => {
 
     } catch (error) {
         console.error("❌ Error in resend-otp:", error);
+        res.status(500).json({ message: error.message || "Server error" });
+    }
+});
+
+// ✅ Social Authentication Registration
+router.post("/register-social", async (req, res) => {
+    try {
+        console.log("🔐 Received social registration request:", req.body);
+        
+        const { username, fullname, email, phone, role, grade, publisher, authProvider, socialId } = req.body;
+
+        // Check required fields
+        if (!username || !fullname || !email || !phone || !role || !authProvider || !socialId) {
+            return res.status(400).json({ 
+                message: "Username, full name, email, phone, role, auth provider, and social ID are required" 
+            });
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+            return res.status(400).json({ message: "Please provide a valid email address" });
+        }
+
+        // Check if username already exists
+        let existingUser = await User.findOne({ username: username.trim() });
+        if (existingUser) {
+            return res.status(400).json({ message: "Username already taken" });
+        }
+
+        // Check if email is already registered
+        existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+        if (existingUser) {
+            return res.status(400).json({ message: "Email already registered" });
+        }
+
+        // Check if social ID is already linked to another account
+        if (authProvider === 'google') {
+            existingUser = await User.findOne({ googleId: socialId });
+        } else if (authProvider === 'facebook') {
+            existingUser = await User.findOne({ facebookId: socialId });
+        }
+        
+        if (existingUser) {
+            return res.status(400).json({ message: "This social account is already linked to another user" });
+        }
+
+        // Create new user
+        const userData = {
+            username: username.trim(),
+            fullname: fullname.trim(),
+            email: email.toLowerCase().trim(),
+            phone: phone.trim(),
+            role: role.trim(),
+            grade: grade || "1",
+            publisher: publisher ? publisher.trim() : undefined,
+            authProvider: authProvider,
+            isEmailVerified: true
+        };
+
+        // Add social ID based on provider
+        if (authProvider === 'google') {
+            userData.googleId = socialId;
+        } else if (authProvider === 'facebook') {
+            userData.facebookId = socialId;
+        }
+
+        const newUser = new User(userData);
+        await newUser.save();
+        
+        console.log("✅ Social user registered successfully!");
+        
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                userId: newUser._id, 
+                name: newUser.fullname, 
+                role: newUser.role, 
+                grade: newUser.grade,
+                authProvider: newUser.authProvider
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        res.status(201).json({ 
+            message: "Registration completed successfully!",
+            token,
+            userId: newUser._id,
+            name: newUser.fullname,
+            role: newUser.role,
+            grade: newUser.grade,
+            authProvider: newUser.authProvider
+        });
+
+    } catch (error) {
+        console.error("❌ Error in social registration:", error);
         res.status(500).json({ message: error.message || "Server error" });
     }
 });
