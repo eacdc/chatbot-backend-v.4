@@ -4,6 +4,7 @@ import ChatbotLayout from "./components/ChatbotLayout"; // ✅ Keeping ChatbotLa
 import Chat from "./components/Chat";
 import Login from "./components/Login";
 import Signup from "./components/Signup";
+import ForgotPassword from "./components/ForgotPassword";
 import AdminRegister from "./components/AdminRegister";
 import AdminLogin from "./components/AdminLogin";
 import AdminDashboard from "./components/AdminDashboard";
@@ -12,6 +13,7 @@ import AddChapter from "./components/AddChapter";  // Create this later
 import Collections from "./components/Collections"; // Import the Collections page
 import AdminCollections from "./components/AdminCollections"; // Import the AdminCollections page
 import Profile from "./components/Profile"; // Import the Profile page
+import AuthCallback from "./components/AuthCallback"; // Import the AuthCallback component
 import { setupActivityTracking } from "./utils/auth"; // Import auth utilities
 import { ThemeProvider } from "./ThemeContext"; // Import ThemeProvider
 import "./App.css";
@@ -52,8 +54,10 @@ function App() {
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/admin-register" element={<AdminRegister />} />
+          <Route path="/auth-callback" element={<AuthCallback />} /> {/* Add OAuth callback route */}
           
           {/* Protected Admin Routes */}
           <Route path="/admin/dashboard" element={<ProtectedAdminRoute element={<AdminDashboard />} />} />

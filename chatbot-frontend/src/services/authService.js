@@ -1,5 +1,5 @@
 import axios from '../utils/axios';
-import { ENDPOINTS } from '../utils/config';
+import { API_ENDPOINTS } from '../config';
 
 // Get token from localStorage
 export const getToken = () => {
@@ -16,7 +16,7 @@ export const refreshToken = async () => {
 const authService = {
   // Login user
   login: async (credentials) => {
-    const response = await axios.post(ENDPOINTS.AUTH.LOGIN, credentials);
+    const response = await axios.post(API_ENDPOINTS.LOGIN, credentials);
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -26,7 +26,7 @@ const authService = {
 
   // Register new user
   register: async (userData) => {
-    const response = await axios.post(ENDPOINTS.AUTH.REGISTER, userData);
+    const response = await axios.post(API_ENDPOINTS.SIGNUP, userData);
     return response.data;
   },
 
@@ -49,34 +49,41 @@ const authService = {
 
   // Forgot password
   forgotPassword: async (email) => {
-    const response = await axios.post(ENDPOINTS.AUTH.FORGOT_PASSWORD, { email });
+    const response = await axios.post(API_ENDPOINTS.FORGOT_PASSWORD, { email });
     return response.data;
   },
 
   // Reset password
-  resetPassword: async (token, newPassword) => {
-    const response = await axios.post(ENDPOINTS.AUTH.RESET_PASSWORD, {
-      token,
+  resetPassword: async (email, otp, newPassword) => {
+    const response = await axios.post(API_ENDPOINTS.RESET_PASSWORD, {
+      email,
+      otp,
       newPassword
     });
     return response.data;
   },
 
+  // Resend password reset OTP
+  resendPasswordResetOTP: async (email) => {
+    const response = await axios.post(API_ENDPOINTS.RESEND_PASSWORD_RESET_OTP, { email });
+    return response.data;
+  },
+
   // Verify email
-  verifyEmail: async (token) => {
-    const response = await axios.post(ENDPOINTS.AUTH.VERIFY_EMAIL, { token });
+  verifyEmail: async (email, otp) => {
+    const response = await axios.post(API_ENDPOINTS.VERIFY_OTP, { email, otp });
     return response.data;
   },
 
   // Resend verification email
   resendVerification: async (email) => {
-    const response = await axios.post(ENDPOINTS.AUTH.RESEND_VERIFICATION, { email });
+    const response = await axios.post(API_ENDPOINTS.RESEND_OTP, { email });
     return response.data;
   },
 
   // Refresh token
   refreshToken: async () => {
-    const response = await axios.post(ENDPOINTS.AUTH.REFRESH_TOKEN);
+    const response = await axios.post(API_ENDPOINTS.LOGIN);
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
     }
@@ -85,7 +92,7 @@ const authService = {
 
   // Update password
   updatePassword: async (currentPassword, newPassword) => {
-    const response = await axios.put(ENDPOINTS.AUTH.UPDATE_PASSWORD, {
+    const response = await axios.put(API_ENDPOINTS.UPDATE_USER_PROFILE, {
       currentPassword,
       newPassword
     });

@@ -1,8 +1,11 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { login } from "../utils/auth";
 import { handleAuthError } from "../utils/errorHandler";
+import SocialAuthButtons from "./SocialAuthButtons";
 
 const Login = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: "",
     password: ""
@@ -65,6 +68,10 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSocialAuthError = (errorMessage) => {
+    setError(errorMessage);
   };
 
   return (
@@ -150,29 +157,46 @@ const Login = () => {
               )}
             </button>
           </div>
-
-          <div className="flex flex-col space-y-4 text-center text-sm">
-            <p className="text-gray-600">
-              New here?{' '}
-              <a href="/signup" className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200">
-                Create an account
-              </a>
-            </p>
-
-            <p>
-              <a href="/admin-login" className="font-medium text-red-600 hover:text-red-500 transition-colors duration-200">
-                Sign in as Admin
-              </a>
-            </p>
-
-            {/* JD Publisher Login Notice */}
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800 text-xs">
-                <strong>JD Publisher Users:</strong> You can login from any URL - no restrictions!
-              </p>
-            </div>
-          </div>
         </form>
+
+        {/* Social Authentication Buttons */}
+        <SocialAuthButtons 
+          mode="login"
+          onError={handleSocialAuthError}
+          className="mt-6"
+        />
+
+        <div className="flex flex-col space-y-4 text-center text-sm">
+          <p className="text-gray-600">
+            New here?{' '}
+            <a href="/signup" className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200">
+              Create an account
+            </a>
+          </p>
+
+          <p>
+            <button
+              type="button"
+              onClick={() => navigate("/forgot-password")}
+              className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors duration-200"
+            >
+              Forgot your password?
+            </button>
+          </p>
+
+          <p>
+            <a href="/admin-login" className="font-medium text-red-600 hover:text-red-500 transition-colors duration-200">
+              Sign in as Admin
+            </a>
+          </p>
+
+          {/* JD Publisher Login Notice */}
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-800 text-xs">
+              <strong>JD Publisher Users:</strong> You can login from any URL - no restrictions!
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

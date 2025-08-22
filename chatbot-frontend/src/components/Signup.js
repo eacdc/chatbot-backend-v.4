@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom"; // For navigation
 import { API_ENDPOINTS } from "../config";
+import SocialAuthButtons from "./SocialAuthButtons";
 
 const Signup = () => {
     const navigate = useNavigate();
@@ -571,6 +572,14 @@ const Signup = () => {
                             )}
                         </button>
                     </div>
+
+                    {/* Social Authentication Buttons */}
+                    <SocialAuthButtons 
+                        mode="register"
+                        onError={setError}
+                        className="mt-6"
+                    />
+
                     <div className="text-center text-xs text-gray-500">
                         By signing up, you agree to our terms of service and privacy policy.
                         <br />
