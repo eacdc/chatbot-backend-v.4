@@ -15,7 +15,7 @@ router.use((req, res, next) => {
 
 // Helper function to check if OAuth strategy is available
 const isStrategyAvailable = (strategyName) => {
-  return passport._strategies && passport._strategies[strategyName];
+  return !!(passport._strategies && passport._strategies[strategyName]);
 };
 
 // Google OAuth routes
