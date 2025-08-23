@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "../utils/auth";
 import { handleAuthError } from "../utils/errorHandler";
@@ -12,6 +12,12 @@ const Login = () => {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 Login component mounted');
+    console.log('🔍 SocialAuthButtons import:', typeof SocialAuthButtons);
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -71,8 +77,11 @@ const Login = () => {
   };
 
   const handleSocialAuthError = (errorMessage) => {
+    console.log('🔍 Social auth error:', errorMessage);
     setError(errorMessage);
   };
+
+  console.log('🔍 Rendering Login component');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50 to-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -158,6 +167,13 @@ const Login = () => {
             </button>
           </div>
         </form>
+
+        {/* Debug info */}
+        <div style={{ border: '1px solid orange', padding: '10px', margin: '10px 0', backgroundColor: '#fff3cd' }}>
+          <p style={{ color: 'orange', fontSize: '12px', margin: 0 }}>
+            DEBUG: About to render SocialAuthButtons component
+          </p>
+        </div>
 
         {/* Social Authentication Buttons */}
         <SocialAuthButtons 
