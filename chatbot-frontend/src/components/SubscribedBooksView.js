@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import ChaptersModal from "./ChaptersModal";
 import BookFilterToolbar from "./BookFilterToolbar";
 import axios from "../utils/axios";
-import { API_ENDPOINTS } from "../utils/config";
+import { API_ENDPOINTS } from "../config";
 
 // Helper function to fix image URLs
 const fixImageUrl = (url) => {

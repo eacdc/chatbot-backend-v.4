@@ -81,8 +81,6 @@ const Login = () => {
     setError(errorMessage);
   };
 
-  console.log('🔍 Rendering Login component');
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50 to-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
@@ -167,13 +165,6 @@ const Login = () => {
             </button>
           </div>
         </form>
-
-        {/* Debug info */}
-        <div style={{ border: '1px solid orange', padding: '10px', margin: '10px 0', backgroundColor: '#fff3cd' }}>
-          <p style={{ color: 'orange', fontSize: '12px', margin: 0 }}>
-            DEBUG: About to render SocialAuthButtons component
-          </p>
-        </div>
 
         {/* Social Authentication Buttons */}
         <SocialAuthButtons 
