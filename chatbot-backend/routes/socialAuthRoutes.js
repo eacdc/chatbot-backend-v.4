@@ -108,14 +108,51 @@ router.get('/google/callback', (req, res, next) => {
             </div>
             
             <script>
-                // Store token in localStorage
-                localStorage.setItem('token', '${token}');
-                localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('authProvider', 'google');
+                try {
+                    // Add debug element to show any errors
+                    function showDebug(message) {
+                        console.log(message);
+                        const debugEl = document.createElement('div');
+                        debugEl.style.padding = '10px';
+                        debugEl.style.margin = '10px';
+                        debugEl.style.border = '1px solid #ccc';
+                        debugEl.style.backgroundColor = '#f8f8f8';
+                        debugEl.textContent = message;
+                        document.body.appendChild(debugEl);
+                    }
+                    
+                    showDebug('Starting authentication process...');
+                    
+                    // Store token and user data in localStorage
+                    localStorage.setItem('token', '${token}');
+                    localStorage.setItem('isAuthenticated', 'true');
+                    localStorage.setItem('authProvider', 'google');
+                    
+                    showDebug('Token stored in localStorage');
+                    
+                    // Store user information from token
+                    localStorage.setItem('userId', '${req.user._id}');
+                    localStorage.setItem('userName', '${req.user.fullname}');
+                    localStorage.setItem('userRole', '${req.user.role}');
+                    localStorage.setItem('userGrade', '${req.user.grade}');
+                    
+                    showDebug('User data stored in localStorage');
+                    showDebug('Authentication successful! Redirecting to chat in 1.5 seconds...');
+                } catch (error) {
+                    console.error('Error during authentication:', error);
+                    showDebug('Error: ' + error.message);
+                }
                 
-                // Redirect to main app after a short delay
+                // Redirect to chat page after a short delay
                 setTimeout(function() {
-                    window.location.href = '${frontendUrl}';
+                    // First try to redirect to /chat
+                    window.location.href = '${frontendUrl}/chat';
+                    
+                    // If that doesn't work, set up a fallback
+                    setTimeout(function() {
+                        // If we're still on this page after 1 second, try the root URL
+                        window.location.href = '${frontendUrl}';
+                    }, 1000);
                 }, 1500);
             </script>
         </body>
