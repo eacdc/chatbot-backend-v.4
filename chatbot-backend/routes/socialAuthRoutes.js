@@ -62,43 +62,14 @@ router.get('/google/callback', (req, res, next) => {
         console.log('✅ JWT token generated successfully');
         console.log('🔗 Token length:', token.length);
 
-        // Instead of redirect, send a response with the token
-        console.log('🔗 Sending token response instead of redirect');
+                // Instead of trying to set localStorage directly (which can fail due to cross-domain issues),
+        // redirect to the auth-callback route with the token in the URL hash fragment
+        console.log('🔗 Redirecting to auth-callback with token in hash fragment');
         
-        // Send HTML that will automatically submit the token to the frontend
-        const htmlResponse = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Redirecting...</title>
-            <meta charset="utf-8">
-        </head>
-        <body>
-            <div id="loading">Redirecting to application...</div>
-            <script>
-                try {
-                    console.log('Starting OAuth callback processing...');
-                    
-                    // Store the token in localStorage
-                    localStorage.setItem('token', '${token}');
-                    localStorage.setItem('isAuthenticated', 'true');
-                    localStorage.setItem('authProvider', 'google');
-                    
-                    console.log('Token stored successfully');
-                    
-                                         // Redirect to the frontend root, which will redirect to chat if authenticated
-                     window.location.href = '${process.env.FRONTEND_URL || 'http://localhost:3000'}/';
-                } catch (error) {
-                    console.error('Error in OAuth callback:', error);
-                    document.getElementById('loading').innerHTML = 'Error: ' + error.message;
-                }
-            </script>
-        </body>
-        </html>
-        `;
+        // Use URL hash fragment to pass token (more secure, not sent to server)
+        const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback#token=${encodeURIComponent(token)}&provider=google`;
         
-        res.setHeader('Content-Type', 'text/html');
-        res.send(htmlResponse);
+        res.redirect(redirectUrl);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
