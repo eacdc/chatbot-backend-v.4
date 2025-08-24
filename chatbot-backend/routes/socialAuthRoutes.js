@@ -25,6 +25,12 @@ router.get('/google', (req, res, next) => {
       message: "Google OAuth is not configured. Please contact administrator." 
     });
   }
+  
+  // Debug: Log environment variables
+  console.log('🔧 Environment variables check:');
+  console.log('- FRONTEND_URL:', process.env.FRONTEND_URL || 'Not set (using localhost:3000)');
+  console.log('- BACKEND_URL:', process.env.BACKEND_URL || 'Not set (using localhost:5000)');
+  
   passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 });
 
@@ -67,9 +73,14 @@ router.get('/google/callback', (req, res, next) => {
         console.log('🔗 Redirecting to auth-callback with token in hash fragment');
         
         // Use URL hash fragment to pass token (more secure, not sent to server)
-        const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback#token=${encodeURIComponent(token)}&provider=google`;
+        // Make sure we're using the correct URL format
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const redirectUrl = `${frontendUrl}/auth-callback#token=${encodeURIComponent(token)}&provider=google`;
         
-        res.redirect(redirectUrl);
+        console.log('🔗 Final redirect URL:', redirectUrl);
+        
+        // Use 302 redirect to ensure proper redirection
+        res.status(302).redirect(redirectUrl);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
