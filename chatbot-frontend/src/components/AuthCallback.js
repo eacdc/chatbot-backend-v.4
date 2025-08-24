@@ -15,8 +15,27 @@ const AuthCallback = () => {
         console.log('🔍 AuthCallback: Current URL:', window.location.href);
         console.log('🔍 AuthCallback: Search params:', searchParams.toString());
         
-        const token = searchParams.get('token');
-        const provider = searchParams.get('provider');
+        // Check for direct token in URL fragment (new method)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        let token = hashParams.get('token');
+        let provider = hashParams.get('provider');
+        
+        // If not in fragment, check search params (old method)
+        if (!token) {
+          token = searchParams.get('token');
+          provider = searchParams.get('provider');
+        }
+        
+        // Check for token in sessionStorage (from backend HTML)
+        if (!token && sessionStorage.getItem('oauth_token')) {
+          token = sessionStorage.getItem('oauth_token');
+          provider = sessionStorage.getItem('oauth_provider');
+          
+          // Clear from sessionStorage after use
+          sessionStorage.removeItem('oauth_token');
+          sessionStorage.removeItem('oauth_provider');
+        }
+        
         const errorParam = searchParams.get('error');
 
         console.log('🔍 AuthCallback: Token:', token ? 'Present' : 'Missing');
