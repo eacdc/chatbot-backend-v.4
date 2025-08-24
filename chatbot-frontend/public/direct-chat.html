@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct Chat Redirect</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
+        .success { color: green; }
+        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .debug { background: #f8f8f8; padding: 10px; border: 1px solid #ddd; margin: 10px 0; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="success">Authentication Successful!</h1>
+        <p>You have successfully logged in.</p>
+        <div class="spinner"></div>
+        <p>Redirecting to chat...</p>
+        <div id="debug" class="debug"></div>
+    </div>
+    
+    <script>
+        // Function to get URL parameters
+        function getUrlParams() {
+            const params = {};
+            const searchParams = new URLSearchParams(window.location.search);
+            for (const [key, value] of searchParams.entries()) {
+                params[key] = value;
+            }
+            return params;
+        }
+        
+        // Function to log debug info
+        function logDebug(message) {
+            console.log(message);
+            const debugEl = document.getElementById('debug');
+            const msgEl = document.createElement('div');
+            msgEl.textContent = message;
+            debugEl.appendChild(msgEl);
+        }
+        
+        // Main function
+        function init() {
+            try {
+                logDebug('Starting direct chat redirect...');
+                
+                // Get token from URL
+                const params = getUrlParams();
+                const token = params.token;
+                const provider = params.provider || 'google';
+                
+                logDebug(`Token: ${token ? 'Present' : 'Missing'}`);
+                logDebug(`Provider: ${provider}`);
+                
+                if (!token) {
+                    logDebug('ERROR: No token provided in URL');
+                    return;
+                }
+                
+                // Store auth data in localStorage
+                localStorage.setItem('token', token);
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('authProvider', provider);
+                
+                logDebug('Auth data stored in localStorage');
+                
+                // Try to decode the token to get user info
+                try {
+                    const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+                    logDebug('Token payload decoded');
+                    
+                    if (tokenPayload.userId) {
+                        localStorage.setItem('userId', tokenPayload.userId);
+                    }
+                    if (tokenPayload.name) {
+                        localStorage.setItem('userName', tokenPayload.name);
+                    }
+                    if (tokenPayload.role) {
+                        localStorage.setItem('userRole', tokenPayload.role);
+                    }
+                    if (tokenPayload.grade) {
+                        localStorage.setItem('userGrade', tokenPayload.grade);
+                    }
+                    
+                    logDebug('User data extracted from token');
+                } catch (decodeError) {
+                    logDebug(`Error decoding token: ${decodeError.message}`);
+                }
+                
+                // Try multiple redirection approaches
+                logDebug('Trying multiple redirection approaches...');
+                
+                // Approach 1: Simple window.location
+                logDebug('Approach 1: Simple window.location to /chat');
+                setTimeout(() => {
+                    try {
+                        window.location.href = '/chat';
+                    } catch (e) {
+                        logDebug(`Approach 1 failed: ${e.message}`);
+                    }
+                }, 1000);
+                
+                // Approach 2: Using window.location.replace
+                logDebug('Approach 2: window.location.replace to /chat');
+                setTimeout(() => {
+                    try {
+                        window.location.replace('/chat');
+                    } catch (e) {
+                        logDebug(`Approach 2 failed: ${e.message}`);
+                    }
+                }, 2000);
+                
+                // Approach 3: Using window.location.assign
+                logDebug('Approach 3: window.location.assign to /chat');
+                setTimeout(() => {
+                    try {
+                        window.location.assign('/chat');
+                    } catch (e) {
+                        logDebug(`Approach 3 failed: ${e.message}`);
+                    }
+                }, 3000);
+                
+                // Approach 4: Using history API
+                logDebug('Approach 4: Using history.pushState to /chat');
+                setTimeout(() => {
+                    try {
+                        history.pushState({}, '', '/chat');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                    } catch (e) {
+                        logDebug(`Approach 4 failed: ${e.message}`);
+                    }
+                }, 4000);
+                
+            } catch (error) {
+                logDebug(`Error: ${error.message}`);
+            }
+        }
+        
+        // Initialize when page loads
+        window.onload = init;
+    </script>
+</body>
+</html>

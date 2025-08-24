@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Page</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        button { padding: 8px 15px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Debug Page</h1>
+    
+    <div class="card">
+        <h2>Local Storage Contents</h2>
+        <pre id="localStorage-content">Loading...</pre>
+        <button onclick="clearLocalStorage()">Clear Local Storage</button>
+    </div>
+    
+    <div class="card">
+        <h2>Session Storage Contents</h2>
+        <pre id="sessionStorage-content">Loading...</pre>
+        <button onclick="clearSessionStorage()">Clear Session Storage</button>
+    </div>
+    
+    <div class="card">
+        <h2>URL Information</h2>
+        <pre id="url-info">Loading...</pre>
+    </div>
+    
+    <div class="card">
+        <h2>Navigation Tests</h2>
+        <button onclick="navigateTo('/')">Go to Home</button>
+        <button onclick="navigateTo('/login')">Go to Login</button>
+        <button onclick="navigateTo('/chat')">Go to Chat</button>
+        <button onclick="navigateTo('/auth-callback')">Go to Auth Callback</button>
+    </div>
+    
+    <div class="card">
+        <h2>Manual Login</h2>
+        <button onclick="setAuthData()">Set Auth Data</button>
+        <div id="auth-result"></div>
+    </div>
+
+    <script>
+        // Display localStorage contents
+        function updateLocalStorageDisplay() {
+            const content = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                content[key] = localStorage.getItem(key);
+            }
+            document.getElementById('localStorage-content').textContent = JSON.stringify(content, null, 2);
+        }
+        
+        // Display sessionStorage contents
+        function updateSessionStorageDisplay() {
+            const content = {};
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                content[key] = sessionStorage.getItem(key);
+            }
+            document.getElementById('sessionStorage-content').textContent = JSON.stringify(content, null, 2);
+        }
+        
+        // Display URL information
+        function updateUrlInfo() {
+            const urlInfo = {
+                href: window.location.href,
+                origin: window.location.origin,
+                pathname: window.location.pathname,
+                search: window.location.search,
+                hash: window.location.hash
+            };
+            document.getElementById('url-info').textContent = JSON.stringify(urlInfo, null, 2);
+        }
+        
+        // Clear localStorage
+        function clearLocalStorage() {
+            localStorage.clear();
+            updateLocalStorageDisplay();
+            document.getElementById('localStorage-content').innerHTML += '<p class="success">Local storage cleared!</p>';
+        }
+        
+        // Clear sessionStorage
+        function clearSessionStorage() {
+            sessionStorage.clear();
+            updateSessionStorageDisplay();
+            document.getElementById('sessionStorage-content').innerHTML += '<p class="success">Session storage cleared!</p>';
+        }
+        
+        // Navigate to a path
+        function navigateTo(path) {
+            window.location.href = path;
+        }
+        
+        // Set auth data manually
+        function setAuthData() {
+            try {
+                localStorage.setItem('token', 'debug-token');
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('userId', 'debug-user-id');
+                localStorage.setItem('userName', 'Debug User');
+                localStorage.setItem('userRole', 'student');
+                localStorage.setItem('userGrade', '1');
+                
+                updateLocalStorageDisplay();
+                document.getElementById('auth-result').innerHTML = '<p class="success">Auth data set successfully! Try navigating to /chat now.</p>';
+            } catch (error) {
+                document.getElementById('auth-result').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Initialize displays
+        updateLocalStorageDisplay();
+        updateSessionStorageDisplay();
+        updateUrlInfo();
+    </script>
+</body>
+</html>

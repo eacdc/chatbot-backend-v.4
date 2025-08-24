@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Router</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Router Page</h1>
+        <p>This page will check your authentication status and redirect you to the appropriate page.</p>
+        <div class="spinner"></div>
+        <p id="status">Checking authentication status...</p>
+    </div>
+    
+    <div class="card">
+        <h2>Debug Information</h2>
+        <pre id="debug"></pre>
+    </div>
+    
+    <script>
+        function log(message) {
+            console.log(message);
+            const debugEl = document.getElementById('debug');
+            debugEl.textContent += message + '\n';
+        }
+        
+        function setStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        function checkAuth() {
+            log('Checking authentication status...');
+            
+            // Check if user is authenticated
+            const token = localStorage.getItem('token');
+            const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+            
+            log(`Token exists: ${!!token}`);
+            log(`isAuthenticated: ${isAuthenticated}`);
+            
+            if (token && isAuthenticated) {
+                log('User is authenticated, redirecting to /chat');
+                setStatus('You are authenticated! Redirecting to chat...');
+                
+                // Redirect to chat page
+                setTimeout(() => {
+                    window.location.href = '/chat';
+                }, 1500);
+            } else {
+                log('User is not authenticated, redirecting to /login');
+                setStatus('You are not authenticated! Redirecting to login...');
+                
+                // Redirect to login page
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 1500);
+            }
+        }
+        
+        // Run when page loads
+        window.onload = checkAuth;
+    </script>
+</body>
+</html>
