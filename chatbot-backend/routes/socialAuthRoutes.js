@@ -62,11 +62,32 @@ router.get('/google/callback', (req, res, next) => {
         console.log('✅ JWT token generated successfully');
         console.log('🔗 Token length:', token.length);
 
-        // Redirect to frontend with token
-        const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?token=${token}&provider=google`;
-        console.log('🔗 Redirecting to:', redirectUrl);
+        // Instead of redirect, send a response with the token
+        console.log('🔗 Sending token response instead of redirect');
         
-        res.redirect(redirectUrl);
+        // Send HTML that will automatically submit the token to the frontend
+        const htmlResponse = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Redirecting...</title>
+        </head>
+        <body>
+            <script>
+                // Store the token in localStorage
+                localStorage.setItem('token', '${token}');
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('authProvider', 'google');
+                
+                // Redirect to the frontend
+                window.location.href = '${process.env.FRONTEND_URL || 'http://localhost:3000'}/chat';
+            </script>
+            <p>Redirecting to application...</p>
+        </body>
+        </html>
+        `;
+        
+        res.send(htmlResponse);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
