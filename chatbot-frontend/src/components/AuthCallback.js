@@ -11,12 +11,21 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        console.log('🔍 AuthCallback: Starting callback processing');
+        console.log('🔍 AuthCallback: Current URL:', window.location.href);
+        console.log('🔍 AuthCallback: Search params:', searchParams.toString());
+        
         const token = searchParams.get('token');
         const provider = searchParams.get('provider');
         const errorParam = searchParams.get('error');
 
+        console.log('🔍 AuthCallback: Token:', token ? 'Present' : 'Missing');
+        console.log('🔍 AuthCallback: Provider:', provider);
+        console.log('🔍 AuthCallback: Error:', errorParam);
+
         // Check for OAuth errors
         if (errorParam) {
+          console.log('❌ AuthCallback: OAuth error detected:', errorParam);
           setStatus('error');
           setError(getErrorMessage(errorParam));
           return;
@@ -24,11 +33,14 @@ const AuthCallback = () => {
 
         // Check if we have a valid token
         if (!token) {
+          console.log('❌ AuthCallback: No token received');
           setStatus('error');
           setError('Authentication failed. No token received.');
           return;
         }
 
+        console.log('✅ AuthCallback: Token received, processing...');
+        
         // Store the token and set authentication status
         localStorage.setItem('token', token);
         localStorage.setItem('isAuthenticated', 'true');
@@ -37,6 +49,8 @@ const AuthCallback = () => {
         if (provider) {
           localStorage.setItem('authProvider', provider);
         }
+        
+        console.log('✅ AuthCallback: Token stored in localStorage');
 
         // Try to decode the token to get user info
         try {
