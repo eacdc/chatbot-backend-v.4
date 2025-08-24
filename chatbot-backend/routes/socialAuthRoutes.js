@@ -68,14 +68,6 @@ router.get('/google/callback', (req, res, next) => {
         console.log('✅ JWT token generated successfully');
         console.log('🔗 Token length:', token.length);
 
-                // Instead of trying to set localStorage directly (which can fail due to cross-domain issues),
-        // redirect to the auth-callback route with the token in the URL hash fragment
-        console.log('🔗 Redirecting to auth-callback with token in hash fragment');
-        
-        // Instead of using auth-callback, let's create a simple HTML page that will
-        // store the token and redirect to the main app
-        console.log('🔗 Sending HTML response with token');
-        
         // Get frontend URL with proper formatting
         let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         if (frontendUrl.endsWith('/')) {
@@ -97,6 +89,10 @@ router.get('/google/callback', (req, res, next) => {
                 .container { max-width: 500px; margin: 0 auto; padding: 20px; }
                 .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
                 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+                h1 { color: green; }
+                button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+                pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
             </style>
         </head>
         <body>
@@ -143,63 +139,51 @@ router.get('/google/callback', (req, res, next) => {
                     showDebug('Error: ' + error.message);
                 }
                 
-                // Provide multiple options for redirection
-                const debugMode = true; // Set to true to show all options
+                // Options for redirection
+                const debugMode = true;
                 
                 if (debugMode) {
-                    // Show a page with multiple options
-                    document.write(`
-                        <html>
-                        <head>
-                            <title>Authentication Success - Choose Redirection</title>
-                            <style>
-                                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-                                .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
-                                h1 { color: green; }
-                                button { padding: 10px 15px; margin: 5px; cursor: pointer; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="card">
-                                <h1>Authentication Successful!</h1>
-                                <p>Your token has been generated. Please choose how you want to proceed:</p>
-                                
-                                <h3>Option 1: Direct to Chat</h3>
-                                <button onclick="window.location.href='/chat'">Go to Chat Directly</button>
-                                
-                                <h3>Option 2: Use Auth Callback</h3>
-                                <button onclick="window.location.href='${frontendUrl}/auth-callback?token=${token}&provider=${req.user.authProvider || 'google'}'">Use Auth Callback</button>
-                                
-                                <h3>Option 3: Use Direct Chat Helper</h3>
-                                <button onclick="window.location.href='${frontendUrl}/direct-chat.html?token=${token}&provider=${req.user.authProvider || 'google'}'">Use Direct Chat Helper</button>
-                                
-                                <h3>Option 4: Use Router</h3>
-                                <button onclick="localStorage.setItem('token', '${token}'); localStorage.setItem('isAuthenticated', 'true'); window.location.href='${frontendUrl}/router.html'">Use Router</button>
-                                
-                                <h3>Option 5: Debug Page</h3>
-                                <button onclick="window.location.href='${frontendUrl}/debug.html?token=${token}&provider=${req.user.authProvider || 'google'}'">Go to Debug Page</button>
-                            </div>
+                    // Show options directly in the page
+                    const container = document.querySelector('.container');
+                    container.innerHTML += \`
+                        <div class="card">
+                            <h2>Choose Redirection Option</h2>
+                            <p>Your token has been generated. Please choose how you want to proceed:</p>
                             
-                            <div class="card">
-                                <h3>Manual Setup</h3>
-                                <p>Copy this code and paste it in your browser console, then navigate to /chat:</p>
-                                <pre>
+                            <h3>Option 1: Direct to Chat</h3>
+                            <button onclick="window.location.href='/chat'">Go to Chat Directly</button>
+                            
+                            <h3>Option 2: Use Auth Callback</h3>
+                            <button onclick="window.location.href='${frontendUrl}/auth-callback?token=${token}&provider=google'">Use Auth Callback</button>
+                            
+                            <h3>Option 3: Use Direct Chat Helper</h3>
+                            <button onclick="window.location.href='${frontendUrl}/direct-chat.html?token=${token}&provider=google'">Use Direct Chat Helper</button>
+                            
+                            <h3>Option 4: Use Router</h3>
+                            <button onclick="localStorage.setItem('token', '${token}'); localStorage.setItem('isAuthenticated', 'true'); window.location.href='${frontendUrl}/router.html'">Use Router</button>
+                            
+                            <h3>Option 5: Debug Page</h3>
+                            <button onclick="window.location.href='${frontendUrl}/debug.html?token=${token}&provider=google'">Go to Debug Page</button>
+                        </div>
+                        
+                        <div class="card">
+                            <h3>Manual Setup</h3>
+                            <p>Copy this code and paste it in your browser console, then navigate to /chat:</p>
+                            <pre>
 localStorage.setItem('token', '${token}');
 localStorage.setItem('isAuthenticated', 'true');
-localStorage.setItem('authProvider', '${req.user.authProvider || 'google'}');
+localStorage.setItem('authProvider', 'google');
 localStorage.setItem('userId', '${req.user._id}');
 localStorage.setItem('userName', '${req.user.fullname}');
 localStorage.setItem('userRole', '${req.user.role}');
 localStorage.setItem('userGrade', '${req.user.grade}');
-                                </pre>
-                            </div>
-                        </body>
-                        </html>
-                    `);
+                            </pre>
+                        </div>
+                    \`;
                 } else {
                     // Default behavior - redirect to auth-callback
                     setTimeout(function() {
-                        window.location.href = '${frontendUrl}/auth-callback?token=${token}&provider=${req.user.authProvider || 'google'}';
+                        window.location.href = '${frontendUrl}/auth-callback?token=${token}&provider=google';
                     }, 1500);
                 }
             </script>
@@ -274,6 +258,10 @@ router.get('/facebook/callback', (req, res, next) => {
                 .container { max-width: 500px; margin: 0 auto; padding: 20px; }
                 .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
                 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+                h1 { color: green; }
+                button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+                pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
             </style>
         </head>
         <body>
@@ -320,63 +308,51 @@ router.get('/facebook/callback', (req, res, next) => {
                     showDebug('Error: ' + error.message);
                 }
                 
-                // Provide multiple options for redirection
-                const debugMode = true; // Set to true to show all options
+                // Options for redirection
+                const debugMode = true;
                 
                 if (debugMode) {
-                    // Show a page with multiple options
-                    document.write(`
-                        <html>
-                        <head>
-                            <title>Authentication Success - Choose Redirection</title>
-                            <style>
-                                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-                                .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
-                                h1 { color: green; }
-                                button { padding: 10px 15px; margin: 5px; cursor: pointer; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="card">
-                                <h1>Authentication Successful!</h1>
-                                <p>Your token has been generated. Please choose how you want to proceed:</p>
-                                
-                                <h3>Option 1: Direct to Chat</h3>
-                                <button onclick="window.location.href='/chat'">Go to Chat Directly</button>
-                                
-                                <h3>Option 2: Use Auth Callback</h3>
-                                <button onclick="window.location.href='${frontendUrl}/auth-callback?token=${token}&provider=${req.user.authProvider || 'google'}'">Use Auth Callback</button>
-                                
-                                <h3>Option 3: Use Direct Chat Helper</h3>
-                                <button onclick="window.location.href='${frontendUrl}/direct-chat.html?token=${token}&provider=${req.user.authProvider || 'google'}'">Use Direct Chat Helper</button>
-                                
-                                <h3>Option 4: Use Router</h3>
-                                <button onclick="localStorage.setItem('token', '${token}'); localStorage.setItem('isAuthenticated', 'true'); window.location.href='${frontendUrl}/router.html'">Use Router</button>
-                                
-                                <h3>Option 5: Debug Page</h3>
-                                <button onclick="window.location.href='${frontendUrl}/debug.html?token=${token}&provider=${req.user.authProvider || 'google'}'">Go to Debug Page</button>
-                            </div>
+                    // Show options directly in the page
+                    const container = document.querySelector('.container');
+                    container.innerHTML += \`
+                        <div class="card">
+                            <h2>Choose Redirection Option</h2>
+                            <p>Your token has been generated. Please choose how you want to proceed:</p>
                             
-                            <div class="card">
-                                <h3>Manual Setup</h3>
-                                <p>Copy this code and paste it in your browser console, then navigate to /chat:</p>
-                                <pre>
+                            <h3>Option 1: Direct to Chat</h3>
+                            <button onclick="window.location.href='/chat'">Go to Chat Directly</button>
+                            
+                            <h3>Option 2: Use Auth Callback</h3>
+                            <button onclick="window.location.href='${frontendUrl}/auth-callback?token=${token}&provider=facebook'">Use Auth Callback</button>
+                            
+                            <h3>Option 3: Use Direct Chat Helper</h3>
+                            <button onclick="window.location.href='${frontendUrl}/direct-chat.html?token=${token}&provider=facebook'">Use Direct Chat Helper</button>
+                            
+                            <h3>Option 4: Use Router</h3>
+                            <button onclick="localStorage.setItem('token', '${token}'); localStorage.setItem('isAuthenticated', 'true'); window.location.href='${frontendUrl}/router.html'">Use Router</button>
+                            
+                            <h3>Option 5: Debug Page</h3>
+                            <button onclick="window.location.href='${frontendUrl}/debug.html?token=${token}&provider=facebook'">Go to Debug Page</button>
+                        </div>
+                        
+                        <div class="card">
+                            <h3>Manual Setup</h3>
+                            <p>Copy this code and paste it in your browser console, then navigate to /chat:</p>
+                            <pre>
 localStorage.setItem('token', '${token}');
 localStorage.setItem('isAuthenticated', 'true');
-localStorage.setItem('authProvider', '${req.user.authProvider || 'google'}');
+localStorage.setItem('authProvider', 'facebook');
 localStorage.setItem('userId', '${req.user._id}');
 localStorage.setItem('userName', '${req.user.fullname}');
 localStorage.setItem('userRole', '${req.user.role}');
 localStorage.setItem('userGrade', '${req.user.grade}');
-                                </pre>
-                            </div>
-                        </body>
-                        </html>
-                    `);
+                            </pre>
+                        </div>
+                    \`;
                 } else {
                     // Default behavior - redirect to auth-callback
                     setTimeout(function() {
-                        window.location.href = '${frontendUrl}/auth-callback?token=${token}&provider=${req.user.authProvider || 'google'}';
+                        window.location.href = '${frontendUrl}/auth-callback?token=${token}&provider=facebook';
                     }, 1500);
                 }
             </script>
