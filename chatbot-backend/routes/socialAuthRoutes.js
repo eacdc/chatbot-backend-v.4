@@ -72,22 +72,59 @@ router.get('/google/callback', (req, res, next) => {
         // redirect to the auth-callback route with the token in the URL hash fragment
         console.log('🔗 Redirecting to auth-callback with token in hash fragment');
         
-        // Use URL hash fragment to pass token (more secure, not sent to server)
-        // Make sure we're using the correct URL format and handle trailing slashes
-        let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        // Instead of using auth-callback, let's create a simple HTML page that will
+        // store the token and redirect to the main app
+        console.log('🔗 Sending HTML response with token');
         
-        // Remove trailing slash if present
+        // Get frontend URL with proper formatting
+        let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         if (frontendUrl.endsWith('/')) {
             frontendUrl = frontendUrl.slice(0, -1);
         }
         
-        const redirectUrl = `${frontendUrl}/auth-callback#token=${encodeURIComponent(token)}&provider=google`;
+        // Create a simple HTML page that will store the token and redirect
+        const htmlResponse = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Successful</title>
+            <meta charset="utf-8">
+            <meta http-equiv="X-UA-Compatible" content="IE=edge">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
+                .success { color: green; }
+                .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+                .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1 class="success">Authentication Successful!</h1>
+                <p>You have successfully logged in with Google.</p>
+                <div class="spinner"></div>
+                <p>Redirecting to application...</p>
+            </div>
+            
+            <script>
+                // Store token in localStorage
+                localStorage.setItem('token', '${token}');
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('authProvider', 'google');
+                
+                // Redirect to main app after a short delay
+                setTimeout(function() {
+                    window.location.href = '${frontendUrl}';
+                }, 1500);
+            </script>
+        </body>
+        </html>
+        `;
         
-        console.log('🔗 Frontend URL:', frontendUrl);
-        console.log('🔗 Final redirect URL:', redirectUrl);
-        
-        // Use 302 redirect to ensure proper redirection
-        res.status(302).redirect(redirectUrl);
+        // Send HTML response
+        res.setHeader('Content-Type', 'text/html');
+        res.send(htmlResponse);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
