@@ -38,8 +38,13 @@ router.get('/google/callback', (req, res, next) => {
         console.log('🔐 Google OAuth callback received:', req.user);
         
         if (!req.user) {
+            console.log('❌ No user found in callback');
             return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`);
         }
+
+        console.log('🔑 Generating JWT token...');
+        console.log('🔑 JWT_SECRET available:', !!process.env.JWT_SECRET);
+        console.log('🔑 FRONTEND_URL:', process.env.FRONTEND_URL || 'Not set (using localhost:3000)');
 
         // Generate JWT token
         const token = jwt.sign(
@@ -54,8 +59,13 @@ router.get('/google/callback', (req, res, next) => {
             { expiresIn: "7d" }
         );
 
+        console.log('✅ JWT token generated successfully');
+        console.log('🔗 Token length:', token.length);
+
         // Redirect to frontend with token
         const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?token=${token}&provider=google`;
+        console.log('🔗 Redirecting to:', redirectUrl);
+        
         res.redirect(redirectUrl);
 
     } catch (error) {

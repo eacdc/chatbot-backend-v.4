@@ -1,0 +1,119 @@
+{
+  "info": {
+    "name": "Chatbot OAuth Testing",
+    "description": "Collection for testing Google OAuth authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Check OAuth Providers",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://chatbot-backend-v-4.onrender.com/api/social-auth/available-providers",
+          "protocol": "https",
+          "host": ["chatbot-backend-v-4", "onrender", "com"],
+          "path": ["api", "social-auth", "available-providers"]
+        },
+        "description": "Check which OAuth providers are available and configured"
+      },
+      "response": []
+    },
+    {
+      "name": "Initiate Google OAuth",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://chatbot-backend-v-4.onrender.com/api/social-auth/google",
+          "protocol": "https",
+          "host": ["chatbot-backend-v-4", "onrender", "com"],
+          "path": ["api", "social-auth", "google"]
+        },
+        "description": "Initiate Google OAuth flow - this will redirect to Google's consent page"
+      },
+      "response": []
+    },
+    {
+      "name": "Test Google OAuth Callback (Manual)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://chatbot-backend-v-4.onrender.com/api/social-auth/google/callback?code={{auth_code}}&state={{state}}",
+          "protocol": "https",
+          "host": ["chatbot-backend-v-4", "onrender", "com"],
+          "path": ["api", "social-auth", "google", "callback"],
+          "query": [
+            {
+              "key": "code",
+              "value": "{{auth_code}}",
+              "description": "Authorization code from Google OAuth"
+            },
+            {
+              "key": "state",
+              "value": "{{state}}",
+              "description": "State parameter from OAuth flow"
+            }
+          ]
+        },
+        "description": "Test the OAuth callback with authorization code (requires manual setup)"
+      },
+      "response": []
+    },
+    {
+      "name": "Test Facebook OAuth (Disabled)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://chatbot-backend-v-4.onrender.com/api/social-auth/facebook",
+          "protocol": "https",
+          "host": ["chatbot-backend-v-4", "onrender", "com"],
+          "path": ["api", "social-auth", "facebook"]
+        },
+        "description": "Test Facebook OAuth (should return 503 error since not configured)"
+      },
+      "response": []
+    },
+    {
+      "name": "Get User Profile (After OAuth)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "https://chatbot-backend-v-4.onrender.com/api/users/me",
+          "protocol": "https",
+          "host": ["chatbot-backend-v-4", "onrender", "com"],
+          "path": ["api", "users", "me"]
+        },
+        "description": "Get user profile after successful OAuth authentication"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "auth_code",
+      "value": "YOUR_AUTHORIZATION_CODE",
+      "description": "Authorization code received from Google OAuth"
+    },
+    {
+      "key": "state",
+      "value": "YOUR_STATE_PARAMETER",
+      "description": "State parameter from OAuth flow"
+    },
+    {
+      "key": "jwt_token",
+      "value": "YOUR_JWT_TOKEN",
+      "description": "JWT token received after successful OAuth authentication"
+    }
+  ]
+}
