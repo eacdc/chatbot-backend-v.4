@@ -419,4 +419,9 @@ router.get('/debug-urls', (req, res) => {
     res.json(debugInfo);
 });
 
+// Serve test authentication page
+router.get('/test-auth', (req, res) => {
+    res.sendFile('public/test-auth.html', { root: process.cwd() });
+});
+
 module.exports = router;

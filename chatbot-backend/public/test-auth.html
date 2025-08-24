@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { border: 1px solid #ddd; padding: 20px; margin-bottom: 20px; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px; margin: 5px; cursor: pointer; }
+        pre { background: #f5f5f5; padding: 10px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Authentication Test Page</h1>
+        
+        <div class="card">
+            <h2>Authentication Status</h2>
+            <div id="auth-status"></div>
+        </div>
+        
+        <div class="card">
+            <h2>LocalStorage Contents</h2>
+            <pre id="local-storage"></pre>
+        </div>
+        
+        <div class="card">
+            <h2>Actions</h2>
+            <button onclick="redirectToChat()">Go to Chat Page</button>
+            <button onclick="redirectToRoot()">Go to Root Page</button>
+            <button onclick="clearStorage()">Clear LocalStorage</button>
+        </div>
+        
+        <div class="card">
+            <h2>Manual Token Set</h2>
+            <button onclick="setDummyToken()">Set Dummy Token</button>
+        </div>
+    </div>
+    
+    <script>
+        // Check authentication status
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const isAuthenticated = localStorage.getItem('isAuthenticated');
+            const authStatus = document.getElementById('auth-status');
+            
+            if (token && isAuthenticated === 'true') {
+                authStatus.innerHTML = '<p class="success">✅ Authenticated</p>';
+                authStatus.innerHTML += '<p>Token: ' + token.substring(0, 20) + '...</p>';
+            } else {
+                authStatus.innerHTML = '<p class="error">❌ Not authenticated</p>';
+                authStatus.innerHTML += '<p>No valid token found in localStorage</p>';
+            }
+        }
+        
+        // Display localStorage contents
+        function displayLocalStorage() {
+            const storageEl = document.getElementById('local-storage');
+            let content = '';
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                let value = localStorage.getItem(key);
+                
+                // Truncate long values
+                if (value && value.length > 50) {
+                    value = value.substring(0, 50) + '...';
+                }
+                
+                content += key + ': ' + value + '\n';
+            }
+            
+            storageEl.textContent = content || 'LocalStorage is empty';
+        }
+        
+        // Redirect functions
+        function redirectToChat() {
+            window.location.href = '/chat';
+        }
+        
+        function redirectToRoot() {
+            window.location.href = '/';
+        }
+        
+        // Clear storage
+        function clearStorage() {
+            localStorage.clear();
+            displayLocalStorage();
+            checkAuth();
+            alert('LocalStorage cleared!');
+        }
+        
+        // Set dummy token for testing
+        function setDummyToken() {
+            localStorage.setItem('token', 'dummy_test_token_123456789');
+            localStorage.setItem('isAuthenticated', 'true');
+            localStorage.setItem('userId', '123456789');
+            localStorage.setItem('userName', 'Test User');
+            localStorage.setItem('userRole', 'student');
+            localStorage.setItem('userGrade', '1');
+            displayLocalStorage();
+            checkAuth();
+            alert('Dummy token set!');
+        }
+        
+        // Initialize
+        window.onload = function() {
+            checkAuth();
+            displayLocalStorage();
+        };
+    </script>
+</body>
+</html>
