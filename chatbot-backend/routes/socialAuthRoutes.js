@@ -143,16 +143,10 @@ router.get('/google/callback', (req, res, next) => {
                     showDebug('Error: ' + error.message);
                 }
                 
-                // Redirect to chat page after a short delay
+                // Redirect to root page after a short delay
+                // This will let the frontend routing handle the redirection to /chat
                 setTimeout(function() {
-                    // First try to redirect to /chat
-                    window.location.href = '${frontendUrl}/chat';
-                    
-                    // If that doesn't work, set up a fallback
-                    setTimeout(function() {
-                        // If we're still on this page after 1 second, try the root URL
-                        window.location.href = '${frontendUrl}';
-                    }, 1000);
+                    window.location.href = '${frontendUrl}';
                 }, 1500);
             </script>
         </body>
