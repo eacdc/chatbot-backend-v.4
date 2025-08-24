@@ -143,10 +143,9 @@ router.get('/google/callback', (req, res, next) => {
                     showDebug('Error: ' + error.message);
                 }
                 
-                // Redirect to root page after a short delay
-                // This will let the frontend routing handle the redirection to /chat
+                // Redirect directly to chat page after a short delay
                 setTimeout(function() {
-                    window.location.href = '${frontendUrl}';
+                    window.location.href = '${frontendUrl}/chat';
                 }, 1500);
             </script>
         </body>
@@ -199,9 +198,85 @@ router.get('/facebook/callback', (req, res, next) => {
             { expiresIn: "7d" }
         );
 
-        // Redirect to frontend with token
-        const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?token=${token}&provider=facebook`;
-        res.redirect(redirectUrl);
+        // Create a similar HTML response as Google OAuth for consistency
+        let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        if (frontendUrl.endsWith('/')) {
+            frontendUrl = frontendUrl.slice(0, -1);
+        }
+        
+        // Create a simple HTML page that will store the token and redirect
+        const htmlResponse = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Successful</title>
+            <meta charset="utf-8">
+            <meta http-equiv="X-UA-Compatible" content="IE=edge">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
+                .success { color: green; }
+                .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+                .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1 class="success">Authentication Successful!</h1>
+                <p>You have successfully logged in with Facebook.</p>
+                <div class="spinner"></div>
+                <p>Redirecting to application...</p>
+            </div>
+            
+            <script>
+                try {
+                    // Add debug element to show any errors
+                    function showDebug(message) {
+                        console.log(message);
+                        const debugEl = document.createElement('div');
+                        debugEl.style.padding = '10px';
+                        debugEl.style.margin = '10px';
+                        debugEl.style.border = '1px solid #ccc';
+                        debugEl.style.backgroundColor = '#f8f8f8';
+                        debugEl.textContent = message;
+                        document.body.appendChild(debugEl);
+                    }
+                    
+                    showDebug('Starting authentication process...');
+                    
+                    // Store token and user data in localStorage
+                    localStorage.setItem('token', '${token}');
+                    localStorage.setItem('isAuthenticated', 'true');
+                    localStorage.setItem('authProvider', 'facebook');
+                    
+                    showDebug('Token stored in localStorage');
+                    
+                    // Store user information from token
+                    localStorage.setItem('userId', '${req.user._id}');
+                    localStorage.setItem('userName', '${req.user.fullname}');
+                    localStorage.setItem('userRole', '${req.user.role}');
+                    localStorage.setItem('userGrade', '${req.user.grade}');
+                    
+                    showDebug('User data stored in localStorage');
+                    showDebug('Authentication successful! Redirecting to chat in 1.5 seconds...');
+                } catch (error) {
+                    console.error('Error during authentication:', error);
+                    showDebug('Error: ' + error.message);
+                }
+                
+                // Redirect directly to chat page after a short delay
+                setTimeout(function() {
+                    window.location.href = '${frontendUrl}/chat';
+                }, 1500);
+            </script>
+        </body>
+        </html>
+        `;
+        
+        // Send HTML response
+        res.setHeader('Content-Type', 'text/html');
+        res.send(htmlResponse);
 
     } catch (error) {
         console.error('❌ Facebook OAuth callback error:', error);
