@@ -71,22 +71,33 @@ router.get('/google/callback', (req, res, next) => {
         <html>
         <head>
             <title>Redirecting...</title>
+            <meta charset="utf-8">
         </head>
         <body>
+            <div id="loading">Redirecting to application...</div>
             <script>
-                // Store the token in localStorage
-                localStorage.setItem('token', '${token}');
-                localStorage.setItem('isAuthenticated', 'true');
-                localStorage.setItem('authProvider', 'google');
-                
-                // Redirect to the frontend
-                window.location.href = '${process.env.FRONTEND_URL || 'http://localhost:3000'}/chat';
+                try {
+                    console.log('Starting OAuth callback processing...');
+                    
+                    // Store the token in localStorage
+                    localStorage.setItem('token', '${token}');
+                    localStorage.setItem('isAuthenticated', 'true');
+                    localStorage.setItem('authProvider', 'google');
+                    
+                    console.log('Token stored successfully');
+                    
+                                         // Redirect to the frontend root, which will redirect to chat if authenticated
+                     window.location.href = '${process.env.FRONTEND_URL || 'http://localhost:3000'}/';
+                } catch (error) {
+                    console.error('Error in OAuth callback:', error);
+                    document.getElementById('loading').innerHTML = 'Error: ' + error.message;
+                }
             </script>
-            <p>Redirecting to application...</p>
         </body>
         </html>
         `;
         
+        res.setHeader('Content-Type', 'text/html');
         res.send(htmlResponse);
 
     } catch (error) {
