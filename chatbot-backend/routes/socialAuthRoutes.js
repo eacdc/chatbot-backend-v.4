@@ -73,10 +73,17 @@ router.get('/google/callback', (req, res, next) => {
         console.log('🔗 Redirecting to auth-callback with token in hash fragment');
         
         // Use URL hash fragment to pass token (more secure, not sent to server)
-        // Make sure we're using the correct URL format
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        // Make sure we're using the correct URL format and handle trailing slashes
+        let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        
+        // Remove trailing slash if present
+        if (frontendUrl.endsWith('/')) {
+            frontendUrl = frontendUrl.slice(0, -1);
+        }
+        
         const redirectUrl = `${frontendUrl}/auth-callback#token=${encodeURIComponent(token)}&provider=google`;
         
+        console.log('🔗 Frontend URL:', frontendUrl);
         console.log('🔗 Final redirect URL:', redirectUrl);
         
         // Use 302 redirect to ensure proper redirection
@@ -310,6 +317,32 @@ router.get('/available-providers', (req, res) => {
         availableProviders,
         message: "OAuth provider availability status"
     });
+});
+
+// Debug route to check environment variables and URLs
+router.get('/debug-urls', (req, res) => {
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    if (frontendUrl.endsWith('/')) {
+        frontendUrl = frontendUrl.slice(0, -1);
+    }
+    
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    
+    const debugInfo = {
+        environment: process.env.NODE_ENV || 'development',
+        urls: {
+            frontend: frontendUrl,
+            backend: backendUrl,
+            authCallback: `${frontendUrl}/auth-callback`,
+            googleCallback: `${backendUrl}/api/social-auth/google/callback`
+        },
+        oauth: {
+            googleConfigured: isStrategyAvailable('google'),
+            facebookConfigured: isStrategyAvailable('facebook')
+        }
+    };
+    
+    res.json(debugInfo);
 });
 
 module.exports = router;
