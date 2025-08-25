@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Routing Test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Routing Test Page</h1>
+    
+    <div class="card">
+        <h2>Server Configuration Test</h2>
+        <p>This page tests if the server is properly configured to handle client-side routing.</p>
+        
+        <h3>Test Results</h3>
+        <table id="test-results">
+            <tr>
+                <th>Test</th>
+                <th>Status</th>
+                <th>Result</th>
+            </tr>
+            <tr>
+                <td>1. Static HTML file access</td>
+                <td id="test1-status">Pending</td>
+                <td id="test1-result">Not started</td>
+            </tr>
+            <tr>
+                <td>2. Static asset access</td>
+                <td id="test2-status">Pending</td>
+                <td id="test2-result">Not started</td>
+            </tr>
+            <tr>
+                <td>3. API endpoint access</td>
+                <td id="test3-status">Pending</td>
+                <td id="test3-result">Not started</td>
+            </tr>
+            <tr>
+                <td>4. Client-side route access</td>
+                <td id="test4-status">Pending</td>
+                <td id="test4-result">Not started</td>
+            </tr>
+        </table>
+        
+        <button onclick="runAllTests()" style="margin-top: 15px;">Run All Tests</button>
+    </div>
+    
+    <div class="card">
+        <h2>Netlify Configuration Check</h2>
+        <p>If you're using Netlify, check if your _redirects file is properly configured:</p>
+        <pre>/* /index.html 200</pre>
+        <p>This rule tells Netlify to serve the index.html file for all routes, which is necessary for client-side routing to work.</p>
+        
+        <h3>Manual Tests</h3>
+        <p>Try accessing these URLs directly:</p>
+        <ul>
+            <li><a href="/login" target="_blank">/login</a> - Should load the React app</li>
+            <li><a href="/chat" target="_blank">/chat</a> - Should load the React app</li>
+            <li><a href="/nonexistent-page" target="_blank">/nonexistent-page</a> - Should still load the React app</li>
+        </ul>
+    </div>
+    
+    <div class="card">
+        <h2>Debug Information</h2>
+        <pre id="debug-info"></pre>
+    </div>
+    
+    <script>
+        // Update test status
+        function updateTestStatus(testId, status, result) {
+            const statusEl = document.getElementById(`test${testId}-status`);
+            const resultEl = document.getElementById(`test${testId}-result`);
+            
+            statusEl.textContent = status;
+            resultEl.textContent = result;
+            
+            if (status === 'Success') {
+                statusEl.style.color = 'green';
+            } else if (status === 'Failed') {
+                statusEl.style.color = 'red';
+            } else {
+                statusEl.style.color = 'orange';
+            }
+        }
+        
+        // Log debug info
+        function logDebug(message) {
+            const debugEl = document.getElementById('debug-info');
+            const timestamp = new Date().toLocaleTimeString();
+            debugEl.textContent += `[${timestamp}] ${message}\n`;
+        }
+        
+        // Test 1: Static HTML file access
+        function testStaticHtml() {
+            updateTestStatus(1, 'Running', 'Testing access to this HTML file...');
+            
+            // This test is automatically successful if the page loads
+            setTimeout(() => {
+                updateTestStatus(1, 'Success', 'This page loaded successfully!');
+                logDebug('Static HTML test passed');
+            }, 500);
+        }
+        
+        // Test 2: Static asset access
+        function testStaticAsset() {
+            updateTestStatus(2, 'Running', 'Testing access to static assets...');
+            
+            // Create a test image element
+            const img = new Image();
+            img.onload = function() {
+                updateTestStatus(2, 'Success', 'Static assets can be loaded');
+                logDebug('Static asset test passed');
+            };
+            img.onerror = function() {
+                updateTestStatus(2, 'Failed', 'Failed to load static asset');
+                logDebug('Static asset test failed');
+            };
+            
+            // Try to load the favicon or another static asset
+            img.src = '/favicon.ico?' + new Date().getTime();
+        }
+        
+        // Test 3: API endpoint access
+        function testApiEndpoint() {
+            updateTestStatus(3, 'Running', 'Testing API endpoint access...');
+            
+            fetch('/api/health')
+                .then(response => {
+                    if (response.ok) {
+                        return response.json().then(data => {
+                            updateTestStatus(3, 'Success', 'API endpoint accessible');
+                            logDebug('API test passed: ' + JSON.stringify(data));
+                        });
+                    } else {
+                        throw new Error(`Status: ${response.status}`);
+                    }
+                })
+                .catch(error => {
+                    updateTestStatus(3, 'Failed', `API error: ${error.message}`);
+                    logDebug('API test failed: ' + error.message);
+                });
+        }
+        
+        // Test 4: Client-side route access
+        function testClientRouting() {
+            updateTestStatus(4, 'Running', 'Testing client-side routing...');
+            
+            // We'll test this by trying to fetch a client-side route
+            fetch('/chat')
+                .then(response => {
+                    if (response.ok) {
+                        return response.text().then(html => {
+                            // Check if the response is the index.html file
+                            const isIndexHtml = html.includes('<div id="root">') || 
+                                               html.includes('<script src="/static/js/') ||
+                                               html.includes('<link href="/static/css/');
+                            
+                            if (isIndexHtml) {
+                                updateTestStatus(4, 'Success', 'Client-side routing works!');
+                                logDebug('Client-side routing test passed');
+                            } else {
+                                updateTestStatus(4, 'Failed', 'Got response but not index.html');
+                                logDebug('Client-side routing test failed: Response is not index.html');
+                            }
+                        });
+                    } else {
+                        throw new Error(`Status: ${response.status}`);
+                    }
+                })
+                .catch(error => {
+                    updateTestStatus(4, 'Failed', `Routing error: ${error.message}`);
+                    logDebug('Client-side routing test failed: ' + error.message);
+                });
+        }
+        
+        // Run all tests
+        function runAllTests() {
+            logDebug('Starting all tests...');
+            testStaticHtml();
+            setTimeout(testStaticAsset, 500);
+            setTimeout(testApiEndpoint, 1000);
+            setTimeout(testClientRouting, 1500);
+        }
+        
+        // Initialize
+        window.onload = function() {
+            logDebug('Page loaded. Click "Run All Tests" to begin testing.');
+        };
+    </script>
+</body>
+</html>

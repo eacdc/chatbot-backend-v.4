@@ -40,6 +40,14 @@
         <button onclick="navigateTo('/login')">Go to Login</button>
         <button onclick="navigateTo('/chat')">Go to Chat</button>
         <button onclick="navigateTo('/auth-callback')">Go to Auth Callback</button>
+        <div id="nav-result"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Detailed Authentication Check</h2>
+        <button onclick="checkAuthStatus()">Check Auth Status</button>
+        <button onclick="testTokenValidity()">Test Token Validity</button>
+        <div id="auth-check-result"></div>
     </div>
     
     <div class="card">
@@ -76,7 +84,9 @@
                 origin: window.location.origin,
                 pathname: window.location.pathname,
                 search: window.location.search,
-                hash: window.location.hash
+                hash: window.location.hash,
+                protocol: window.location.protocol,
+                host: window.location.host
             };
             document.getElementById('url-info').textContent = JSON.stringify(urlInfo, null, 2);
         }
@@ -95,9 +105,117 @@
             document.getElementById('sessionStorage-content').innerHTML += '<p class="success">Session storage cleared!</p>';
         }
         
-        // Navigate to a path
+        // Navigate to a path with logging
         function navigateTo(path) {
-            window.location.href = path;
+            try {
+                const resultEl = document.getElementById('nav-result');
+                resultEl.innerHTML = `<p>Attempting to navigate to: ${path}</p>`;
+                
+                // Log the full URL we're navigating to
+                const fullUrl = new URL(path, window.location.origin).href;
+                resultEl.innerHTML += `<p>Full URL: ${fullUrl}</p>`;
+                
+                // Add a small delay to show the message before navigating
+                setTimeout(() => {
+                    resultEl.innerHTML += `<p>Redirecting now...</p>`;
+                    window.location.href = path;
+                }, 1000);
+            } catch (error) {
+                document.getElementById('nav-result').innerHTML = `<p class="error">Navigation error: ${error.message}</p>`;
+            }
+        }
+        
+        // Check authentication status in detail
+        function checkAuthStatus() {
+            const resultEl = document.getElementById('auth-check-result');
+            resultEl.innerHTML = '<h3>Authentication Check Results:</h3>';
+            
+            try {
+                // Check for token
+                const token = localStorage.getItem('token');
+                const isAuthenticated = localStorage.getItem('isAuthenticated');
+                
+                resultEl.innerHTML += `<p>Token exists: ${!!token}</p>`;
+                resultEl.innerHTML += `<p>Token length: ${token ? token.length : 0}</p>`;
+                resultEl.innerHTML += `<p>isAuthenticated flag: ${isAuthenticated}</p>`;
+                
+                // Check token structure
+                if (token) {
+                    try {
+                        const parts = token.split('.');
+                        resultEl.innerHTML += `<p>Token has ${parts.length} parts (should be 3 for JWT)</p>`;
+                        
+                        if (parts.length === 3) {
+                            try {
+                                const payload = JSON.parse(atob(parts[1]));
+                                resultEl.innerHTML += `<p>Token payload decoded successfully</p>`;
+                                resultEl.innerHTML += `<pre>${JSON.stringify(payload, null, 2)}</pre>`;
+                                
+                                // Check expiration
+                                if (payload.exp) {
+                                    const expDate = new Date(payload.exp * 1000);
+                                    const now = new Date();
+                                    resultEl.innerHTML += `<p>Token expires: ${expDate.toLocaleString()}</p>`;
+                                    resultEl.innerHTML += `<p>Current time: ${now.toLocaleString()}</p>`;
+                                    resultEl.innerHTML += `<p>Token ${expDate > now ? 'is valid' : 'has expired'}</p>`;
+                                }
+                            } catch (e) {
+                                resultEl.innerHTML += `<p class="error">Failed to decode token payload: ${e.message}</p>`;
+                            }
+                        }
+                    } catch (e) {
+                        resultEl.innerHTML += `<p class="error">Error analyzing token: ${e.message}</p>`;
+                    }
+                }
+                
+                // Check other auth data
+                const userId = localStorage.getItem('userId');
+                const userName = localStorage.getItem('userName');
+                const userRole = localStorage.getItem('userRole');
+                
+                resultEl.innerHTML += `<p>userId exists: ${!!userId}</p>`;
+                resultEl.innerHTML += `<p>userName exists: ${!!userName}</p>`;
+                resultEl.innerHTML += `<p>userRole exists: ${!!userRole}</p>`;
+                
+            } catch (error) {
+                resultEl.innerHTML += `<p class="error">Auth check error: ${error.message}</p>`;
+            }
+        }
+        
+        // Test token validity with backend
+        function testTokenValidity() {
+            const resultEl = document.getElementById('auth-check-result');
+            resultEl.innerHTML = '<h3>Token Validation Test:</h3>';
+            
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    resultEl.innerHTML += `<p class="error">No token found in localStorage</p>`;
+                    return;
+                }
+                
+                resultEl.innerHTML += `<p>Sending token to backend for validation...</p>`;
+                
+                // Create a simple request to test the token
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', '/api/users/me');
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        resultEl.innerHTML += `<p class="success">Token is valid! Response:</p>`;
+                        resultEl.innerHTML += `<pre>${JSON.stringify(JSON.parse(xhr.responseText), null, 2)}</pre>`;
+                    } else {
+                        resultEl.innerHTML += `<p class="error">Token validation failed with status ${xhr.status}</p>`;
+                        resultEl.innerHTML += `<pre>${xhr.responseText}</pre>`;
+                    }
+                };
+                xhr.onerror = function() {
+                    resultEl.innerHTML += `<p class="error">Network error during token validation</p>`;
+                };
+                xhr.send();
+            } catch (error) {
+                resultEl.innerHTML += `<p class="error">Token test error: ${error.message}</p>`;
+            }
         }
         
         // Set auth data manually

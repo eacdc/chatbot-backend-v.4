@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct Chat Test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .log { max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Direct Chat Test Page</h1>
+    
+    <div class="card">
+        <h2>Environment Information</h2>
+        <pre id="env-info"></pre>
+    </div>
+    
+    <div class="card">
+        <h2>Authentication Status</h2>
+        <pre id="auth-status"></pre>
+        <button onclick="checkAuthStatus()">Refresh Auth Status</button>
+    </div>
+    
+    <div class="card">
+        <h2>Navigation Tests</h2>
+        <p>Try different methods to navigate to the chat page:</p>
+        
+        <h3>Method 1: Direct Navigation</h3>
+        <button onclick="navigateTo('/chat')">Go to /chat</button>
+        <button onclick="navigateTo('chat')">Go to chat (no slash)</button>
+        <button onclick="navigateToAbsolute('/chat')">Go to Absolute /chat</button>
+        
+        <h3>Method 2: Anchor Tag</h3>
+        <a href="/chat" id="chat-link">Click this link to go to /chat</a>
+        
+        <h3>Method 3: Form Submission</h3>
+        <form id="chat-form" action="/chat" method="get">
+            <button type="submit">Submit Form to /chat</button>
+        </form>
+        
+        <h3>Method 4: iframe Navigation</h3>
+        <button onclick="loadInIframe('/chat')">Load /chat in iframe</button>
+        <div id="iframe-container" style="display:none; margin-top: 10px;"></div>
+        
+        <h3>Method 5: Fetch API Test</h3>
+        <button onclick="fetchChatPage()">Fetch /chat Content</button>
+        <pre id="fetch-result" style="max-height: 150px; overflow-y: auto;"></pre>
+    </div>
+    
+    <div class="card">
+        <h2>Debug Log</h2>
+        <div id="log" class="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <script>
+        // Logging function
+        function log(message) {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Show environment info
+        function showEnvironmentInfo() {
+            const envInfo = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                cookiesEnabled: navigator.cookieEnabled,
+                url: {
+                    href: window.location.href,
+                    origin: window.location.origin,
+                    protocol: window.location.protocol,
+                    host: window.location.host,
+                    pathname: window.location.pathname
+                }
+            };
+            
+            document.getElementById('env-info').textContent = JSON.stringify(envInfo, null, 2);
+            log('Environment info loaded');
+        }
+        
+        // Check authentication status
+        function checkAuthStatus() {
+            try {
+                const token = localStorage.getItem('token');
+                const isAuthenticated = localStorage.getItem('isAuthenticated');
+                const userId = localStorage.getItem('userId');
+                const userName = localStorage.getItem('userName');
+                
+                const authStatus = {
+                    hasToken: !!token,
+                    tokenLength: token ? token.length : 0,
+                    isAuthenticated: isAuthenticated === 'true',
+                    hasUserId: !!userId,
+                    hasUserName: !!userName
+                };
+                
+                if (token) {
+                    try {
+                        const parts = token.split('.');
+                        if (parts.length === 3) {
+                            const payload = JSON.parse(atob(parts[1]));
+                            authStatus.tokenPayload = payload;
+                            
+                            if (payload.exp) {
+                                const expDate = new Date(payload.exp * 1000);
+                                const now = new Date();
+                                authStatus.tokenExpires = expDate.toLocaleString();
+                                authStatus.isExpired = expDate < now;
+                            }
+                        }
+                    } catch (e) {
+                        authStatus.tokenDecodeError = e.message;
+                    }
+                }
+                
+                document.getElementById('auth-status').textContent = JSON.stringify(authStatus, null, 2);
+                log('Auth status checked: ' + (authStatus.isAuthenticated ? 'Authenticated' : 'Not authenticated'));
+                
+                return authStatus.isAuthenticated;
+            } catch (error) {
+                log('Error checking auth status: ' + error.message);
+                return false;
+            }
+        }
+        
+        // Navigation methods
+        function navigateTo(path) {
+            try {
+                log(`Navigating to: ${path}`);
+                window.location.href = path;
+            } catch (error) {
+                log(`Navigation error: ${error.message}`);
+            }
+        }
+        
+        function navigateToAbsolute(path) {
+            try {
+                const absoluteUrl = window.location.origin + path;
+                log(`Navigating to absolute URL: ${absoluteUrl}`);
+                window.location.href = absoluteUrl;
+            } catch (error) {
+                log(`Absolute navigation error: ${error.message}`);
+            }
+        }
+        
+        function loadInIframe(path) {
+            try {
+                const container = document.getElementById('iframe-container');
+                container.style.display = 'block';
+                container.innerHTML = `<iframe src="${path}" width="100%" height="300px"></iframe>`;
+                log(`Loading ${path} in iframe`);
+            } catch (error) {
+                log(`iframe error: ${error.message}`);
+            }
+        }
+        
+        function fetchChatPage() {
+            try {
+                const resultEl = document.getElementById('fetch-result');
+                resultEl.textContent = 'Fetching...';
+                log('Fetching /chat page content...');
+                
+                fetch('/chat')
+                    .then(response => {
+                        log(`Fetch response status: ${response.status} ${response.statusText}`);
+                        return response.text();
+                    })
+                    .then(text => {
+                        log(`Received ${text.length} bytes`);
+                        resultEl.textContent = text.substring(0, 500) + '...';
+                    })
+                    .catch(error => {
+                        log(`Fetch error: ${error.message}`);
+                        resultEl.textContent = `Error: ${error.message}`;
+                    });
+            } catch (error) {
+                log(`Fetch setup error: ${error.message}`);
+            }
+        }
+        
+        // Initialize page
+        window.onload = function() {
+            showEnvironmentInfo();
+            checkAuthStatus();
+            log('Page initialized');
+            
+            // Add event listeners
+            document.getElementById('chat-link').addEventListener('click', function(e) {
+                log('Chat link clicked');
+            });
+            
+            document.getElementById('chat-form').addEventListener('submit', function(e) {
+                log('Form submitted to /chat');
+            });
+        };
+    </script>
+</body>
+</html>

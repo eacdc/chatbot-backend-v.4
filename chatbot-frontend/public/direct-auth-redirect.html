@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Redirect</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
+        .success { color: green; }
+        .error { color: red; }
+        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .log { max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="success">Authentication Successful!</h1>
+        <p>You have successfully logged in.</p>
+        <div class="spinner"></div>
+        <p id="status-message">Redirecting to chat...</p>
+        
+        <div class="log" id="log"></div>
+    </div>
+    
+    <script>
+        // Logging function
+        function log(message) {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        // Update status message
+        function updateStatus(message) {
+            document.getElementById('status-message').textContent = message;
+        }
+        
+        // Get URL parameters
+        function getUrlParams() {
+            const params = {};
+            const searchParams = new URLSearchParams(window.location.search);
+            for (const [key, value] of searchParams.entries()) {
+                params[key] = value;
+            }
+            return params;
+        }
+        
+        // Main function
+        function handleAuth() {
+            try {
+                log('Starting authentication process...');
+                
+                // Get token from URL
+                const params = getUrlParams();
+                const token = params.token;
+                const provider = params.provider || 'google';
+                
+                log(`Token exists: ${!!token}`);
+                log(`Provider: ${provider}`);
+                
+                if (!token) {
+                    log('ERROR: No token provided in URL');
+                    updateStatus('Error: No authentication token found');
+                    return;
+                }
+                
+                // Store token and auth data in localStorage
+                log('Storing token in localStorage...');
+                localStorage.setItem('token', token);
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('authProvider', provider);
+                
+                // Try to decode the token to get user info
+                try {
+                    log('Decoding token payload...');
+                    const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+                    log('Token payload decoded successfully');
+                    
+                    if (tokenPayload.userId) {
+                        localStorage.setItem('userId', tokenPayload.userId);
+                        log(`User ID stored: ${tokenPayload.userId}`);
+                    }
+                    
+                    if (tokenPayload.name) {
+                        localStorage.setItem('userName', tokenPayload.name);
+                        log(`User name stored: ${tokenPayload.name}`);
+                    }
+                    
+                    if (tokenPayload.role) {
+                        localStorage.setItem('userRole', tokenPayload.role);
+                        log(`User role stored: ${tokenPayload.role}`);
+                    }
+                    
+                    if (tokenPayload.grade) {
+                        localStorage.setItem('userGrade', tokenPayload.grade);
+                        log(`User grade stored: ${tokenPayload.grade}`);
+                    }
+                } catch (error) {
+                    log(`Error decoding token: ${error.message}`);
+                }
+                
+                // Verify localStorage was updated
+                log('Verifying localStorage was updated...');
+                log(`Token in localStorage: ${localStorage.getItem('token') ? 'Present' : 'Missing'}`);
+                log(`isAuthenticated: ${localStorage.getItem('isAuthenticated')}`);
+                log(`userId: ${localStorage.getItem('userId')}`);
+                
+                // Use direct window.location navigation (same as regular login)
+                log('Preparing to redirect to chat page...');
+                updateStatus('Authentication successful! Redirecting to chat...');
+                
+                // Add a short delay to ensure localStorage has been updated
+                setTimeout(() => {
+                    log('Redirecting to chat page now using window.location.href');
+                    window.location.href = "/chat";
+                }, 1000);
+                
+            } catch (error) {
+                log(`Error during authentication: ${error.message}`);
+                updateStatus(`Error: ${error.message}`);
+            }
+        }
+        
+        // Run when page loads
+        window.onload = handleAuth;
+    </script>
+</body>
+</html>

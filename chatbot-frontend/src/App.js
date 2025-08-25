@@ -28,13 +28,54 @@ function App() {
   // Check if user is authenticated directly from localStorage
   const userIsAuthenticated = !!localStorage.getItem("token");
 
-  // Handle redirects from 404.html
+  // Handle redirects from 404.html and check for auth cookies
   useEffect(() => {
     const redirectPath = sessionStorage.getItem('redirectPath');
     if (redirectPath) {
       sessionStorage.removeItem('redirectPath');
       window.history.replaceState(null, '', redirectPath);
     }
+    
+    // Check for authentication cookies (for social login)
+    const checkForAuthCookies = () => {
+      const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+      };
+      
+      const authToken = getCookie('auth_token');
+      const authProvider = getCookie('auth_provider');
+      const userId = getCookie('user_id');
+      
+      console.log('Checking for auth cookies:', { authToken: !!authToken, authProvider, userId });
+      
+      if (authToken && !localStorage.getItem('token')) {
+        console.log('Found auth token in cookies, storing in localStorage');
+        localStorage.setItem('token', authToken);
+        localStorage.setItem('isAuthenticated', 'true');
+        
+        if (authProvider) {
+          localStorage.setItem('authProvider', authProvider);
+        }
+        
+        if (userId) {
+          localStorage.setItem('userId', userId);
+        }
+        
+        // Clear the cookies after transferring to localStorage
+        document.cookie = 'auth_token=; Max-Age=-99999999;';
+        document.cookie = 'auth_provider=; Max-Age=-99999999;';
+        document.cookie = 'user_id=; Max-Age=-99999999;';
+        
+        // Force a refresh to update authentication state
+        window.location.reload();
+      }
+    };
+    
+    // Run the cookie check
+    checkForAuthCookies();
     
     // Set up session timeout tracking
     if (userIsAuthenticated) {
