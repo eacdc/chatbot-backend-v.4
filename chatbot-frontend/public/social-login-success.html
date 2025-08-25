@@ -121,14 +121,29 @@
                 debug(`Auth token exists: ${!!authToken}`);
                 debug(`Auth provider: ${authProvider}`);
                 debug(`User ID: ${userId}`);
+                debug(`All cookies: ${document.cookie}`);
                 
-                if (authToken) {
+                // Check URL parameters as well
+                const urlParams = new URLSearchParams(window.location.search);
+                const tokenFromUrl = urlParams.get('token');
+                const providerFromUrl = urlParams.get('provider');
+                
+                if (tokenFromUrl) {
+                    debug(`Found token in URL parameters: ${tokenFromUrl ? 'yes' : 'no'}`);
+                    debug(`Provider from URL: ${providerFromUrl}`);
+                }
+                
+                // Use token from either cookies or URL
+                const token = authToken || tokenFromUrl;
+                const provider = authProvider || providerFromUrl;
+                
+                if (token) {
                     // Store token in localStorage
-                    localStorage.setItem('token', authToken);
+                    localStorage.setItem('token', token);
                     localStorage.setItem('isAuthenticated', 'true');
                     
-                    if (authProvider) {
-                        localStorage.setItem('authProvider', authProvider);
+                    if (provider) {
+                        localStorage.setItem('authProvider', provider);
                     }
                     
                     if (userId) {
@@ -137,7 +152,7 @@
                     
                     // Decode JWT token to get user details
                     try {
-                        const parts = authToken.split('.');
+                        const parts = token.split('.');
                         if (parts.length === 3) {
                             const payload = JSON.parse(atob(parts[1]));
                             debug('JWT payload decoded: ' + JSON.stringify(payload));
