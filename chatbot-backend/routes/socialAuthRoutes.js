@@ -98,10 +98,10 @@ router.get('/google/callback', (req, res, next) => {
             sameSite: 'lax'
         });
         
-        // Redirect to the social-login-success page with token as a query parameter
-        // This avoids relying solely on cookies which might not work across domains
-        console.log('🔗 Redirecting to social-login-success page with token parameter');
-        return res.redirect(`${frontendUrl}/social-login-success.html?token=${encodeURIComponent(token)}&provider=google`);
+        // Redirect directly to the chat page through the direct-chat-redirect.html
+        // This page will store the token and automatically redirect to /chat
+        console.log('🔗 Redirecting through direct-chat-redirect with token parameter');
+        return res.redirect(`${frontendUrl}/direct-chat-redirect.html?token=${encodeURIComponent(token)}&provider=google`);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
@@ -175,10 +175,10 @@ router.get('/facebook/callback', (req, res, next) => {
             sameSite: 'lax'
         });
         
-        // Redirect to the social-login-success page with token as a query parameter
-        // This avoids relying solely on cookies which might not work across domains
-        console.log('🔗 Redirecting to social-login-success page with token parameter');
-        return res.redirect(`${frontendUrl}/social-login-success.html?token=${encodeURIComponent(token)}&provider=google`);
+        // Redirect directly to the chat page through the direct-chat-redirect.html
+        // This page will store the token and automatically redirect to /chat
+        console.log('🔗 Redirecting through direct-chat-redirect with token parameter');
+        return res.redirect(`${frontendUrl}/direct-chat-redirect.html?token=${encodeURIComponent(token)}&provider=google`);
 
     } catch (error) {
         console.error('❌ Facebook OAuth callback error:', error);
