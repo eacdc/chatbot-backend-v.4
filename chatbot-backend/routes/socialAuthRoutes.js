@@ -98,9 +98,10 @@ router.get('/google/callback', (req, res, next) => {
             sameSite: 'lax'
         });
         
-        // Redirect directly to the chat page
-        console.log('🔗 Redirecting directly to chat page');
-        return res.redirect(`${frontendUrl}/chat`);
+        // Redirect to the social-login-success page instead of directly to /chat
+        // This avoids the 404 issue with client-side routing
+        console.log('🔗 Redirecting to social-login-success page');
+        return res.redirect(`${frontendUrl}/social-login-success.html`);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
@@ -174,9 +175,10 @@ router.get('/facebook/callback', (req, res, next) => {
             sameSite: 'lax'
         });
         
-        // Redirect directly to the chat page
-        console.log('🔗 Redirecting directly to chat page');
-        return res.redirect(`${frontendUrl}/chat`);
+        // Redirect to the social-login-success page instead of directly to /chat
+        // This avoids the 404 issue with client-side routing
+        console.log('🔗 Redirecting to social-login-success page');
+        return res.redirect(`${frontendUrl}/social-login-success.html`);
 
     } catch (error) {
         console.error('❌ Facebook OAuth callback error:', error);
