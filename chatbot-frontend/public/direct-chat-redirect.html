@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Redirecting...</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f8fa;
+        }
+        .container {
+            text-align: center;
+            padding: 20px;
+            max-width: 500px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Redirecting to chat...</h2>
+        <div class="spinner"></div>
+        <p>Please wait while we set up your session.</p>
+    </div>
+
+    <script>
+        // Function to get URL parameters
+        function getUrlParam(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        // Store authentication data and redirect
+        function storeAuthAndRedirect() {
+            try {
+                // Get token from URL parameter
+                const token = getUrlParam('token');
+                const provider = getUrlParam('provider') || 'google';
+                
+                if (!token) {
+                    console.error('No token found in URL parameters');
+                    // Redirect to login page if no token
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                // Store token in localStorage
+                localStorage.setItem('token', token);
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('authProvider', provider);
+                
+                // Try to decode JWT token
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1]));
+                        console.log('Token payload decoded:', payload);
+                        
+                        // Store user details from token
+                        if (payload.userId) {
+                            localStorage.setItem('userId', payload.userId);
+                        }
+                        
+                        if (payload.name) {
+                            localStorage.setItem('userName', payload.name);
+                        }
+                        
+                        if (payload.role) {
+                            localStorage.setItem('userRole', payload.role);
+                        }
+                        
+                        if (payload.grade) {
+                            localStorage.setItem('userGrade', payload.grade);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error decoding token:', error);
+                }
+                
+                // Redirect to chat page
+                window.location.href = '/chat';
+                
+            } catch (error) {
+                console.error('Error during authentication:', error);
+                // Redirect to login page on error
+                window.location.href = '/login';
+            }
+        }
+        
+        // Run when page loads
+        window.onload = storeAuthAndRedirect;
+    </script>
+</body>
+</html>
