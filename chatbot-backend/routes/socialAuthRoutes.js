@@ -74,11 +74,33 @@ router.get('/google/callback', (req, res, next) => {
             frontendUrl = frontendUrl.slice(0, -1);
         }
         
-        // Redirect directly to the auth-success.html page with token in hash fragment
-        // This approach avoids issues with query parameters being stripped
-        const redirectUrl = `${frontendUrl}/auth-success.html#token=${encodeURIComponent(token)}&provider=google`;
-        console.log('🔗 Redirecting to:', redirectUrl);
-        return res.redirect(redirectUrl);
+        // Store token in a cookie that will be accessible to the frontend
+        res.cookie('auth_token', token, {
+            httpOnly: false, // Allow JavaScript access
+            secure: process.env.NODE_ENV === 'production', // Secure in production
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            sameSite: 'lax' // Allows the cookie to be sent in navigation from external sites
+        });
+        
+        // Store auth provider in a cookie
+        res.cookie('auth_provider', 'google', {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            sameSite: 'lax'
+        });
+        
+        // Store user ID in a cookie
+        res.cookie('user_id', req.user._id.toString(), {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            sameSite: 'lax'
+        });
+        
+        // Redirect directly to the chat page
+        console.log('🔗 Redirecting directly to chat page');
+        return res.redirect(`${frontendUrl}/chat`);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
@@ -128,11 +150,33 @@ router.get('/facebook/callback', (req, res, next) => {
             frontendUrl = frontendUrl.slice(0, -1);
         }
         
-        // Redirect directly to the auth-success.html page with token in hash fragment
-        // This approach avoids issues with query parameters being stripped
-        const redirectUrl = `${frontendUrl}/auth-success.html#token=${encodeURIComponent(token)}&provider=facebook`;
-        console.log('🔗 Redirecting to:', redirectUrl);
-        return res.redirect(redirectUrl);
+        // Store token in a cookie that will be accessible to the frontend
+        res.cookie('auth_token', token, {
+            httpOnly: false, // Allow JavaScript access
+            secure: process.env.NODE_ENV === 'production', // Secure in production
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            sameSite: 'lax' // Allows the cookie to be sent in navigation from external sites
+        });
+        
+        // Store auth provider in a cookie
+        res.cookie('auth_provider', 'facebook', {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            sameSite: 'lax'
+        });
+        
+        // Store user ID in a cookie
+        res.cookie('user_id', req.user._id.toString(), {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            sameSite: 'lax'
+        });
+        
+        // Redirect directly to the chat page
+        console.log('🔗 Redirecting directly to chat page');
+        return res.redirect(`${frontendUrl}/chat`);
 
     } catch (error) {
         console.error('❌ Facebook OAuth callback error:', error);
