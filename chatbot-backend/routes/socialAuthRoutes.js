@@ -98,10 +98,10 @@ router.get('/google/callback', (req, res, next) => {
             sameSite: 'lax'
         });
         
-        // Redirect to the social-login-success page instead of directly to /chat
-        // This avoids the 404 issue with client-side routing
-        console.log('🔗 Redirecting to social-login-success page');
-        return res.redirect(`${frontendUrl}/social-login-success.html`);
+        // Redirect to the social-login-success page with token as a query parameter
+        // This avoids relying solely on cookies which might not work across domains
+        console.log('🔗 Redirecting to social-login-success page with token parameter');
+        return res.redirect(`${frontendUrl}/social-login-success.html?token=${encodeURIComponent(token)}&provider=google`);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
@@ -175,10 +175,10 @@ router.get('/facebook/callback', (req, res, next) => {
             sameSite: 'lax'
         });
         
-        // Redirect to the social-login-success page instead of directly to /chat
-        // This avoids the 404 issue with client-side routing
-        console.log('🔗 Redirecting to social-login-success page');
-        return res.redirect(`${frontendUrl}/social-login-success.html`);
+        // Redirect to the social-login-success page with token as a query parameter
+        // This avoids relying solely on cookies which might not work across domains
+        console.log('🔗 Redirecting to social-login-success page with token parameter');
+        return res.redirect(`${frontendUrl}/social-login-success.html?token=${encodeURIComponent(token)}&provider=google`);
 
     } catch (error) {
         console.error('❌ Facebook OAuth callback error:', error);
