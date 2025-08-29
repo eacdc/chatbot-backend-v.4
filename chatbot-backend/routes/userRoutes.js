@@ -95,10 +95,10 @@ router.post("/send-otp", async (req, res) => {
             }
         } else {
             // For email OTP, password is required
-            if (!username || !fullname || !email || !phone || !role || !password) {
-                return res.status(400).json({ 
-                    message: "Username, full name, email, phone, role, and password are required" 
-                });
+        if (!username || !fullname || !email || !phone || !role || !password) {
+            return res.status(400).json({ 
+                message: "Username, full name, email, phone, role, and password are required" 
+            });
             }
         }
 

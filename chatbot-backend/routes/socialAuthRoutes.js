@@ -55,7 +55,10 @@ router.get('/google', (req, res, next) => {
 
 router.get('/google/callback', (req, res, next) => {
   if (!isStrategyAvailable('google')) {
-    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_not_configured`);
+    return res.status(503).json({ 
+      success: false,
+      message: "Google OAuth is not configured. Please contact administrator." 
+    });
   }
   passport.authenticate('google', { session: false, failureRedirect: '/login' })(req, res, next);
 }, async (req, res) => {
@@ -64,12 +67,14 @@ router.get('/google/callback', (req, res, next) => {
         
         if (!req.user) {
             console.log('❌ No user found in callback');
-            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`);
+            return res.status(401).json({
+                success: false,
+                message: "Google authentication failed"
+            });
         }
 
         console.log('🔑 Generating JWT token...');
         console.log('🔑 JWT_SECRET available:', !!process.env.JWT_SECRET);
-        console.log('🔑 FRONTEND_URL:', process.env.FRONTEND_URL || 'Not set (using localhost:3000)');
 
         // Generate JWT token
         const token = jwt.sign(
@@ -87,44 +92,41 @@ router.get('/google/callback', (req, res, next) => {
         console.log('✅ JWT token generated successfully');
         console.log('🔗 Token length:', token.length);
 
-        // Get frontend URL with proper formatting
-        let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        if (frontendUrl.endsWith('/')) {
-            frontendUrl = frontendUrl.slice(0, -1);
-        }
-        
-        // Store token in a cookie that will be accessible to the frontend
-        res.cookie('auth_token', token, {
-            httpOnly: false, // Allow JavaScript access
-            secure: process.env.NODE_ENV === 'production', // Secure in production
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            sameSite: 'lax' // Allows the cookie to be sent in navigation from external sites
+        // Return JSON response with user details and token
+        res.status(200).json({
+            success: true,
+            message: "Google authentication successful",
+            token: token,
+            user: {
+                _id: req.user._id,
+                username: req.user.username,
+                fullname: req.user.fullname,
+                email: req.user.email,
+                phone: req.user.phone,
+                role: req.user.role,
+                grade: req.user.grade,
+                publisher: req.user.publisher,
+                authProvider: req.user.authProvider,
+                isEmailVerified: req.user.isEmailVerified,
+                googleId: req.user.googleId,
+                facebookId: req.user.facebookId,
+                createdAt: req.user.createdAt,
+                updatedAt: req.user.updatedAt
+            },
+            authInfo: {
+                provider: 'google',
+                tokenExpiresIn: '7d',
+                tokenType: 'Bearer'
+            }
         });
-        
-        // Store auth provider in a cookie
-        res.cookie('auth_provider', 'google', {
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            sameSite: 'lax'
-        });
-        
-        // Store user ID in a cookie
-        res.cookie('user_id', req.user._id.toString(), {
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            sameSite: 'lax'
-        });
-        
-        // Redirect directly to the chat page through the direct-chat-redirect.html
-        // This page will store the token and automatically redirect to /chat
-        console.log('🔗 Redirecting through direct-chat-redirect with token parameter');
-        return res.redirect(`${frontendUrl}/direct-chat-redirect.html?token=${encodeURIComponent(token)}&provider=google`);
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`);
+        res.status(500).json({
+            success: false,
+            message: "Server error during Google authentication",
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
     }
 });
 
@@ -140,7 +142,10 @@ router.get('/facebook', (req, res, next) => {
 
 router.get('/facebook/callback', (req, res, next) => {
   if (!isStrategyAvailable('facebook')) {
-    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=facebook_not_configured`);
+    return res.status(503).json({ 
+      success: false,
+      message: "Facebook OAuth is not configured. Please contact administrator." 
+    });
   }
   passport.authenticate('facebook', { session: false, failureRedirect: '/login' })(req, res, next);
 }, async (req, res) => {
@@ -148,7 +153,10 @@ router.get('/facebook/callback', (req, res, next) => {
         console.log('🔐 Facebook OAuth callback received:', req.user);
         
         if (!req.user) {
-            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=facebook_auth_failed`);
+            return res.status(401).json({
+                success: false,
+                message: "Facebook authentication failed"
+            });
         }
 
         // Generate JWT token
@@ -164,44 +172,41 @@ router.get('/facebook/callback', (req, res, next) => {
             { expiresIn: "7d" }
         );
 
-        // Get frontend URL with proper formatting
-        let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        if (frontendUrl.endsWith('/')) {
-            frontendUrl = frontendUrl.slice(0, -1);
-        }
-        
-        // Store token in a cookie that will be accessible to the frontend
-        res.cookie('auth_token', token, {
-            httpOnly: false, // Allow JavaScript access
-            secure: process.env.NODE_ENV === 'production', // Secure in production
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            sameSite: 'lax' // Allows the cookie to be sent in navigation from external sites
+        // Return JSON response with user details and token
+        res.status(200).json({
+            success: true,
+            message: "Facebook authentication successful",
+            token: token,
+            user: {
+                _id: req.user._id,
+                username: req.user.username,
+                fullname: req.user.fullname,
+                email: req.user.email,
+                phone: req.user.phone,
+                role: req.user.role,
+                grade: req.user.grade,
+                publisher: req.user.publisher,
+                authProvider: req.user.authProvider,
+                isEmailVerified: req.user.isEmailVerified,
+                googleId: req.user.googleId,
+                facebookId: req.user.facebookId,
+                createdAt: req.user.createdAt,
+                updatedAt: req.user.updatedAt
+            },
+            authInfo: {
+                provider: 'facebook',
+                tokenExpiresIn: '7d',
+                tokenType: 'Bearer'
+            }
         });
-        
-        // Store auth provider in a cookie
-        res.cookie('auth_provider', 'facebook', {
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            sameSite: 'lax'
-        });
-        
-        // Store user ID in a cookie
-        res.cookie('user_id', req.user._id.toString(), {
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            sameSite: 'lax'
-        });
-        
-        // Redirect directly to the chat page through the direct-chat-redirect.html
-        // This page will store the token and automatically redirect to /chat
-        console.log('🔗 Redirecting through direct-chat-redirect with token parameter');
-        return res.redirect(`${frontendUrl}/direct-chat-redirect.html?token=${encodeURIComponent(token)}&provider=google`);
 
     } catch (error) {
         console.error('❌ Facebook OAuth callback error:', error);
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=facebook_auth_failed`);
+        res.status(500).json({
+            success: false,
+            message: "Server error during Facebook authentication",
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
     }
 });
 
