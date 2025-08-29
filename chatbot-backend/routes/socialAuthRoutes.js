@@ -13,6 +13,25 @@ router.use((req, res, next) => {
   next();
 });
 
+// Root route for social auth
+router.get('/', (req, res) => {
+  res.json({
+    message: "Social Authentication API",
+    availableEndpoints: {
+      "GET /available-providers": "Check OAuth provider availability",
+      "GET /debug-urls": "Debug environment variables and URLs",
+      "GET /google": "Initiate Google OAuth",
+      "GET /google/callback": "Google OAuth callback (automatic)",
+      "POST /test-google-login": "Test Google login (simulated)",
+      "POST /link-google": "Link Google account to existing user",
+      "POST /unlink-google": "Unlink Google account",
+      "GET /linked-accounts": "Get user's linked accounts",
+      "GET /test-auth": "Test authentication page"
+    },
+    status: "active"
+  });
+});
+
 // Helper function to check if OAuth strategy is available
 const isStrategyAvailable = (strategyName) => {
   return !!(passport._strategies && passport._strategies[strategyName]);
