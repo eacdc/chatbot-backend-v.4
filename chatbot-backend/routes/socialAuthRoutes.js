@@ -22,7 +22,7 @@ router.get('/', (req, res) => {
       "GET /debug-urls": "Debug environment variables and URLs",
       "GET /google": "Initiate Google OAuth",
       "GET /google/callback": "Google OAuth callback (automatic)",
-      "POST /test-google-login": "Test Google login (simulated)",
+      "POST /google-login": "Single Google Login API (Postman testing)",
       "POST /link-google": "Link Google account to existing user",
       "POST /unlink-google": "Unlink Google account",
       "GET /linked-accounts": "Get user's linked accounts",
@@ -419,19 +419,19 @@ router.get('/test-auth', (req, res) => {
     res.sendFile('public/test-auth.html', { root: process.cwd() });
 });
 
-// Test endpoint for Postman - simulates Google OAuth callback (without token)
-router.post('/test-google-callback', async (req, res) => {
+// Single Google Login API - simulates complete OAuth flow
+router.post('/google-login', async (req, res) => {
     try {
-        const { email, fullname, googleId } = req.body;
+        const { email, fullname, googleId, phone, role, grade } = req.body;
         
         if (!email || !fullname || !googleId) {
             return res.status(400).json({ 
                 success: false,
-                message: "Email, fullname, and googleId are required for testing" 
+                message: "Email, fullname, and googleId are required" 
             });
         }
 
-        console.log('🧪 Test Google callback with:', { email, fullname, googleId });
+        console.log('🔐 Google Login API called with:', { email, fullname, googleId, phone, role, grade });
 
         // Check if user exists with this Google ID
         let user = await User.findOne({ googleId });
@@ -448,7 +448,7 @@ router.post('/test-google-callback', async (req, res) => {
                 await user.save();
                 console.log('✅ Linked Google account to existing user');
             } else {
-                // Create new user
+                // Create new user with provided data
                 const username = email.split('@')[0] + '_' + Date.now();
                 user = new User({
                     username,
@@ -457,16 +457,14 @@ router.post('/test-google-callback', async (req, res) => {
                     googleId,
                     authProvider: 'google',
                     isEmailVerified: true,
-                    role: 'student',
-                    grade: '1',
-                    phone: '1234567890'
+                    role: role || 'student',
+                    grade: grade || '1',
+                    phone: phone || '1234567890'
                 });
                 await user.save();
                 console.log('✅ Created new user with Google account');
             }
         }
-
-        console.log('✅ User data prepared for callback');
 
         // Generate JWT token
         const token = jwt.sign(
@@ -481,12 +479,12 @@ router.post('/test-google-callback', async (req, res) => {
             { expiresIn: "7d" }
         );
 
-        console.log('✅ JWT token generated for test user');
+        console.log('✅ JWT token generated for user');
 
-        // Return user data with token (same as OAuth callback)
+        // Return complete user data and token
         res.status(200).json({
             success: true,
-            message: "Google authentication successful",
+            message: "Google login successful",
             token: token,
             user: {
                 _id: user._id,
@@ -496,10 +494,13 @@ router.post('/test-google-callback', async (req, res) => {
                 phone: user.phone,
                 role: user.role,
                 grade: user.grade,
+                publisher: user.publisher,
                 authProvider: user.authProvider,
                 isEmailVerified: user.isEmailVerified,
                 googleId: user.googleId,
-                createdAt: user.createdAt
+                facebookId: user.facebookId,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt
             },
             authInfo: {
                 provider: 'google',
@@ -509,7 +510,7 @@ router.post('/test-google-callback', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Test Google callback error:', error);
+        console.error('❌ Google Login API error:', error);
         res.status(500).json({ 
             success: false,
             message: error.message || "Server error" 
