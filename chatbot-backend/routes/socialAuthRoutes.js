@@ -419,8 +419,8 @@ router.get('/test-auth', (req, res) => {
     res.sendFile('public/test-auth.html', { root: process.cwd() });
 });
 
-// Test endpoint for Postman - simulates Google OAuth login with exact response format
-router.post('/test-google-login', async (req, res) => {
+// Test endpoint for Postman - simulates Google OAuth callback (without token)
+router.post('/test-google-callback', async (req, res) => {
     try {
         const { email, fullname, googleId } = req.body;
         
@@ -431,7 +431,7 @@ router.post('/test-google-login', async (req, res) => {
             });
         }
 
-        console.log('🧪 Test Google login with:', { email, fullname, googleId });
+        console.log('🧪 Test Google callback with:', { email, fullname, googleId });
 
         // Check if user exists with this Google ID
         let user = await User.findOne({ googleId });
@@ -466,6 +466,8 @@ router.post('/test-google-login', async (req, res) => {
             }
         }
 
+        console.log('✅ User data prepared for callback');
+
         // Generate JWT token
         const token = jwt.sign(
             { 
@@ -481,7 +483,7 @@ router.post('/test-google-login', async (req, res) => {
 
         console.log('✅ JWT token generated for test user');
 
-        // Return exact same format as the real OAuth callback
+        // Return user data with token (same as OAuth callback)
         res.status(200).json({
             success: true,
             message: "Google authentication successful",
@@ -507,7 +509,89 @@ router.post('/test-google-login', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Test Google login error:', error);
+        console.error('❌ Test Google callback error:', error);
+        res.status(500).json({ 
+            success: false,
+            message: error.message || "Server error" 
+        });
+    }
+});
+
+// Login endpoint for social auth users (use after OAuth callback)
+router.post('/login-social', async (req, res) => {
+    try {
+        const { userId, authProvider } = req.body;
+        
+        if (!userId || !authProvider) {
+            return res.status(400).json({ 
+                success: false,
+                message: "User ID and auth provider are required" 
+            });
+        }
+
+        console.log('🔐 Social login attempt:', { userId, authProvider });
+
+        // Find user by ID
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Verify auth provider matches
+        if (user.authProvider !== authProvider) {
+            return res.status(400).json({
+                success: false,
+                message: "Authentication provider mismatch"
+            });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                userId: user._id, 
+                name: user.fullname, 
+                role: user.role, 
+                grade: user.grade,
+                authProvider: user.authProvider
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        console.log('✅ JWT token generated for social login');
+
+        // Return login response with token
+        res.status(200).json({
+            success: true,
+            message: "Social login successful",
+            token: token,
+            user: {
+                _id: user._id,
+                username: user.username,
+                fullname: user.fullname,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                grade: user.grade,
+                authProvider: user.authProvider,
+                isEmailVerified: user.isEmailVerified,
+                googleId: user.googleId,
+                facebookId: user.facebookId,
+                createdAt: user.createdAt
+            },
+            authInfo: {
+                provider: authProvider,
+                tokenExpiresIn: '7d',
+                tokenType: 'Bearer'
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Social login error:', error);
         res.status(500).json({ 
             success: false,
             message: error.message || "Server error" 
