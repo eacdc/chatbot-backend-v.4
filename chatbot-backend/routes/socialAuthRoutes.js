@@ -419,4 +419,100 @@ router.get('/test-auth', (req, res) => {
     res.sendFile('public/test-auth.html', { root: process.cwd() });
 });
 
+// Test endpoint for Postman - simulates Google OAuth login with exact response format
+router.post('/test-google-login', async (req, res) => {
+    try {
+        const { email, fullname, googleId } = req.body;
+        
+        if (!email || !fullname || !googleId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Email, fullname, and googleId are required for testing" 
+            });
+        }
+
+        console.log('🧪 Test Google login with:', { email, fullname, googleId });
+
+        // Check if user exists with this Google ID
+        let user = await User.findOne({ googleId });
+        
+        if (!user) {
+            // Check if user exists with this email
+            user = await User.findOne({ email: email.toLowerCase().trim() });
+            
+            if (user) {
+                // Link Google account to existing user
+                user.googleId = googleId;
+                user.authProvider = 'google';
+                user.isEmailVerified = true;
+                await user.save();
+                console.log('✅ Linked Google account to existing user');
+            } else {
+                // Create new user
+                const username = email.split('@')[0] + '_' + Date.now();
+                user = new User({
+                    username,
+                    fullname,
+                    email: email.toLowerCase().trim(),
+                    googleId,
+                    authProvider: 'google',
+                    isEmailVerified: true,
+                    role: 'student',
+                    grade: '1',
+                    phone: '1234567890'
+                });
+                await user.save();
+                console.log('✅ Created new user with Google account');
+            }
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                userId: user._id, 
+                name: user.fullname, 
+                role: user.role, 
+                grade: user.grade,
+                authProvider: user.authProvider
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        console.log('✅ JWT token generated for test user');
+
+        // Return exact same format as the real OAuth callback
+        res.status(200).json({
+            success: true,
+            message: "Google authentication successful",
+            token: token,
+            user: {
+                _id: user._id,
+                username: user.username,
+                fullname: user.fullname,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                grade: user.grade,
+                authProvider: user.authProvider,
+                isEmailVerified: user.isEmailVerified,
+                googleId: user.googleId,
+                createdAt: user.createdAt
+            },
+            authInfo: {
+                provider: 'google',
+                tokenExpiresIn: '7d',
+                tokenType: 'Bearer'
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Test Google login error:', error);
+        res.status(500).json({ 
+            success: false,
+            message: error.message || "Server error" 
+        });
+    }
+});
+
 module.exports = router;
