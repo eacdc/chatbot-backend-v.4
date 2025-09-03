@@ -25,6 +25,20 @@ const Profile = () => {
   });
   const [updateLoading, setUpdateLoading] = useState(false);
   
+  // Password change states
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordFormData, setPasswordFormData] = useState({
+    oldPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  });
+  const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState({
+    oldPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  });
+  
   // Profile picture states
   const [profilePictureLoading, setProfilePictureLoading] = useState(false);
   const [profilePicturePreview, setProfilePicturePreview] = useState(null);
@@ -78,6 +92,43 @@ const Profile = () => {
       [name]: value
     }));
   };
+  
+  // Handle password form input changes
+  const handlePasswordInputChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear errors when typing
+    if (passwordErrors[name]) {
+      setPasswordErrors(prev => ({
+        ...prev,
+        [name]: ""
+      }));
+    }
+    
+    // Validate password confirmation match
+    if (name === "newPassword" || name === "confirmPassword") {
+      if (name === "newPassword" && passwordFormData.confirmPassword && value !== passwordFormData.confirmPassword) {
+        setPasswordErrors(prev => ({
+          ...prev,
+          confirmPassword: "Passwords do not match"
+        }));
+      } else if (name === "confirmPassword" && value !== passwordFormData.newPassword) {
+        setPasswordErrors(prev => ({
+          ...prev,
+          confirmPassword: "Passwords do not match"
+        }));
+      } else if (name === "confirmPassword" && value === passwordFormData.newPassword) {
+        setPasswordErrors(prev => ({
+          ...prev,
+          confirmPassword: ""
+        }));
+      }
+    }
+  };
 
   // Handle edit mode toggle
   const handleEditToggle = () => {
@@ -92,6 +143,34 @@ const Profile = () => {
       });
     }
     setIsEditing(!isEditing);
+    
+    // Close password change form if open
+    if (isChangingPassword) {
+      setIsChangingPassword(false);
+    }
+  };
+  
+  // Handle password change toggle
+  const handlePasswordChangeToggle = () => {
+    // Reset password form data when toggling
+    if (!isChangingPassword) {
+      setPasswordFormData({
+        oldPassword: "",
+        newPassword: "",
+        confirmPassword: ""
+      });
+      setPasswordErrors({
+        oldPassword: "",
+        newPassword: "",
+        confirmPassword: ""
+      });
+    }
+    setIsChangingPassword(!isChangingPassword);
+    
+    // Close edit mode if open
+    if (isEditing) {
+      setIsEditing(false);
+    }
   };
 
   // Handle profile update
@@ -250,6 +329,95 @@ const Profile = () => {
   const handleProfilePictureCancelSelection = () => {
     setProfilePictureFile(null);
     setProfilePicturePreview(null);
+  };
+  
+  // Handle password change submission
+  const handlePasswordChange = async () => {
+    // Reset errors
+    setPasswordErrors({
+      oldPassword: "",
+      newPassword: "",
+      confirmPassword: ""
+    });
+    
+    // Validate form
+    let hasErrors = false;
+    const errors = {
+      oldPassword: "",
+      newPassword: "",
+      confirmPassword: ""
+    };
+    
+    if (!passwordFormData.oldPassword) {
+      errors.oldPassword = "Current password is required";
+      hasErrors = true;
+    }
+    
+    if (!passwordFormData.newPassword) {
+      errors.newPassword = "New password is required";
+      hasErrors = true;
+    } else if (passwordFormData.newPassword.length < 6) {
+      errors.newPassword = "Password must be at least 6 characters";
+      hasErrors = true;
+    }
+    
+    if (!passwordFormData.confirmPassword) {
+      errors.confirmPassword = "Please confirm your new password";
+      hasErrors = true;
+    } else if (passwordFormData.newPassword !== passwordFormData.confirmPassword) {
+      errors.confirmPassword = "Passwords do not match";
+      hasErrors = true;
+    }
+    
+    if (hasErrors) {
+      setPasswordErrors(errors);
+      return;
+    }
+    
+    setPasswordUpdateLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Please login again");
+        navigate("/login");
+        return;
+      }
+      
+      const response = await axios.post(
+        API_ENDPOINTS.CHANGE_PASSWORD,
+        passwordFormData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      
+      toast.success(response.data.message || "Password changed successfully");
+      setIsChangingPassword(false);
+      
+      // Reset form
+      setPasswordFormData({
+        oldPassword: "",
+        newPassword: "",
+        confirmPassword: ""
+      });
+      
+    } catch (error) {
+      console.error("Error changing password:", error);
+      const errorMessage = error.response?.data?.message || "Failed to change password";
+      toast.error(errorMessage);
+      
+      // Set specific field error if available
+      if (error.response?.data?.message?.includes("Current password is incorrect")) {
+        setPasswordErrors(prev => ({
+          ...prev,
+          oldPassword: "Current password is incorrect"
+        }));
+      }
+    } finally {
+      setPasswordUpdateLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -702,6 +870,128 @@ const Profile = () => {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          {/* Security Card - Password Change */}
+          <div className="relative px-8 mb-6 z-10">
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Security Settings</h3>
+                
+                {/* Change Password Button */}
+                <div className="flex space-x-2">
+                  {!isChangingPassword ? (
+                    <button
+                      onClick={handlePasswordChangeToggle}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Change Password
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handlePasswordChange}
+                        disabled={passwordUpdateLoading}
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                      >
+                        {passwordUpdateLoading ? (
+                          <svg className="animate-spin h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {passwordUpdateLoading ? 'Saving...' : 'Save Password'}
+                      </button>
+                      <button
+                        onClick={handlePasswordChangeToggle}
+                        disabled={passwordUpdateLoading}
+                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+                      >
+                        <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {isChangingPassword ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                    <input
+                      type="password"
+                      name="oldPassword"
+                      value={passwordFormData.oldPassword}
+                      onChange={handlePasswordInputChange}
+                      className={`w-full px-3 py-2 border ${
+                        passwordErrors.oldPassword ? 'border-red-500' : 'border-gray-300'
+                      } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                      placeholder="Enter your current password"
+                    />
+                    {passwordErrors.oldPassword && (
+                      <p className="mt-1 text-sm text-red-600">{passwordErrors.oldPassword}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                    <input
+                      type="password"
+                      name="newPassword"
+                      value={passwordFormData.newPassword}
+                      onChange={handlePasswordInputChange}
+                      className={`w-full px-3 py-2 border ${
+                        passwordErrors.newPassword ? 'border-red-500' : 'border-gray-300'
+                      } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                      placeholder="Enter your new password"
+                    />
+                    {passwordErrors.newPassword && (
+                      <p className="mt-1 text-sm text-red-600">{passwordErrors.newPassword}</p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">Password must be at least 6 characters long</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                    <input
+                      type="password"
+                      name="confirmPassword"
+                      value={passwordFormData.confirmPassword}
+                      onChange={handlePasswordInputChange}
+                      className={`w-full px-3 py-2 border ${
+                        passwordErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                      } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                      placeholder="Confirm your new password"
+                    />
+                    {passwordErrors.confirmPassword && (
+                      <p className="mt-1 text-sm text-red-600">{passwordErrors.confirmPassword}</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600">Update your password to keep your account secure.</p>
+                    <p className="text-sm text-gray-500 mt-1">We recommend using a strong, unique password that you don't use elsewhere.</p>
+                  </div>
+                  <div className="hidden sm:block">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           
