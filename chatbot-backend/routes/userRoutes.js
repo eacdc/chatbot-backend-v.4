@@ -714,7 +714,51 @@ router.put("/profile", authenticateUser, async (req, res) => {
     }
 });
 
-// ✅ Update User Password (for fixing hashing issues) - DEPRECATED: Use /update-password instead
+// ✅ Change Password (authenticated users only)
+router.post("/change-password", authenticateUser, async (req, res) => {
+    try {
+        const { oldPassword, newPassword, confirmPassword } = req.body;
+        
+        // Validate input
+        if (!oldPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({ message: "Old password, new password, and confirmation password are required" });
+        }
+        
+        // Check if new passwords match
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ message: "New passwords do not match" });
+        }
+        
+        // Validate password strength
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters long" });
+        }
+        
+        // Find the user
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        
+        // Verify old password
+        const isMatch = await bcrypt.compare(oldPassword.trim(), user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: "Current password is incorrect" });
+        }
+        
+        // Update the user's password
+        user.password = newPassword.trim(); // The pre-save hook will hash the password
+        await user.save();
+        
+        console.log("✅ Password changed successfully for user:", user.username);
+        res.json({ message: "Password changed successfully" });
+    } catch (error) {
+        console.error("❌ Error changing password:", error);
+        res.status(500).json({ message: error.message || "Server error" });
+    }
+});
+
+// ✅ Update User Password (for fixing hashing issues) - DEPRECATED: Use /change-password instead
 router.post("/update-password", async (req, res) => {
     try {
         const { username, oldPassword, newPassword } = req.body;
