@@ -887,7 +887,8 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         });
         
         console.log(`Created vector store: ${vectorStore.id}`);
-        console.log(`Vector store object: ${JSON.stringify(vectorStore)}`);
+        // Avoid circular references by only logging essential properties
+        console.log(`Vector store name: "${vectorStore.name}", status: ${vectorStore.status}`);
         
         try {
             // Use the new upload_and_poll method which handles both upload and vector store addition
@@ -900,7 +901,8 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             );
             
             console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
-            console.log(`Vector store file object: ${JSON.stringify(vectorStoreFile)}`);
+            // Avoid circular references by only logging essential properties
+            console.log(`Vector store file status: ${vectorStoreFile.status}`);
             
             // Poll for status - with detailed logging
             let fileStatus = vectorStoreFile.status || "in_progress";
@@ -934,7 +936,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                         }
                         
                         const resultData = await retrieveResult.json();
-                        console.log(`Retrieve result: ${JSON.stringify(resultData)}`);
+                        console.log(`File ID: ${resultData.id}, Status: ${resultData.status}`);
                         fileStatus = resultData.status;
                         console.log(`File processing status: ${fileStatus}`);
                     } catch (retrieveError) {
@@ -960,7 +962,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                 message: 'Text successfully saved to vector store'
             };
             
-            console.log(`Vector store operation complete: ${JSON.stringify(result)}`);
+            console.log(`Vector store operation complete: success=${result.success}, vectorStoreId=${result.vectorStoreId}, fileId=${result.fileId}`);
             return result;
         } catch (uploadError) {
             console.error(`Error during file upload: ${uploadError.message}`);

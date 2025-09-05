@@ -197,7 +197,7 @@ chapterSchema.methods.createVectorStore = async function() {
       fileStream
     );
     
-    console.log(`Added file to vector store: ${vectorStoreFile.id}`);
+    console.log(`Added file to vector store: ${vectorStoreFile.id}, status: ${vectorStoreFile.status}`);
     
     // Clean up the temporary file
     fs.unlinkSync(tempFilePath);
