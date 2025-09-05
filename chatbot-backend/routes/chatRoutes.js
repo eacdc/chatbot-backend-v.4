@@ -13,6 +13,7 @@ const Book = require("../models/Book");
 const QnALists = require("../models/QnALists");
 const { storeAudio, getAudioStream, getAudioUrl } = require('../utils/gridfs');
 const ffmpeg = require("fluent-ffmpeg");
+const fetch = require("node-fetch"); // Make sure node-fetch is available
 
 // Initialize default configs if needed
 (async () => {
@@ -361,7 +362,7 @@ Rules:
 1. "oldchat_ai":
    - Ongoing conversation (not a greeting)
    - User is continuing a knowledge check or answering a question
-   - select this agent even if user says he/she dont know the answer
+   - select this agent even if user says he/she don't know the answer and asks to explain the  answer.
 
 2. "newchat_ai":
    - First message, like "Hi", "Hello"
@@ -373,9 +374,10 @@ Rules:
    - Says: "finish", "stop", "done", "end", "that's all"
 
 4. "explanation_ai":
-   - Asking for explanation or clarification
-   - Not an answer, but a question about the topic
+    - Not an answer, but a question about the topic 
    - General doubt or concept help
+   - If user askes for a clarification of a previously asked question
+
 
 Return only the JSON object. Do not include anything else.`,
   },
@@ -721,12 +723,48 @@ Return only the JSON object. Do not include anything else.`,
                 // Get the explanation_ai prompt template
                 const explanationPrompt = await Prompt.getPromptByType("explanation_ai");
                 
+                // Initialize chapter content variable
+                let chapterContent = chapter.prompt || "No specific content available for this chapter.";
+                
+                // Check if chapter has a vector store ID
+                if (chapter.vectorStoreId) {
+                    console.log(`Chapter has vector store ID: ${chapter.vectorStoreId}`);
+                    
+                    try {
+                        // Search the vector store for relevant content based on the user's question
+                        const vectorContent = await searchVectorStoreForContent(chapter.vectorStoreId, message);
+                        
+                        if (vectorContent) {
+                            console.log("Found relevant content in vector store");
+                            chapterContent = vectorContent;
+                        } else {
+                            console.log("No relevant content found in vector store, using full chapter content");
+                        }
+                    } catch (vectorError) {
+                        console.error("Error searching vector store:", vectorError);
+                        console.log("Using full chapter content due to vector store error");
+                    }
+                } else {
+                    console.log("Chapter doesn't have a vector store ID, creating one");
+                    
+                    try {
+                        // Create a vector store for the chapter
+                        await chapter.createVectorStore();
+                        await chapter.save();
+                        console.log(`Created vector store for chapter: ${chapter.vectorStoreId}`);
+                        
+                        // No need to search yet since we just created it and the content is the same
+                    } catch (createError) {
+                        console.error("Error creating vector store:", createError);
+                    }
+                }
+                
                 // Replace placeholders with actual values
                 systemPrompt = explanationPrompt
                     .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
                     .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
                     .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
-                    .replace(/\{\{CHAPTER_CONTENT\}\}/g, chapter.prompt || "No specific content available for this chapter.");
+                    .replace(/\{\{CHAPTER_CONTENT\}\}/g, chapterContent);
             } else {
                 // Default to explanation prompt for unrecognized classifications
                 const explanationPrompt = await Prompt.getPromptByType("explanation_ai");
@@ -1915,6 +1953,98 @@ router.get("/health", (req, res) => {
 });
 
 // Add the missing export statement
+/**
+ * Helper function to make HTTPS requests with proper error handling
+ * @param {string} url - The URL to make the request to
+ * @param {Object} options - Request options
+ * @returns {Promise<Response>} - The fetch response
+ */
+async function makeHttpsRequest(url, options = {}) {
+    try {
+        const response = await fetch(url, options);
+        return response;
+    } catch (error) {
+        console.error(`HTTPS request error: ${error.message}`);
+        throw error;
+    }
+}
+
+/**
+ * Search vector store for relevant content based on a user question
+ * @param {string} vectorStoreId - The ID of the vector store to search
+ * @param {string} userQuestion - The question to search for
+ * @returns {Promise<string>} - Relevant content from the vector store
+ */
+async function searchVectorStoreForContent(vectorStoreId, userQuestion) {
+    try {
+        // Check if vectorStoreId is valid
+        if (!vectorStoreId) {
+            console.error('Error: vectorStoreId is undefined or null');
+            return null;
+        }
+        
+        console.log(`Searching vector store ${vectorStoreId} for question: "${userQuestion.substring(0, 100)}..."`);
+        
+        // Configure search parameters
+        const maxResults = 5;
+        const scoreThreshold = 0.3;
+        const rewriteQuery = true;
+        
+        // Use direct REST API call for more reliable results
+        const searchResponse = await makeHttpsRequest(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                query: userQuestion,
+                max_num_results: maxResults,
+                rewrite_query: rewriteQuery,
+                ranking_options: {
+                    score_threshold: scoreThreshold
+                }
+            })
+        });
+        
+        if (!searchResponse.ok) {
+            throw new Error(`HTTP error ${searchResponse.status}: ${await searchResponse.text()}`);
+        }
+        
+        const results = await searchResponse.json();
+        
+        // Check if we have any results
+        if (!results.data || results.data.length === 0) {
+            console.log(`No results found in vector store for query`);
+            return null;
+        }
+        
+        console.log(`Found ${results.data.length} results in vector store`);
+        
+        // Extract text content from all results
+        const textSources = results.data
+            .map(result => 
+                result.content
+                    .map(content => content.text)
+                    .join('\n')
+            )
+            .join('\n\n');
+        
+        // Limit content to prevent token overflow
+        const maxChars = 5000;
+        const limitedContent = textSources.length > maxChars 
+            ? textSources.substring(0, maxChars) + "...[truncated]"
+            : textSources;
+        
+        console.log(`Extracted ${limitedContent.length} characters of content from vector store`);
+        return limitedContent;
+        
+    } catch (error) {
+        console.error(`Error searching vector store: ${error.message}`);
+        return null;
+    }
+}
+
 module.exports = router;
 
 // TEMPORARY ROUTE: Fix zero scores for testing purposes

@@ -125,43 +125,31 @@ router.get("/search-with-status", authenticateUser, async (req, res) => {
 
     console.log(`👤 User ${userId} has ${subscribedBookIds.length} subscribed books`);
 
-    // If search query is provided, we need to check for chapters
+    // If search query is provided, search in book fields only
     let booksWithChapters = [];
     let totalCount = 0;
     
     if (q && q.trim().length >= 2) {
-      console.log(`🔍 Searching for chapters containing: ${q}`);
+      console.log(`🔍 Searching for books containing: ${q}`);
       
-      // First, find chapters matching the search query
-      const matchingChapters = await Chapter.find({
-        title: { $regex: q, $options: 'i' }
-      }).select('bookId');
+      // Add text search to the existing search filter for book fields only
+      const combinedFilter = { ...searchFilter };
+      combinedFilter.$or = [
+        { title: { $regex: q, $options: 'i' } },
+        { subject: { $regex: q, $options: 'i' } },
+        { publisher: { $regex: q, $options: 'i' } }
+      ];
       
-      console.log(`📚 Found ${matchingChapters.length} chapters matching search query`);
+      console.log(`🔍 Search filter with book fields:`, combinedFilter);
       
-      // Extract unique bookIds from matching chapters
-      const matchingBookIds = [...new Set(matchingChapters.map(chapter => chapter.bookId.toString()))];
-      
-      if (matchingBookIds.length > 0) {
-        console.log(`📚 Found ${matchingBookIds.length} unique books with matching chapters`);
-        
-        // Add the bookIds to our search filter
-        const combinedFilter = { ...searchFilter };
-        combinedFilter._id = { $in: matchingBookIds };
-        
-        // Execute search with the combined filter
-        [booksWithChapters, totalCount] = await Promise.all([
-          Book.find(combinedFilter)
-            .sort(sortObj)
-            .skip(skip)
-            .limit(limitNum),
-          Book.countDocuments(combinedFilter)
-        ]);
-      } else {
-        // No matching chapters found, return empty results with the existing filters
-        booksWithChapters = [];
-        totalCount = 0;
-      }
+      // Execute search with the combined filter
+      [booksWithChapters, totalCount] = await Promise.all([
+        Book.find(combinedFilter)
+          .sort(sortObj)
+          .skip(skip)
+          .limit(limitNum),
+        Book.countDocuments(combinedFilter)
+      ]);
     } else {
       // No search query, just use the filters
       [booksWithChapters, totalCount] = await Promise.all([
@@ -287,44 +275,53 @@ async function generateSearchSuggestions(query, limit = 5) {
   try {
     const suggestions = [];
     
-    // Title suggestions
+    // Title suggestions - get actual count of results
     const titleMatches = await Book.find({
       title: { $regex: query, $options: 'i' }
     }).limit(limit).select('title');
     
-    titleMatches.forEach(book => {
+    for (const book of titleMatches) {
+      const count = await Book.countDocuments({
+        title: { $regex: book.title, $options: 'i' }
+      });
       suggestions.push({
         text: book.title,
         type: 'title',
-        resultCount: 1
+        resultCount: count
       });
-    });
+    }
 
-    // Subject suggestions
+    // Subject suggestions - get actual count of results
     const subjectMatches = await Book.distinct('subject', {
       subject: { $regex: query, $options: 'i' }
     });
     
-    subjectMatches.slice(0, limit).forEach(subject => {
+    for (const subject of subjectMatches.slice(0, limit)) {
+      const count = await Book.countDocuments({
+        subject: { $regex: subject, $options: 'i' }
+      });
       suggestions.push({
         text: subject,
         type: 'subject',
-        resultCount: 1
+        resultCount: count
       });
-    });
+    }
 
-    // Publisher suggestions
+    // Publisher suggestions - get actual count of results
     const publisherMatches = await Book.distinct('publisher', {
       publisher: { $regex: query, $options: 'i' }
     });
     
-    publisherMatches.slice(0, limit).forEach(publisher => {
+    for (const publisher of publisherMatches.slice(0, limit)) {
+      const count = await Book.countDocuments({
+        publisher: { $regex: publisher, $options: 'i' }
+      });
       suggestions.push({
         text: publisher,
         type: 'publisher',
-        resultCount: 1
+        resultCount: count
       });
-    });
+    }
 
     return suggestions.slice(0, limit);
   } catch (error) {

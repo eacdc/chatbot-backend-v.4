@@ -19,6 +19,7 @@ const chapterSchema = new mongoose.Schema(
     title: { type: String, required: true },
     prompt: { type: String, required: true },
     embedding: { type: [Number], default: null }, // Embedding vector for semantic search
+    vectorStoreId: { type: String, default: null }, // OpenAI vector store ID for knowledge base
     questionPrompt: {
       type: Array,
       default: [],
@@ -152,6 +153,65 @@ function cosineSimilarity(vecA, vecB) {
   return dotProduct / (magnitudeA * magnitudeB);
 }
 
+// Method to create a vector store for the chapter content
+chapterSchema.methods.createVectorStore = async function() {
+  try {
+    // Skip if already has a vector store ID
+    if (this.vectorStoreId) {
+      console.log(`Chapter ${this.chapterId || this.title} already has a vector store: ${this.vectorStoreId}`);
+      return this.vectorStoreId;
+    }
+
+    // Create a vector store with chapter title as the name
+    const vectorStoreName = `Chapter_${this.title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
+    console.log(`Creating vector store for chapter: ${vectorStoreName}`);
+    
+    // Use the OpenAI API to create a vector store
+    const vectorStore = await openai.vectorStores.create({
+      name: vectorStoreName,
+    });
+    
+    if (!vectorStore || !vectorStore.id) {
+      throw new Error("Failed to create vector store");
+    }
+    
+    console.log(`Created vector store: ${vectorStore.id}`);
+    
+    // Create a temporary file with the chapter content
+    const tempFileName = `temp_chapter_${Date.now()}.txt`;
+    const tempDir = require('path').join(__dirname, '../uploads');
+    const fs = require('fs');
+    
+    // Ensure the uploads directory exists
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const tempFilePath = require('path').join(tempDir, tempFileName);
+    fs.writeFileSync(tempFilePath, this.prompt, 'utf8');
+    
+    // Upload the file to the vector store
+    const fileStream = fs.createReadStream(tempFilePath);
+    const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
+      vectorStore.id,
+      fileStream
+    );
+    
+    console.log(`Added file to vector store: ${vectorStoreFile.id}`);
+    
+    // Clean up the temporary file
+    fs.unlinkSync(tempFilePath);
+    
+    // Save the vector store ID to the chapter
+    this.vectorStoreId = vectorStore.id;
+    return this.vectorStoreId;
+    
+  } catch (error) {
+    console.error("Error creating vector store:", error);
+    return null;
+  }
+};
+
 // Auto-generate chapterId and handle question parsing before saving
 chapterSchema.pre("save", async function (next) {
   if (!this.chapterId) {
@@ -165,6 +225,16 @@ chapterSchema.pre("save", async function (next) {
     } catch (error) {
       console.error("Error generating embedding on save, continuing anyway:", error);
       // Continue with save even if embedding generation fails
+    }
+  }
+  
+  // Create vector store if it doesn't exist
+  if (!this.vectorStoreId && this.prompt && this.prompt.length > 0) {
+    try {
+      await this.createVectorStore();
+    } catch (error) {
+      console.error("Error creating vector store on save, continuing anyway:", error);
+      // Continue with save even if vector store creation fails
     }
   }
 
