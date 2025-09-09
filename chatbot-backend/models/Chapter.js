@@ -42,17 +42,39 @@ const chapterSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Import node-fetch for OpenAI
-const fetch = require('node-fetch');
+// Try to use native fetch first (Node.js 18+), fallback to node-fetch
+let fetchImplementation;
+try {
+  // Check if native fetch is available (Node.js 18+)
+  if (typeof globalThis.fetch !== 'undefined') {
+    fetchImplementation = globalThis.fetch;
+    console.log("Using native Node.js fetch for OpenAI client");
+  } else {
+    // Fallback to node-fetch for older Node.js versions
+    fetchImplementation = require('node-fetch');
+    console.log("Using node-fetch for OpenAI client (native fetch not available)");
+  }
+} catch (error) {
+  console.warn("Error setting up fetch implementation:", error.message);
+  fetchImplementation = undefined; // Let OpenAI use its default
+}
 
 // Initialize OpenAI client - use environment variable if available
 let openai;
 try {
   if (process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({ 
-      apiKey: process.env.OPENAI_API_KEY,
-              fetch // Use node-fetch as the fetch implementation (pass the function directly)
-    });
+    const clientConfig = { 
+      apiKey: process.env.OPENAI_API_KEY
+    };
+    
+    // Only add fetch if we have a compatible implementation
+    if (fetchImplementation && typeof globalThis.fetch !== 'undefined') {
+      // Use native fetch which supports FormData properly
+      clientConfig.fetch = fetchImplementation;
+    }
+    // If using node-fetch or no fetch specified, let OpenAI use its default
+    
+    openai = new OpenAI(clientConfig);
     console.log("OpenAI client initialized successfully in Chapter.js");
   } else {
     console.warn("OPENAI_API_KEY not found in environment variables. OpenAI features will be disabled.");
@@ -60,6 +82,12 @@ try {
     openai = {
       embeddings: {
         create: async () => ({ data: [{ embedding: Array(1536).fill(0) }] })
+      },
+      vectorStores: {
+        create: async () => ({ id: 'mock-vector-store', name: 'mock', status: 'completed' }),
+        files: {
+          uploadAndPoll: async () => ({ id: 'mock-file', status: 'completed' })
+        }
       }
     };
   }
@@ -69,6 +97,12 @@ try {
   openai = {
     embeddings: {
       create: async () => ({ data: [{ embedding: Array(1536).fill(0) }] })
+    },
+    vectorStores: {
+      create: async () => ({ id: 'mock-vector-store', name: 'mock', status: 'completed' }),
+      files: {
+        uploadAndPoll: async () => ({ id: 'mock-file', status: 'completed' })
+      }
     }
   };
 }
@@ -188,23 +222,34 @@ chapterSchema.methods.createVectorStore = async function() {
     }
     
     const tempFilePath = require('path').join(tempDir, tempFileName);
-    fs.writeFileSync(tempFilePath, this.prompt, 'utf8');
     
-    // Upload the file to the vector store
-    const fileStream = fs.createReadStream(tempFilePath);
-    const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
-      vectorStore.id,
-      fileStream
-    );
-    
-    console.log(`Added file to vector store: ${vectorStoreFile.id}, status: ${vectorStoreFile.status}`);
-    
-    // Clean up the temporary file
-    fs.unlinkSync(tempFilePath);
-    
-    // Save the vector store ID to the chapter
-    this.vectorStoreId = vectorStore.id;
-    return this.vectorStoreId;
+    try {
+      fs.writeFileSync(tempFilePath, this.prompt, 'utf8');
+      
+      // Upload the file to the vector store
+      const fileStream = fs.createReadStream(tempFilePath);
+      const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
+        vectorStore.id,
+        fileStream
+      );
+      
+      console.log(`Added file to vector store: ${vectorStoreFile.id}, status: ${vectorStoreFile.status}`);
+      
+      // Save the vector store ID to the chapter
+      this.vectorStoreId = vectorStore.id;
+      return this.vectorStoreId;
+      
+    } finally {
+      // Always clean up the temporary file, even if there's an error
+      try {
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+          console.log(`Cleaned up temporary file: ${tempFilePath}`);
+        }
+      } catch (cleanupError) {
+        console.error(`Error cleaning up temporary file: ${cleanupError.message}`);
+      }
+    }
     
   } catch (error) {
     console.error("Error creating vector store:", error);
