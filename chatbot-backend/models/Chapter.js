@@ -18,7 +18,7 @@ const chapterSchema = new mongoose.Schema(
     bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true }, // Reference to Book
     title: { type: String, required: true },
     prompt: { type: String, required: true }, // Original raw text or JSON questions
-    cleanedContent: { type: String, default: null }, // Clean, organized text content
+    cleanedContent: { type: String, default: null }, // Clean, organized text content (for display only)
     embedding: { type: [Number], default: null }, // Embedding vector for semantic search
     vectorStoreId: { type: String, default: null }, // OpenAI vector store ID for knowledge base
     questionPrompt: {
@@ -174,12 +174,11 @@ Please provide only the cleaned and organized text content without any additiona
 // Method to generate embedding for a chapter
 chapterSchema.methods.generateEmbedding = async function() {
   try {
-    // Use the cleaned content for embedding if available, otherwise use prompt
-    const contentForEmbedding = this.cleanedContent || this.prompt;
-    
+    // ALWAYS use the original prompt for embedding (not cleaned content)
+    // This ensures consistency with vector store content
     const response = await openai.embeddings.create({
       model: "text-embedding-3-small", // Most efficient embedding model
-      input: contentForEmbedding,
+      input: this.prompt,
       encoding_format: "float"
     });
     
@@ -262,8 +261,9 @@ chapterSchema.methods.createVectorStore = async function() {
       return this.vectorStoreId;
     }
 
-    // Use cleaned content for vector store if available, otherwise use prompt
-    const contentForVectorStore = this.cleanedContent || this.prompt;
+    // ALWAYS use the original prompt for vector store (not cleaned content)
+    // This ensures the knowledge base contains the raw, unprocessed information
+    const contentForVectorStore = this.prompt;
 
     // Create a vector store with chapter title as the name
     const vectorStoreName = `Chapter_${this.title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
