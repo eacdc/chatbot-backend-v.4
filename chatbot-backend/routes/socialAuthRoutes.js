@@ -386,11 +386,10 @@ router.get('/available-providers', (req, res) => {
         availableProviders,
         message: "OAuth provider availability status"
     });
-    
-    
-        frontendUrl = frontendUrl.slice(0, -1);
-    }
-    
+});
+
+// Get debug info for OAuth configuration
+router.get('/oauth-debug', (req, res) => {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
     
     const debugInfo = {
