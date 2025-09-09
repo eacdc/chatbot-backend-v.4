@@ -109,13 +109,51 @@ try {
 // In routes/chapters.js
 router.post("/", authenticateAdmin, async (req, res) => {
     try {
-      const { bookId, title, prompt } = req.body;
-      const newChapter = new Chapter({ bookId, title, prompt });
+      const { bookId, title, prompt, vectorStoreId } = req.body;
+      const chapterData = { bookId, title, prompt };
+      
+      // If vectorStoreId is provided, use it instead of creating a new one
+      if (vectorStoreId) {
+        chapterData.vectorStoreId = vectorStoreId;
+        console.log(`Using existing vector store ID: ${vectorStoreId}`);
+      }
+      
+      const newChapter = new Chapter(chapterData);
       const savedChapter = await newChapter.save();
       res.status(201).json(savedChapter);
     } catch (error) {
       console.error("Error adding chapter:", error);
       res.status(500).json({ error: "Failed to add chapter" });
+    }
+  });
+
+// Update chapter with questions and optional vectorStoreId
+router.put("/:chapterId", authenticateAdmin, async (req, res) => {
+    try {
+      const { chapterId } = req.params;
+      const { title, prompt, questionPrompt, vectorStoreId } = req.body;
+      
+      const chapter = await Chapter.findById(chapterId);
+      if (!chapter) {
+        return res.status(404).json({ error: "Chapter not found" });
+      }
+      
+      // Update fields if provided
+      if (title) chapter.title = title;
+      if (prompt) chapter.prompt = prompt;
+      if (questionPrompt) chapter.questionPrompt = questionPrompt;
+      
+      // If vectorStoreId is provided, use it instead of creating a new one
+      if (vectorStoreId && !chapter.vectorStoreId) {
+        chapter.vectorStoreId = vectorStoreId;
+        console.log(`Using existing vector store ID for chapter ${chapterId}: ${vectorStoreId}`);
+      }
+      
+      const savedChapter = await chapter.save();
+      res.json(savedChapter);
+    } catch (error) {
+      console.error("Error updating chapter:", error);
+      res.status(500).json({ error: "Failed to update chapter" });
     }
   });
 
@@ -459,7 +497,8 @@ async function processBatchText(req, res) {
                     isQuestionFormat: true,
                     questionArray: structuredQuestions,
                     totalQuestions: structuredQuestions.length,
-                    nextSteps: "To save these questions to a chapter, send a POST request to /api/chapters/update-chapter-questions/:chapterId with the 'questions' array in the request body."
+                    vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
+                    nextSteps: "To save these questions to a chapter, send a POST request to /api/chapters/update-chapter-questions/:chapterId with the 'questions' array and 'vectorStoreId' in the request body."
                   });
                 } else {
                   // If no questions were kept after validation, return standard format
@@ -467,7 +506,8 @@ async function processBatchText(req, res) {
                     success: true, 
                     message: "Text processed successfully but no valid questions found",
                     combinedPrompt: combinedPrompt,
-                    processedText: combinedPrompt // Include for backward compatibility
+                    processedText: combinedPrompt, // Include for backward compatibility
+                    vectorStoreId: vectorBase.vectorStoreId // Include the vector store ID for reuse
                   });
                 }
               }
@@ -651,7 +691,8 @@ async function processBatchText(req, res) {
                 success: true, 
                 message: "Text processed successfully but no valid questions found",
                 combinedPrompt: combinedPrompt,
-                processedText: combinedPrompt // Include for backward compatibility
+                processedText: combinedPrompt, // Include for backward compatibility
+                vectorStoreId: vectorBase.vectorStoreId // Include the vector store ID for reuse
               });
             }
             
@@ -674,7 +715,8 @@ async function processBatchText(req, res) {
           success: true, 
           message: "Text processed successfully",
           combinedPrompt: combinedPrompt,
-          processedText: combinedPrompt // Include for backward compatibility
+          processedText: combinedPrompt, // Include for backward compatibility
+          vectorStoreId: vectorBase.vectorStoreId // Include the vector store ID for reuse
         });
       }
     } catch (error) {
