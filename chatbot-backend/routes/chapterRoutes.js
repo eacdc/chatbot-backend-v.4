@@ -435,7 +435,7 @@ async function processBatchText(req, res) {
                 console.log(`Sample parsed successfully: subtopic=${sampleParsed.subtopic}, question=${sampleParsed.question?.substring(0, 50)}..., question type=${sampleParsed["question type"] || sampleParsed.question_type || "N/A"}`);
               } catch (parseError) {
                 console.error(`Could not parse sample match as JSON: ${parseError.message}`);
-                console.log(`Raw sample for inspection: ${JSON.stringify(questionJsonObjects[0])}`);
+                console.log(`Raw sample found with regex - first few characters: ${questionJsonObjects[0].substring(0, 100)}...`);
               }
             }
             
@@ -557,7 +557,7 @@ async function processBatchText(req, res) {
                         if (answerText.startsWith('[') && answerText.endsWith(']')) {
                           try {
                             questionAnalysis = JSON.parse(answerText);
-                            console.log(`Successfully parsed questionAnalysis: ${JSON.stringify(questionAnalysis)}`);
+                            console.log(`Successfully parsed questionAnalysis with ${questionAnalysis.length} questions`);
                           } catch (parseError) {
                             console.error(`Error parsing JSON response: ${parseError.message}`);
                             // Create fallback response
@@ -583,7 +583,7 @@ async function processBatchText(req, res) {
                         questionAnalysis = ["Error analyzing question", "Medium", 1];
                       }
                       
-                      console.log(`Final questionAnalysis: ${JSON.stringify(questionAnalysis)}`);
+                      console.log(`Final questionAnalysis: [${questionAnalysis.map(item => typeof item === 'string' ? item.substring(0, 30) + '...' : typeof item).join(', ')}]`);
                       
                       if (validationResult === "keep") {
                         // Add default values for missing fields
@@ -728,9 +728,10 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
     return [text];
   }
   
-  // Estimate number of words in the text
-  const wordCount = text.split(/\s+/).length;
-  console.log(`Estimated total word count: ${wordCount}`);
+  // Estimate number of words in the text using a safer approach
+  // Count spaces as an approximation instead of using split for large texts
+  const wordCount = (text.match(/\s+/g) || []).length + 1;
+  console.log(`Estimated total word count: ~${wordCount}`);
   
   // Determine minimum number of parts (ensure at least 20 parts)
   const minParts = Math.max(20, maxParts);
@@ -763,8 +764,8 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
     const endPos = i >= sentenceEndings.length ? text.length : sentenceEndings[i];
     const part = text.substring(startPos, endPos).trim();
     
-    // Count words in this part
-    const partWordCount = part.split(/\s+/).length;
+    // Count words in this part using a safer approach
+    const partWordCount = (part.match(/\s+/g) || []).length + 1;
     console.log(`Part ${parts.length + 1} word count: ~${partWordCount}`);
     
     parts.push(part);
@@ -779,7 +780,7 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
   // Add any remaining text as the last part
   if (startPos < text.length) {
     const lastPart = text.substring(startPos).trim();
-    const lastPartWordCount = lastPart.split(/\s+/).length;
+    const lastPartWordCount = (lastPart.match(/\s+/g) || []).length + 1;
     console.log(`Last part word count: ~${lastPartWordCount}`);
     parts.push(lastPart);
   }

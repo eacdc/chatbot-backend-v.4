@@ -386,12 +386,8 @@ router.get('/available-providers', (req, res) => {
         availableProviders,
         message: "OAuth provider availability status"
     });
-});
-
-// Debug route to check environment variables and URLs
-router.get('/debug-urls', (req, res) => {
-    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    if (frontendUrl.endsWith('/')) {
+    
+    
         frontendUrl = frontendUrl.slice(0, -1);
     }
     
