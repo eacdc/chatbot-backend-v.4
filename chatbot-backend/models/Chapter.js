@@ -17,7 +17,8 @@ const chapterSchema = new mongoose.Schema(
     chapterId: { type: String, unique: true }, // Auto-generated
     bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true }, // Reference to Book
     title: { type: String, required: true },
-    prompt: { type: String, required: true },
+    prompt: { type: String, required: true }, // Original raw text or JSON questions
+    cleanedContent: { type: String, default: null }, // Clean, organized text content
     embedding: { type: [Number], default: null }, // Embedding vector for semantic search
     vectorStoreId: { type: String, default: null }, // OpenAI vector store ID for knowledge base
     questionPrompt: {
@@ -88,6 +89,11 @@ try {
         files: {
           uploadAndPoll: async () => ({ id: 'mock-file', status: 'completed' })
         }
+      },
+      chat: {
+        completions: {
+          create: async () => ({ choices: [{ message: { content: "Mock cleaned content" } }] })
+        }
       }
     };
   }
@@ -103,17 +109,77 @@ try {
       files: {
         uploadAndPoll: async () => ({ id: 'mock-file', status: 'completed' })
       }
+    },
+    chat: {
+      completions: {
+        create: async () => ({ choices: [{ message: { content: "Mock cleaned content" } }] })
+      }
     }
   };
 }
 
+// Method to clean and organize raw text using OpenAI
+chapterSchema.methods.generateCleanedContent = async function(rawText) {
+  try {
+    console.log(`Generating cleaned content for chapter: ${this.title}`);
+    
+    const cleaningPrompt = `You are an expert text editor and content organizer. Your task is to clean, organize, and improve the given raw text while keeping it compact and well-structured.
+
+Instructions:
+1. Clean up the text by fixing grammar, punctuation, and spelling errors
+2. Organize sentences and paragraphs logically
+3. Remove redundant or repetitive content
+4. Keep the content compact but comprehensive
+5. Maintain all important information and concepts
+6. Use proper paragraph breaks for better readability
+7. Ensure smooth flow between sentences and ideas
+8. Remove any formatting artifacts or OCR errors
+9. Make the text suitable for educational purposes
+
+Raw text to clean:
+${rawText}
+
+Please provide only the cleaned and organized text content without any additional commentary or explanations.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4.1",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert text editor. Clean and organize the provided text while keeping it compact and well-structured. Return only the cleaned text."
+        },
+        {
+          role: "user",
+          content: cleaningPrompt
+        }
+      ],
+      temperature: 0.3, // Low temperature for consistent, focused output
+      max_tokens: 4000 // Reasonable limit for cleaned content
+    });
+
+    if (response && response.choices && response.choices[0]) {
+      const cleanedText = response.choices[0].message.content.trim();
+      console.log(`Generated cleaned content (${cleanedText.length} characters) for chapter: ${this.title}`);
+      return cleanedText;
+    } else {
+      throw new Error("Invalid response from OpenAI for text cleaning");
+    }
+  } catch (error) {
+    console.error("Error generating cleaned content:", error);
+    // Return the original raw text as fallback
+    return rawText;
+  }
+};
+
 // Method to generate embedding for a chapter
 chapterSchema.methods.generateEmbedding = async function() {
   try {
-    // Use the prompt as the input for the embedding
+    // Use the cleaned content for embedding if available, otherwise use prompt
+    const contentForEmbedding = this.cleanedContent || this.prompt;
+    
     const response = await openai.embeddings.create({
       model: "text-embedding-3-small", // Most efficient embedding model
-      input: this.prompt,
+      input: contentForEmbedding,
       encoding_format: "float"
     });
     
@@ -196,6 +262,9 @@ chapterSchema.methods.createVectorStore = async function() {
       return this.vectorStoreId;
     }
 
+    // Use cleaned content for vector store if available, otherwise use prompt
+    const contentForVectorStore = this.cleanedContent || this.prompt;
+
     // Create a vector store with chapter title as the name
     const vectorStoreName = `Chapter_${this.title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
     console.log(`Creating vector store for chapter: ${vectorStoreName}`);
@@ -224,7 +293,7 @@ chapterSchema.methods.createVectorStore = async function() {
     const tempFilePath = require('path').join(tempDir, tempFileName);
     
     try {
-      fs.writeFileSync(tempFilePath, this.prompt, 'utf8');
+      fs.writeFileSync(tempFilePath, contentForVectorStore, 'utf8');
       
       // Upload the file to the vector store
       const fileStream = fs.createReadStream(tempFilePath);
@@ -273,14 +342,29 @@ chapterSchema.pre("save", async function (next) {
     }
   }
   
-  // Create vector store if it doesn't exist
-  if (!this.vectorStoreId && this.prompt && this.prompt.length > 0) {
+  // Smart vector store creation logic
+  // Only create vector store if explicitly needed and not already provided
+  // Skip automatic vector store creation for chapters with question prompts (they should reuse existing vector stores)
+  const hasQuestionPrompts = this.questionPrompt && Array.isArray(this.questionPrompt) && this.questionPrompt.length > 0;
+  const isJsonQuestionFormat = typeof this.prompt === 'string' && 
+    ((this.prompt.trim().startsWith('[') && this.prompt.trim().endsWith(']')) ||
+     (this.prompt.includes('"Q":') && this.prompt.includes('"question":')));
+  
+  // Only create vector store if:
+  // 1. No vectorStoreId is already set
+  // 2. Has prompt content
+  // 3. Is NOT a question format (questions should reuse existing vector stores)
+  // 4. Doesn't already have structured question prompts
+  if (!this.vectorStoreId && this.prompt && this.prompt.length > 0 && !isJsonQuestionFormat && !hasQuestionPrompts) {
     try {
+      console.log("Creating vector store for chapter (non-question format)");
       await this.createVectorStore();
     } catch (error) {
       console.error("Error creating vector store on save, continuing anyway:", error);
       // Continue with save even if vector store creation fails
     }
+  } else if (!this.vectorStoreId && (isJsonQuestionFormat || hasQuestionPrompts)) {
+    console.log("Skipping vector store creation for question-format chapter (should reuse existing vector store)");
   }
 
   // Parse questionPrompt from the prompt field if it appears to be a JSON array of questions
