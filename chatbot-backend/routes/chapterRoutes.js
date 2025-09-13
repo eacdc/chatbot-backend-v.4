@@ -937,11 +937,13 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             console.log(`Uploading file to vector store using upload_and_poll`);
             const fileStream = fs.createReadStream(tempFilePath);
             
-            const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll({
-                vector_store_id: vectorStore.id,
-                file: fileStream,
-                ...(Object.keys(attributes).length > 0 && { attributes })
-            });
+            const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
+                vectorStore.id,
+                {
+                    file: fileStream,
+                    ...(Object.keys(attributes).length > 0 && { attributes })
+                }
+            );
             
             console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
             console.log(`Vector store file status: ${vectorStoreFile.status}`);
