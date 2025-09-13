@@ -1020,7 +1020,25 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         // First, check if the vector store is ready and has files
         try {
             console.log(`Checking vector store status: ${vectorStoreId}`);
-            const vectorStore = await openai.vectorStores.retrieve(vectorStoreId);
+            // Try both methods to see which one works
+            let vectorStore;
+            try {
+                // Method 1: Direct ID parameter (common in many SDKs)
+                vectorStore = await openai.vectorStores.retrieve(vectorStoreId);
+                console.log(`DEBUG: retrieve method 1 (direct ID) succeeded`);
+            } catch (method1Error) {
+                console.log(`DEBUG: retrieve method 1 failed: ${method1Error.message}`);
+                try {
+                    // Method 2: Object parameter as shown in documentation
+                    vectorStore = await openai.vectorStores.retrieve({
+                        vector_store_id: vectorStoreId
+                    });
+                    console.log(`DEBUG: retrieve method 2 (object param) succeeded`);
+                } catch (method2Error) {
+                    console.log(`DEBUG: retrieve method 2 failed: ${method2Error.message}`);
+                    throw method2Error;
+                }
+            }
             
             if (vectorStore.status !== 'completed') {
                 console.log(`Vector store status is ${vectorStore.status}, not ready for search`);
@@ -1078,12 +1096,23 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                 }
                 
                 // Use the correct OpenAI SDK method for vector store search
+                // According to the OpenAI documentation, the method signature should be:
+                // client.vectorStores.search({ vector_store_id: "vs_123", query: "question" })
+                
+                // Build the search parameters object correctly
                 const searchParams = {
                     vector_store_id: vectorStoreId,
-                    query: userQuestion,
-                    max_num_results: maxResults,
-                    rewrite_query: rewriteQuery
+                    query: userQuestion
                 };
+
+                // Add optional parameters
+                if (maxResults && maxResults !== 5) {
+                    searchParams.max_num_results = maxResults;
+                }
+
+                if (rewriteQuery !== undefined) {
+                    searchParams.rewrite_query = rewriteQuery;
+                }
 
                 // Add ranking options if score threshold is specified
                 if (scoreThreshold) {
@@ -1097,7 +1126,60 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                     searchParams.filters = attributeFilter;
                 }
 
-                results = await openai.vectorStores.search(searchParams);
+                // Debug log the search parameters
+                console.log(`DEBUG: searchParams object: ${JSON.stringify(searchParams)}`);
+                console.log(`DEBUG: About to call openai.vectorStores.search with vectorStoreId: ${vectorStoreId}`);
+
+                // Call the search method with the parameters object
+                // Try different approaches to see which one works
+                console.log(`DEBUG: Attempting vector store search...`);
+                
+                try {
+                    // Method 1: Direct parameter passing with minimal params
+                    const method1Params = {
+                        vector_store_id: vectorStoreId,
+                        query: userQuestion
+                    };
+                    console.log(`DEBUG: Method 1 params: ${JSON.stringify(method1Params)}`);
+                    results = await openai.vectorStores.search(method1Params);
+                    console.log(`DEBUG: Method 1 succeeded`);
+                } catch (method1Error) {
+                    console.log(`Method 1 failed: ${method1Error.message}`);
+                    
+                    // Method 2: Try with different parameter name (some SDKs use 'vectorStoreId' instead of 'vector_store_id')
+                    try {
+                        const method2Params = {
+                            vectorStoreId: vectorStoreId,
+                            query: userQuestion
+                        };
+                        console.log(`DEBUG: Method 2 params: ${JSON.stringify(method2Params)}`);
+                        results = await openai.vectorStores.search(method2Params);
+                        console.log(`DEBUG: Method 2 succeeded`);
+                    } catch (method2Error) {
+                        console.log(`Method 2 failed: ${method2Error.message}`);
+                        
+                        // Method 3: Try passing vectorStoreId as first parameter, query as second
+                        try {
+                            console.log(`DEBUG: Method 3 - vectorStoreId: ${vectorStoreId}, query: ${userQuestion}`);
+                            results = await openai.vectorStores.search(vectorStoreId, {
+                                query: userQuestion
+                            });
+                            console.log(`DEBUG: Method 3 succeeded`);
+                        } catch (method3Error) {
+                            console.log(`Method 3 failed: ${method3Error.message}`);
+                            
+                            // Method 4: Using the original searchParams object
+                            try {
+                                console.log(`DEBUG: Method 4 params: ${JSON.stringify(searchParams)}`);
+                                results = await openai.vectorStores.search(searchParams);
+                                console.log(`DEBUG: Method 4 succeeded`);
+                            } catch (method4Error) {
+                                console.log(`Method 4 failed: ${method4Error.message}`);
+                                throw method4Error; // Re-throw the last error
+                            }
+                        }
+                    }
+                }
                 console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
                 searchSuccessful = true;
                 
