@@ -274,6 +274,14 @@ async function processBatchText(req, res) {
     
     // Split text into smaller parts (min 20 parts with min 1000 words each) at sentence boundaries
     const vectorBase = await saveTextToVectorStore(rawText);
+    
+    // Debug logging for vectorBase
+    console.log(`DEBUG: vectorBase after saveTextToVectorStore:`);
+    console.log(`DEBUG: vectorBase type: ${typeof vectorBase}`);
+    console.log(`DEBUG: vectorBase value: ${JSON.stringify(vectorBase)}`);
+    console.log(`DEBUG: vectorBase.vectorStoreId type: ${typeof vectorBase?.vectorStoreId}`);
+    console.log(`DEBUG: vectorBase.vectorStoreId value: ${vectorBase?.vectorStoreId}`);
+    
     const textParts = splitTextIntoSentenceParts(rawText, 20);
     console.log(`Split text into ${textParts.length} parts`);
     
@@ -537,7 +545,20 @@ async function processBatchText(req, res) {
                         const searchDelay = Math.random() * 2000 + 1000; // Random delay between 1-3 seconds
                         await new Promise(resolve => setTimeout(resolve, searchDelay));
                         
-                        const response = await searchVectorStoreForAnswer(vectorBase.vectorStoreId, questionObj.question);
+                        // Debug logging
+                        console.log(`DEBUG: vectorBase type: ${typeof vectorBase}`);
+                        console.log(`DEBUG: vectorBase value: ${JSON.stringify(vectorBase)}`);
+                        console.log(`DEBUG: vectorBase.vectorStoreId: ${vectorBase.vectorStoreId}`);
+                        
+                        // Ensure we have a valid string ID
+                        let vectorStoreId = vectorBase.vectorStoreId;
+                        if (typeof vectorStoreId !== 'string') {
+                          console.error(`ERROR: vectorStoreId is not a string. Type: ${typeof vectorStoreId}, Value: ${JSON.stringify(vectorStoreId)}`);
+                          console.error(`Full vectorBase object: ${JSON.stringify(vectorBase)}`);
+                          throw new Error(`Invalid vectorStoreId type: expected string, got ${typeof vectorStoreId}`);
+                        }
+                        
+                        const response = await searchVectorStoreForAnswer(vectorStoreId, questionObj.question);
                         // const response = await answerQuestion(questionObj.question, embeddings);
                         console.log(`Raw answer response: ${response.answer}`);
                         
@@ -884,6 +905,10 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         // Avoid circular references by only logging essential properties
         console.log(`Vector store name: "${vectorStore.name}", status: ${vectorStore.status}`);
         
+        // Debug logging for vector store ID
+        console.log(`DEBUG: vectorStore.id type: ${typeof vectorStore.id}`);
+        console.log(`DEBUG: vectorStore.id value: ${JSON.stringify(vectorStore.id)}`);
+        
         try {
             // Use the upload_and_poll method which handles both upload and polling automatically
             console.log(`Uploading file directly to vector store using upload_and_poll`);
@@ -919,6 +944,11 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             };
             
             console.log(`Vector store operation complete: success=${result.success}, vectorStoreId=${result.vectorStoreId}, fileId=${result.fileId}`);
+            
+            // Debug logging for result object
+            console.log(`DEBUG: result.vectorStoreId type: ${typeof result.vectorStoreId}`);
+            console.log(`DEBUG: result.vectorStoreId value: ${JSON.stringify(result.vectorStoreId)}`);
+            
             return result;
         } catch (uploadError) {
             console.error(`Error during file upload: ${uploadError.message}`);
@@ -961,6 +991,10 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
  */
 async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options = {}) {
     try {
+        // Debug logging to see what we received
+        console.log(`DEBUG: vectorStoreId type: ${typeof vectorStoreId}`);
+        console.log(`DEBUG: vectorStoreId value: ${JSON.stringify(vectorStoreId)}`);
+        
         // Check if vectorStoreId is valid
         if (!vectorStoreId) {
             console.error('Error: vectorStoreId is undefined or null');
@@ -969,6 +1003,17 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                 sources: [],
                 totalResults: 0,
                 error: "Missing vectorStoreId parameter"
+            };
+        }
+        
+        // Ensure vectorStoreId is a string
+        if (typeof vectorStoreId !== 'string') {
+            console.error(`Error: vectorStoreId is not a string. Type: ${typeof vectorStoreId}, Value: ${JSON.stringify(vectorStoreId)}`);
+            return {
+                answer: '["Invalid vector store ID format", "Medium", 1]',
+                sources: [],
+                totalResults: 0,
+                error: "vectorStoreId must be a string"
             };
         }
         
