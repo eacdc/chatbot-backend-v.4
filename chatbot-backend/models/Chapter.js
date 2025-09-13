@@ -18,8 +18,7 @@ const chapterSchema = new mongoose.Schema(
     bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true }, // Reference to Book
     title: { type: String, required: true },
     prompt: { type: String, required: true }, // Original raw text or JSON questions
-    cleanedContent: { type: String, default: null }, // Clean, organized text content (for display only)
-    embedding: { type: [Number], default: null }, // Embedding vector for semantic search
+    cleanedContent: { type: String, default: null }, // Clean, organized text content processed by OpenAI
     vectorStoreId: { type: String, default: null }, // OpenAI vector store ID for knowledge base
     questionPrompt: {
       type: Array,
@@ -172,85 +171,52 @@ Please provide only the cleaned and organized text content without any additiona
 };
 
 // Method to generate embedding for a chapter
-chapterSchema.methods.generateEmbedding = async function() {
+// Method to clean content using OpenAI
+chapterSchema.methods.generateCleanedContent = async function() {
   try {
-    // ALWAYS use the original prompt for embedding (not cleaned content)
-    // This ensures consistency with vector store content
-    const response = await openai.embeddings.create({
-      model: "text-embedding-3-small", // Most efficient embedding model
-      input: this.prompt,
-      encoding_format: "float"
+    console.log(`Generating cleaned content for chapter: ${this.title}`);
+    
+    // Skip if cleanedContent already exists
+    if (this.cleanedContent && this.cleanedContent.trim() !== '') {
+      console.log('Cleaned content already exists, skipping generation');
+      return this.cleanedContent;
+    }
+    
+    // Skip if no prompt content to clean
+    if (!this.prompt || this.prompt.trim() === '') {
+      console.log('No prompt content available for cleaning');
+      return null;
+    }
+    
+    // Use OpenAI to clean and organize the text
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "You are a text cleaning and organization assistant. Clean up the provided text by:\n1. Fixing grammar, spelling, and punctuation errors\n2. Organizing content with proper paragraphs and structure\n3. Removing unnecessary repetition\n4. Maintaining the original meaning and information\n5. Making the text more readable and professional\n\nReturn only the cleaned text without any additional commentary."
+        },
+        {
+          role: "user",
+          content: this.prompt
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 4000
     });
     
-    if (response && response.data && response.data[0]) {
-      this.embedding = response.data[0].embedding;
-      console.log(`Generated embedding for chapter ${this.chapterId || this.title}`);
-      return this.embedding;
+    if (response.choices && response.choices[0] && response.choices[0].message) {
+      this.cleanedContent = response.choices[0].message.content.trim();
+      console.log(`Generated cleaned content with ${this.cleanedContent.length} characters`);
+      return this.cleanedContent;
     } else {
-      throw new Error("Invalid response from OpenAI embeddings API");
+      throw new Error('Invalid response from OpenAI chat completions API');
     }
   } catch (error) {
-    console.error("Error generating embedding:", error);
+    console.error('Error generating cleaned content:', error);
     throw error;
   }
 };
-
-// Static method to find similar chapters using embeddings
-chapterSchema.statics.findSimilar = async function(query, limit = 5) {
-  try {
-    // Generate embedding for the query
-    const embeddingResponse = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: query,
-      encoding_format: "float"
-    });
-    
-    if (!embeddingResponse || !embeddingResponse.data || !embeddingResponse.data[0]) {
-      throw new Error("Failed to generate embedding for query");
-    }
-    
-    const queryEmbedding = embeddingResponse.data[0].embedding;
-    
-    // Find chapters with embeddings
-    const chapters = await this.find({ embedding: { $ne: null } });
-    
-    if (chapters.length === 0) {
-      return [];
-    }
-    
-    // Calculate cosine similarity for each chapter
-    const withSimilarity = chapters.map(chapter => ({
-      chapter,
-      similarity: cosineSimilarity(queryEmbedding, chapter.embedding)
-    }));
-    
-    // Sort by similarity (descending) and take top results
-    return withSimilarity
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit)
-      .map(item => item.chapter);
-  } catch (error) {
-    console.error("Error finding similar chapters:", error);
-    throw error;
-  }
-};
-
-// Helper function to calculate cosine similarity between two vectors
-function cosineSimilarity(vecA, vecB) {
-  if (!vecA || !vecB || vecA.length !== vecB.length) {
-    return 0;
-  }
-  
-  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
-  const magnitudeA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
-  const magnitudeB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
-  
-  if (magnitudeA === 0 || magnitudeB === 0) {
-    return 0;
-  }
-  
-  return dotProduct / (magnitudeA * magnitudeB);
-}
 
 // Method to create a vector store for the chapter content
 chapterSchema.methods.createVectorStore = async function() {
@@ -332,13 +298,13 @@ chapterSchema.pre("save", async function (next) {
     this.chapterId = "CHAP-" + Math.floor(100000 + Math.random() * 900000);
   }
 
-  // Generate embedding if it doesn't exist
-  if (!this.embedding) {
+  // Generate cleaned content if it doesn't exist
+  if (!this.cleanedContent && this.prompt) {
     try {
-      await this.generateEmbedding();
+      await this.generateCleanedContent();
     } catch (error) {
-      console.error("Error generating embedding on save, continuing anyway:", error);
-      // Continue with save even if embedding generation fails
+      console.error("Error generating cleaned content on save, continuing anyway:", error);
+      // Continue with save even if cleaned content generation fails
     }
   }
   

@@ -82,7 +82,7 @@ router.post("/", authenticateAdmin, async (req, res) => {
 router.put("/:chapterId", authenticateAdmin, async (req, res) => {
     try {
       const { chapterId } = req.params;
-      const { title, prompt, questionPrompt, vectorStoreId } = req.body;
+      const { title, prompt, questionPrompt, vectorStoreId, cleanedContent } = req.body;
       
       const chapter = await Chapter.findById(chapterId);
       if (!chapter) {
@@ -93,6 +93,7 @@ router.put("/:chapterId", authenticateAdmin, async (req, res) => {
       if (title) chapter.title = title;
       if (prompt) chapter.prompt = prompt;
       if (questionPrompt) chapter.questionPrompt = questionPrompt;
+      if (cleanedContent) chapter.cleanedContent = cleanedContent;
       
       // If vectorStoreId is provided, use it instead of creating a new one
       if (vectorStoreId && !chapter.vectorStoreId) {
@@ -105,6 +106,54 @@ router.put("/:chapterId", authenticateAdmin, async (req, res) => {
     } catch (error) {
       console.error("Error updating chapter:", error);
       res.status(500).json({ error: "Failed to update chapter" });
+    }
+  });
+
+// Create chapter from processed text with vector store and cleaned content
+router.post("/create-from-processed-text", authenticateAdmin, async (req, res) => {
+    try {
+      const { bookId, title, rawText, vectorStoreId, cleanedContent, questionArray } = req.body;
+      
+      if (!bookId || !title || !rawText) {
+        return res.status(400).json({ 
+          error: "Missing required fields", 
+          required: ["bookId", "title", "rawText"] 
+        });
+      }
+      
+      console.log(`Creating chapter from processed text: ${title}`);
+      console.log(`Vector Store ID: ${vectorStoreId}`);
+      console.log(`Has cleaned content: ${!!cleanedContent}`);
+      console.log(`Has questions: ${questionArray ? questionArray.length : 0}`);
+      
+      // Create chapter data object
+      const chapterData = {
+        bookId,
+        title,
+        prompt: rawText, // Store original raw text as prompt
+        vectorStoreId: vectorStoreId || null,
+        cleanedContent: cleanedContent || null,
+        questionPrompt: questionArray || []
+      };
+      
+      // Create and save the chapter
+      const newChapter = new Chapter(chapterData);
+      const savedChapter = await newChapter.save();
+      
+      console.log(`Successfully created chapter: ${savedChapter.chapterId}`);
+      
+      res.status(201).json({
+        success: true,
+        chapter: savedChapter,
+        message: `Chapter "${title}" created successfully with vector store and cleaned content`
+      });
+      
+    } catch (error) {
+      console.error("Error creating chapter from processed text:", error);
+      res.status(500).json({ 
+        error: "Failed to create chapter from processed text",
+        details: error.message 
+      });
     }
   });
 
@@ -296,6 +345,37 @@ async function processBatchText(req, res) {
     
     console.log(`Successfully created vector store with ID: ${vectorBase.vectorStoreId}`);
     
+    // Generate cleaned content using OpenAI
+    let cleanedContent = null;
+    try {
+      console.log('Generating cleaned content from raw text...');
+      const cleaningResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are a text cleaning and organization assistant. Clean up the provided text by:\n1. Fixing grammar, spelling, and punctuation errors\n2. Organizing content with proper paragraphs and structure\n3. Removing unnecessary repetition\n4. Maintaining the original meaning and information\n5. Making the text more readable and professional\n\nReturn only the cleaned text without any additional commentary."
+          },
+          {
+            role: "user",
+            content: rawText
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000
+      });
+      
+      if (cleaningResponse.choices && cleaningResponse.choices[0] && cleaningResponse.choices[0].message) {
+        cleanedContent = cleaningResponse.choices[0].message.content.trim();
+        console.log(`Generated cleaned content with ${cleanedContent.length} characters`);
+      } else {
+        console.warn('Failed to generate cleaned content, proceeding without it');
+      }
+    } catch (cleaningError) {
+      console.error('Error generating cleaned content:', cleaningError);
+      // Continue without cleaned content
+    }
+    
     // Fetch the system prompt from the database
     let systemPrompt;
     try {
@@ -457,7 +537,9 @@ async function processBatchText(req, res) {
                     questionArray: structuredQuestions,
                     totalQuestions: structuredQuestions.length,
                     vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
-                    nextSteps: "To save these questions to a chapter, send a POST request to /api/chapters/update-chapter-questions/:chapterId with the 'questions' array and 'vectorStoreId' in the request body."
+                    cleanedContent: cleanedContent, // Include cleaned content
+                    rawText: rawText, // Include original raw text
+                    nextSteps: "To create a chapter with this processed data, send a POST request to /api/chapters/create-from-processed-text with bookId, title, rawText, vectorStoreId, cleanedContent, and questionArray."
                   });
                 } else {
                   // If no questions were kept after validation, return standard format
@@ -466,7 +548,9 @@ async function processBatchText(req, res) {
                     message: "Text processed successfully but no valid questions found",
                     combinedPrompt: combinedPrompt,
                     processedText: combinedPrompt, // Include for backward compatibility
-                    vectorStoreId: vectorBase.vectorStoreId // Include the vector store ID for reuse
+                    vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
+                    cleanedContent: cleanedContent, // Include cleaned content
+                    rawText: rawText // Include original raw text
                   });
                 }
               }
@@ -664,7 +748,9 @@ async function processBatchText(req, res) {
                 message: "Text processed successfully but no valid questions found",
                 combinedPrompt: combinedPrompt,
                 processedText: combinedPrompt, // Include for backward compatibility
-                vectorStoreId: vectorBase.vectorStoreId // Include the vector store ID for reuse
+                vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
+                cleanedContent: cleanedContent, // Include cleaned content
+                rawText: rawText // Include original raw text
               });
             }
             
@@ -688,7 +774,9 @@ async function processBatchText(req, res) {
           message: "Text processed successfully",
           combinedPrompt: combinedPrompt,
           processedText: combinedPrompt, // Include for backward compatibility
-          vectorStoreId: vectorBase.vectorStoreId // Include the vector store ID for reuse
+          vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
+          cleanedContent: cleanedContent, // Include cleaned content
+          rawText: rawText // Include original raw text
         });
       }
     } catch (error) {
