@@ -11,56 +11,7 @@ const Book = require("../models/Book");
 const Prompt = require("../models/Prompt");
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
 
-// Helper function to make HTTPS requests
-function makeHttpsRequest(url, options = {}) {
-    return new Promise((resolve, reject) => {
-        const urlObj = new URL(url);
-        const requestOptions = {
-            hostname: urlObj.hostname,
-            port: urlObj.port || 443,
-            path: urlObj.pathname + urlObj.search,
-            method: options.method || 'GET',
-            headers: options.headers || {}
-        };
-
-        const req = https.request(requestOptions, (res) => {
-            let data = '';
-            res.on('data', (chunk) => {
-                data += chunk;
-            });
-            res.on('end', () => {
-                try {
-                    const jsonData = JSON.parse(data);
-                    resolve({
-                        ok: res.statusCode >= 200 && res.statusCode < 300,
-                        status: res.statusCode,
-                        json: () => Promise.resolve(jsonData),
-                        text: () => Promise.resolve(data)
-                    });
-                } catch (error) {
-                    resolve({
-                        ok: res.statusCode >= 200 && res.statusCode < 300,
-                        status: res.statusCode,
-                        json: () => Promise.reject(new Error('Invalid JSON')),
-                        text: () => Promise.resolve(data)
-                    });
-                }
-            });
-        });
-
-        req.on('error', (error) => {
-            reject(error);
-        });
-
-        if (options.body) {
-            req.write(options.body);
-        }
-
-        req.end();
-    });
-}
 
 // Don't import node-fetch - let OpenAI SDK use native fetch or handle it internally
 
@@ -869,7 +820,7 @@ given to you, then you can rephrase the question to make it complete. Keep the t
 
     // Make the API call
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o", // Updated to use correct model name
       messages: [
       { role: "system", content: systemPrompt },
         { role: "user", content: questionText }
@@ -923,30 +874,38 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         fs.writeFileSync(tempFilePath, rawText, 'utf8');
         console.log(`Wrote ${rawText.length} characters to temporary file`);
         
-        // Create vector store using the updated API
+        // Create vector store - now directly in openai, not in beta
         console.log(`Creating vector store with name: "${vectorStoreName}"`);
         const vectorStore = await openai.vectorStores.create({
             name: vectorStoreName,
         });
         
         console.log(`Created vector store: ${vectorStore.id}`);
+        // Avoid circular references by only logging essential properties
         console.log(`Vector store name: "${vectorStore.name}", status: ${vectorStore.status}`);
         
         try {
-            // Use upload_and_poll method which handles upload and polling automatically
-            console.log(`Uploading file to vector store using upload_and_poll`);
+            // Use the upload_and_poll method which handles both upload and polling automatically
+            console.log(`Uploading file directly to vector store using upload_and_poll`);
             const fileStream = fs.createReadStream(tempFilePath);
             
             const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
                 vectorStore.id,
-                {
-                    file: fileStream,
-                    ...(Object.keys(attributes).length > 0 && { attributes })
-                }
+                fileStream
             );
             
             console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
             console.log(`Vector store file status: ${vectorStoreFile.status}`);
+            
+            // The uploadAndPoll method already handles polling, so we don't need manual polling
+            if (vectorStoreFile.status === "completed") {
+                console.log(`File processing completed successfully`);
+            } else if (vectorStoreFile.status === "failed") {
+                console.error(`File processing failed`);
+                throw new Error(`Vector store file processing failed with status: ${vectorStoreFile.status}`);
+            } else {
+                console.warn(`File processing ended with unexpected status: ${vectorStoreFile.status}`);
+            }
             
             // Clean up temporary file
             console.log(`Cleaning up temporary file: ${tempFilePath}`);
@@ -963,15 +922,28 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             return result;
         } catch (uploadError) {
             console.error(`Error during file upload: ${uploadError.message}`);
-            // Clean up temporary file on error
-            if (fs.existsSync(tempFilePath)) {
-                fs.unlinkSync(tempFilePath);
+            
+            // Clean up temporary file if it exists
+            try {
+                if (fs.existsSync(tempFilePath)) {
+                    console.log(`Cleaning up temporary file after error: ${tempFilePath}`);
+                    fs.unlinkSync(tempFilePath);
+                }
+            } catch (cleanupError) {
+                console.error(`Error cleaning up temporary file: ${cleanupError.message}`);
             }
+            
             throw uploadError;
         }
         
     } catch (error) {
         console.error('Error saving text to vector store:', error);
+        
+        // Clean up temporary file if it exists (use the same path logic)
+        const tempDir = path.join(__dirname, '../uploads');
+        // Note: We can't get the exact filename here since Date.now() will be different
+        // This is a limitation, but the main cleanup happens in the try block
+        console.log(`Error occurred during vector store creation`);
         
         return {
             success: false,
@@ -1048,7 +1020,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         const maxRetries = 3;
         let searchSuccessful = false;
         
-        // Retry loop for handling 500 errors
+        // Retry loop for handling errors
         while (retryCount < maxRetries && !searchSuccessful) {
             try {
                 console.log(`Vector store search attempt ${retryCount + 1}/${maxRetries}`);
@@ -1060,38 +1032,38 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
                 
-                // Use the official SDK search method
+                // Use the correct OpenAI SDK method for vector store search
                 const searchParams = {
                     vector_store_id: vectorStoreId,
                     query: userQuestion,
                     max_num_results: maxResults,
                     rewrite_query: rewriteQuery
                 };
-                
-                // Add optional parameters if provided
+
+                // Add ranking options if score threshold is specified
                 if (scoreThreshold) {
                     searchParams.ranking_options = {
                         score_threshold: scoreThreshold
                     };
                 }
-                
+
+                // Add attribute filter if specified
                 if (attributeFilter) {
                     searchParams.filters = attributeFilter;
                 }
-                
+
                 results = await openai.vectorStores.search(searchParams);
                 console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
                 searchSuccessful = true;
                 
             } catch (searchError) {
-                if (searchError.message.includes('500') || searchError.message.includes('server_error') || searchError.status === 500) {
-                    console.log(`Vector store search error (attempt ${retryCount + 1}/${maxRetries}): ${searchError.message}`);
-                    retryCount++;
-                    continue;
-                }
+                console.log(`Vector store search error (attempt ${retryCount + 1}/${maxRetries}): ${searchError.message}`);
+                retryCount++;
                 
-                console.error(`OpenAI vector store search error: ${searchError.message}`);
-                break; // Non-retryable error
+                if (retryCount >= maxRetries) {
+                    console.error(`OpenAI vector store search error: ${searchError.message}`);
+                    break;
+                }
             }
         }
         
@@ -1138,7 +1110,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         // Synthesize response using GPT-4 with reduced max_tokens
         console.log(`Generating synthesized answer using GPT-4`);
         const completion = await openai.chat.completions.create({
-            model: "gpt-4", // Fixed model name
+            model: "gpt-4o", // Updated to use correct model name
             temperature: 0,
             messages: [
                 {
@@ -1150,7 +1122,6 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                     content: `Sources:\n${textSources}\n\nQuestion: ${userQuestion}\n\nProvide answer as: ["answer text", "difficulty", marks]`
                 }
             ],
-            temperature: 0.0,
             max_tokens: 300 // Reduced from 500 to ensure we stay within limits
         });
         
@@ -1181,26 +1152,11 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
 
 // Helper function to format search results (optional utility)
 function formatSearchResults(results) {
-    let formattedResults = '';
-    for (const result of results.data) {
-        let formattedResult = `<result file_id='${result.file_id}' filename='${result.filename || 'unknown'}'>`;
-        for (const part of result.content) {
-            formattedResult += `<content>${part.text}</content>`;
-        }
-        formattedResults += formattedResult + "</result>";
-    }
-    return `<sources>${formattedResults}</sources>`;
+    return results.data.map((result, index) => {
+        return `Source ${index + 1} (Score: ${result.score.toFixed(2)}):\n${
+            result.content.map(c => c.text).join('\n')
+        }\n`;
+    }).join('\n');
 }
-
-// Example usage functions
-
-module.exports = {
-    saveTextToVectorStore,
-    searchVectorStoreForAnswer,
-    formatSearchResults
-};
-
-// Uncomment to run example
-// example();
 
 module.exports = router;
