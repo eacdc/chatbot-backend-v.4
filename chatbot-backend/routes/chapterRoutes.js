@@ -95,7 +95,9 @@ router.post("/", authenticateAdmin, async (req, res) => {
       const { bookId, title, prompt, vectorStoreId } = req.body;
       
       console.log(`Creating new chapter: ${title}`);
-      console.log(`Received vectorStoreId: ${vectorStoreId}`);
+      console.log(`DEBUG: Full request body:`, JSON.stringify(req.body, null, 2));
+      console.log(`DEBUG: vectorStoreId from body: "${vectorStoreId}"`);
+      console.log(`DEBUG: vectorStoreId type: ${typeof vectorStoreId}`);
       
       const chapterData = { bookId, title, prompt };
       
@@ -163,7 +165,9 @@ router.post("/create-from-processed-text", authenticateAdmin, async (req, res) =
       }
       
       console.log(`Creating chapter from processed text: ${title}`);
-      console.log(`Vector Store ID: ${vectorStoreId}`);
+      console.log(`DEBUG: Full request body:`, JSON.stringify(req.body, null, 2));
+      console.log(`DEBUG: vectorStoreId from body: "${vectorStoreId}"`);
+      console.log(`DEBUG: vectorStoreId type: ${typeof vectorStoreId}`);
       console.log(`Has questions: ${questionArray ? questionArray.length : 0}`);
       
       // Ensure vectorStoreId is properly handled
