@@ -1,4 +1,36 @@
 // Updated chapterRoutes.js - May 2025
+/*
+WORKFLOW FOR SAVING CHAPTERS WITH VECTOR STORE ID:
+
+1. Process text and create vector store:
+   POST /api/chapters/process-text-batch
+   Body: { rawText: "...", subject: "...", chapterTitle: "..." }
+   Response: { success: true, vectorStoreId: "vs_abc123...", ... }
+
+2. Save the vectorStoreId from step 1 response in a variable
+
+3. Create chapter with the vectorStoreId:
+   Option A - Use dedicated endpoint:
+   POST /api/chapters/create-from-processed-text
+   Body: { 
+     bookId: "book123", 
+     title: "Chapter Title", 
+     rawText: "...", 
+     vectorStoreId: "vs_abc123...", 
+     questionArray: [...] 
+   }
+   
+   Option B - Use regular chapter creation:
+   POST /api/chapters/
+   Body: { 
+     bookId: "book123", 
+     title: "Chapter Title", 
+     prompt: "...", 
+     vectorStoreId: "vs_abc123..." 
+   }
+
+The vectorStoreId will be saved to the chapter's vectorStoreId field in MongoDB.
+*/
 const express = require("express");
 const router = express.Router();
 const Chat = require("../models/Chat");
@@ -61,16 +93,26 @@ try {
 router.post("/", authenticateAdmin, async (req, res) => {
     try {
       const { bookId, title, prompt, vectorStoreId } = req.body;
+      
+      console.log(`Creating new chapter: ${title}`);
+      console.log(`Received vectorStoreId: ${vectorStoreId}`);
+      
       const chapterData = { bookId, title, prompt };
       
       // If vectorStoreId is provided, use it instead of creating a new one
-      if (vectorStoreId) {
-        chapterData.vectorStoreId = vectorStoreId;
-        console.log(`Using existing vector store ID: ${vectorStoreId}`);
+      if (vectorStoreId && vectorStoreId.trim() !== '') {
+        chapterData.vectorStoreId = vectorStoreId.trim();
+        console.log(`Added vectorStoreId to chapter data: ${chapterData.vectorStoreId}`);
+      } else {
+        console.log(`No vectorStoreId provided or empty`);
       }
       
       const newChapter = new Chapter(chapterData);
       const savedChapter = await newChapter.save();
+      
+      console.log(`Successfully created chapter: ${savedChapter.chapterId}`);
+      console.log(`Final chapter vectorStoreId: ${savedChapter.vectorStoreId}`);
+      
       res.status(201).json(savedChapter);
     } catch (error) {
       console.error("Error adding chapter:", error);
@@ -317,6 +359,19 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
 router.post("/process-text-batch", authenticateAdmin, async (req, res) => {
   return await processBatchText(req, res);
 });
+
+// Example: How to store vectorStoreId and use it
+// 1. Call processBatchText and store the vectorStoreId
+// const response = await processBatchText(req, res);
+// const storedVectorStoreId = response.vectorStoreId; // Store this!
+//
+// 2. Use the stored vectorStoreId when creating chapter
+// const chapterData = {
+//   bookId: "your_book_id",
+//   title: "Chapter Title", 
+//   prompt: rawText,
+//   vectorStoreId: storedVectorStoreId // Use the stored ID here
+// };
 
 // Shared batch text processing function/****************** */
 async function processBatchText(req, res) {
