@@ -82,7 +82,7 @@ router.post("/", authenticateAdmin, async (req, res) => {
 router.put("/:chapterId", authenticateAdmin, async (req, res) => {
     try {
       const { chapterId } = req.params;
-      const { title, prompt, questionPrompt, vectorStoreId, cleanedContent } = req.body;
+      const { title, prompt, questionPrompt, vectorStoreId } = req.body;
       
       const chapter = await Chapter.findById(chapterId);
       if (!chapter) {
@@ -93,7 +93,6 @@ router.put("/:chapterId", authenticateAdmin, async (req, res) => {
       if (title) chapter.title = title;
       if (prompt) chapter.prompt = prompt;
       if (questionPrompt) chapter.questionPrompt = questionPrompt;
-      if (cleanedContent) chapter.cleanedContent = cleanedContent;
       
       // If vectorStoreId is provided, use it instead of creating a new one
       if (vectorStoreId && !chapter.vectorStoreId) {
@@ -109,10 +108,10 @@ router.put("/:chapterId", authenticateAdmin, async (req, res) => {
     }
   });
 
-// Create chapter from processed text with vector store and cleaned content
+// Create chapter from processed text with vector store
 router.post("/create-from-processed-text", authenticateAdmin, async (req, res) => {
     try {
-      const { bookId, title, rawText, vectorStoreId, cleanedContent, questionArray } = req.body;
+      const { bookId, title, rawText, vectorStoreId, questionArray } = req.body;
       
       if (!bookId || !title || !rawText) {
         return res.status(400).json({ 
@@ -123,29 +122,40 @@ router.post("/create-from-processed-text", authenticateAdmin, async (req, res) =
       
       console.log(`Creating chapter from processed text: ${title}`);
       console.log(`Vector Store ID: ${vectorStoreId}`);
-      console.log(`Has cleaned content: ${!!cleanedContent}`);
       console.log(`Has questions: ${questionArray ? questionArray.length : 0}`);
+      
+      // Ensure vectorStoreId is properly handled
+      if (!vectorStoreId) {
+        console.warn('No vectorStoreId provided - chapter will be created without vector store');
+      } else {
+        console.log(`Using vector store ID: ${vectorStoreId}`);
+      }
       
       // Create chapter data object
       const chapterData = {
         bookId,
         title,
         prompt: rawText, // Store original raw text as prompt
-        vectorStoreId: vectorStoreId || null,
-        cleanedContent: cleanedContent || null,
         questionPrompt: questionArray || []
       };
+      
+      // Only add vectorStoreId if it's provided and not null/empty
+      if (vectorStoreId && vectorStoreId.trim() !== '') {
+        chapterData.vectorStoreId = vectorStoreId.trim();
+        console.log(`Added vectorStoreId to chapter data: ${chapterData.vectorStoreId}`);
+      }
       
       // Create and save the chapter
       const newChapter = new Chapter(chapterData);
       const savedChapter = await newChapter.save();
       
       console.log(`Successfully created chapter: ${savedChapter.chapterId}`);
+      console.log(`Chapter vectorStoreId: ${savedChapter.vectorStoreId}`);
       
       res.status(201).json({
         success: true,
         chapter: savedChapter,
-        message: `Chapter "${title}" created successfully with vector store and cleaned content`
+        message: `Chapter "${title}" created successfully with vector store`
       });
       
     } catch (error) {
@@ -322,7 +332,18 @@ async function processBatchText(req, res) {
     console.log(`Subject: ${subject || 'Not provided'}, Chapter: ${chapterTitle || 'Not provided'}`);
     
     // Split text into smaller parts (min 20 parts with min 1000 words each) at sentence boundaries
-    const vectorBase = await saveTextToVectorStore(rawText);
+    let vectorBase;
+    try {
+      console.log('Creating vector store for raw text...');
+      vectorBase = await saveTextToVectorStore(rawText);
+      console.log('Vector store creation completed');
+    } catch (vectorError) {
+      console.error('Error creating vector store:', vectorError);
+      return res.status(500).json({ 
+        error: "Failed to create vector store for text", 
+        message: vectorError.message 
+      });
+    }
     
     // Debug logging for vectorBase
     console.log(`DEBUG: vectorBase after saveTextToVectorStore:`);
@@ -337,6 +358,7 @@ async function processBatchText(req, res) {
     // Check if vector base was created successfully
     if (!vectorBase || !vectorBase.success || !vectorBase.vectorStoreId) {
       console.error("Failed to create vector store for text processing");
+      console.error("vectorBase:", JSON.stringify(vectorBase, null, 2));
       return res.status(500).json({ 
         error: "Failed to create vector store for text", 
         message: vectorBase?.error || "Unknown error"
@@ -344,37 +366,9 @@ async function processBatchText(req, res) {
     }
     
     console.log(`Successfully created vector store with ID: ${vectorBase.vectorStoreId}`);
+    console.log(`DEBUG: vectorBase.vectorStoreId type: ${typeof vectorBase.vectorStoreId}`);
+    console.log(`DEBUG: vectorBase.vectorStoreId value: "${vectorBase.vectorStoreId}"`);
     
-    // Generate cleaned content using OpenAI
-    let cleanedContent = null;
-    try {
-      console.log('Generating cleaned content from raw text...');
-      const cleaningResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are a text cleaning and organization assistant. Clean up the provided text by:\n1. Fixing grammar, spelling, and punctuation errors\n2. Organizing content with proper paragraphs and structure\n3. Removing unnecessary repetition\n4. Maintaining the original meaning and information\n5. Making the text more readable and professional\n\nReturn only the cleaned text without any additional commentary."
-          },
-          {
-            role: "user",
-            content: rawText
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 4000
-      });
-      
-      if (cleaningResponse.choices && cleaningResponse.choices[0] && cleaningResponse.choices[0].message) {
-        cleanedContent = cleaningResponse.choices[0].message.content.trim();
-        console.log(`Generated cleaned content with ${cleanedContent.length} characters`);
-      } else {
-        console.warn('Failed to generate cleaned content, proceeding without it');
-      }
-    } catch (cleaningError) {
-      console.error('Error generating cleaned content:', cleaningError);
-      // Continue without cleaned content
-    }
     
     // Fetch the system prompt from the database
     let systemPrompt;
@@ -529,6 +523,7 @@ async function processBatchText(req, res) {
                   console.log(`Successfully structured ${successCount} questions with ${errorCount} errors`);
                   
                   // If we have successfully parsed questions, return them as a proper array
+                  console.log(`DEBUG: Returning response with vectorStoreId: ${vectorBase.vectorStoreId}`);
                   return res.json({ 
                     success: true, 
                     message: `Text processed and structured into ${structuredQuestions.length} questions`,
@@ -536,10 +531,9 @@ async function processBatchText(req, res) {
                     isQuestionFormat: true,
                     questionArray: structuredQuestions,
                     totalQuestions: structuredQuestions.length,
-                    vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
-                    cleanedContent: cleanedContent, // Include cleaned content
+                    vectorStoreId: vectorBase.vectorStoreId || null, // Include the vector store ID for reuse
                     rawText: rawText, // Include original raw text
-                    nextSteps: "To create a chapter with this processed data, send a POST request to /api/chapters/create-from-processed-text with bookId, title, rawText, vectorStoreId, cleanedContent, and questionArray."
+                    nextSteps: "To create a chapter with this processed data, send a POST request to /api/chapters/create-from-processed-text with bookId, title, rawText, vectorStoreId, and questionArray."
                   });
                 } else {
                   // If no questions were kept after validation, return standard format
@@ -549,7 +543,6 @@ async function processBatchText(req, res) {
                     combinedPrompt: combinedPrompt,
                     processedText: combinedPrompt, // Include for backward compatibility
                     vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
-                    cleanedContent: cleanedContent, // Include cleaned content
                     rawText: rawText // Include original raw text
                   });
                 }
@@ -749,7 +742,6 @@ async function processBatchText(req, res) {
                 combinedPrompt: combinedPrompt,
                 processedText: combinedPrompt, // Include for backward compatibility
                 vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
-                cleanedContent: cleanedContent, // Include cleaned content
                 rawText: rawText // Include original raw text
               });
             }
@@ -775,7 +767,6 @@ async function processBatchText(req, res) {
           combinedPrompt: combinedPrompt,
           processedText: combinedPrompt, // Include for backward compatibility
           vectorStoreId: vectorBase.vectorStoreId, // Include the vector store ID for reuse
-          cleanedContent: cleanedContent, // Include cleaned content
           rawText: rawText // Include original raw text
         });
       }

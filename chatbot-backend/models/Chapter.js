@@ -18,7 +18,6 @@ const chapterSchema = new mongoose.Schema(
     bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true }, // Reference to Book
     title: { type: String, required: true },
     prompt: { type: String, required: true }, // Original raw text or JSON questions
-    cleanedContent: { type: String, default: null }, // Clean, organized text content processed by OpenAI
     vectorStoreId: { type: String, default: null }, // OpenAI vector store ID for knowledge base
     questionPrompt: {
       type: Array,
@@ -171,52 +170,6 @@ Please provide only the cleaned and organized text content without any additiona
 };
 
 // Method to generate embedding for a chapter
-// Method to clean content using OpenAI
-chapterSchema.methods.generateCleanedContent = async function() {
-  try {
-    console.log(`Generating cleaned content for chapter: ${this.title}`);
-    
-    // Skip if cleanedContent already exists
-    if (this.cleanedContent && this.cleanedContent.trim() !== '') {
-      console.log('Cleaned content already exists, skipping generation');
-      return this.cleanedContent;
-    }
-    
-    // Skip if no prompt content to clean
-    if (!this.prompt || this.prompt.trim() === '') {
-      console.log('No prompt content available for cleaning');
-      return null;
-    }
-    
-    // Use OpenAI to clean and organize the text
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are a text cleaning and organization assistant. Clean up the provided text by:\n1. Fixing grammar, spelling, and punctuation errors\n2. Organizing content with proper paragraphs and structure\n3. Removing unnecessary repetition\n4. Maintaining the original meaning and information\n5. Making the text more readable and professional\n\nReturn only the cleaned text without any additional commentary."
-        },
-        {
-          role: "user",
-          content: this.prompt
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 4000
-    });
-    
-    if (response.choices && response.choices[0] && response.choices[0].message) {
-      this.cleanedContent = response.choices[0].message.content.trim();
-      console.log(`Generated cleaned content with ${this.cleanedContent.length} characters`);
-      return this.cleanedContent;
-    } else {
-      throw new Error('Invalid response from OpenAI chat completions API');
-    }
-  } catch (error) {
-    console.error('Error generating cleaned content:', error);
-    throw error;
-  }
-};
 
 // Method to create a vector store for the chapter content
 chapterSchema.methods.createVectorStore = async function() {
@@ -298,15 +251,6 @@ chapterSchema.pre("save", async function (next) {
     this.chapterId = "CHAP-" + Math.floor(100000 + Math.random() * 900000);
   }
 
-  // Generate cleaned content if it doesn't exist
-  if (!this.cleanedContent && this.prompt) {
-    try {
-      await this.generateCleanedContent();
-    } catch (error) {
-      console.error("Error generating cleaned content on save, continuing anyway:", error);
-      // Continue with save even if cleaned content generation fails
-    }
-  }
   
   // Smart vector store creation logic
   // Only create vector store if explicitly needed and not already provided
