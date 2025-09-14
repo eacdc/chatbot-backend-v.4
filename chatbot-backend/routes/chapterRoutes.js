@@ -55,9 +55,9 @@ try {
         apiKey: process.env.OPENAI_API_KEY
         // Let OpenAI SDK handle fetch internally
     });
-    console.log("OpenAI client initialized successfully in chapterRoutes.js");
+    ////console.log("OpenAI client initialized successfully in chapterRoutes.js");
 } else {
-        console.warn("OPENAI_API_KEY not found in environment variables. OpenAI features in chapterRoutes will be disabled.");
+        //console.warn("OPENAI_API_KEY not found in environment variables. OpenAI features in chapterRoutes will be disabled.");
         // Create a mock OpenAI client to prevent errors
         openai = {
             chat: {
@@ -73,7 +73,7 @@ try {
         };
     }
 } catch (error) {
-    console.error("Error initializing OpenAI client in chapterRoutes:", error);
+    //console.error("Error initializing OpenAI client in chapterRoutes:", error);
     // Create a mock OpenAI client to prevent errors
     openai = {
         chat: {
@@ -94,9 +94,9 @@ router.post("/", authenticateAdmin, async (req, res) => {
     try {
       const { bookId, title, prompt, vectorStoreId } = req.body;
       
-      console.log(`Creating new chapter: ${title}`);
-      console.log(`DEBUG: Full request body:`, JSON.stringify(req.body, null, 2));
-      console.log(`DEBUG: vectorStoreId from body: "${vectorStoreId}"`);
+      //console.log(`Creating new chapter: ${title}`);
+      //console.log(`DEBUG: Full request body:`, JSON.stringify(req.body, null, 2));
+      //console.log(`DEBUG: vectorStoreId from body: "${vectorStoreId}"`);
       console.log(`DEBUG: vectorStoreId type1: ${typeof vectorStoreId}`);
       
       const chapterData = { bookId, title, prompt };
@@ -104,20 +104,20 @@ router.post("/", authenticateAdmin, async (req, res) => {
       // If vectorStoreId is provided, use it instead of creating a new one
       if (vectorStoreId && vectorStoreId.trim() !== '') {
         chapterData.vectorStoreId = vectorStoreId.trim();
-        console.log(`Added vectorStoreId to chapter data: ${chapterData.vectorStoreId}`);
+        //console.log(`Added vectorStoreId to chapter data: ${chapterData.vectorStoreId}`);
       } else {
-        console.log(`No vectorStoreId provided or empty`);
+        //console.log(`No vectorStoreId provided or empty`);
       }
       
       const newChapter = new Chapter(chapterData);
       const savedChapter = await newChapter.save();
       
-      console.log(`Successfully created chapter: ${savedChapter.chapterId}`);
-      console.log(`Final chapter vectorStoreId: ${savedChapter.vectorStoreId}`);
+      //console.log(`Successfully created chapter: ${savedChapter.chapterId}`);
+      //console.log(`Final chapter vectorStoreId: ${savedChapter.vectorStoreId}`);
       
       res.status(201).json(savedChapter);
     } catch (error) {
-      console.error("Error adding chapter:", error);
+      //console.error("Error adding chapter:", error);
       res.status(500).json({ error: "Failed to add chapter" });
     }
   });
@@ -141,13 +141,13 @@ router.put("/:chapterId", authenticateAdmin, async (req, res) => {
       // If vectorStoreId is provided, use it instead of creating a new one
       if (vectorStoreId && !chapter.vectorStoreId) {
         chapter.vectorStoreId = vectorStoreId;
-        console.log(`Using existing vector store ID for chapter ${chapterId}: ${vectorStoreId}`);
+        //console.log(`Using existing vector store ID for chapter ${chapterId}: ${vectorStoreId}`);
       }
       
       const savedChapter = await chapter.save();
       res.json(savedChapter);
     } catch (error) {
-      console.error("Error updating chapter:", error);
+      //console.error("Error updating chapter:", error);
       res.status(500).json({ error: "Failed to update chapter" });
     }
   });
@@ -164,17 +164,17 @@ router.post("/create-from-processed-text", authenticateAdmin, async (req, res) =
         });
       }
       
-      console.log(`Creating chapter from processed text: ${title}`);
-      console.log(`DEBUG: Full request body:`, JSON.stringify(req.body, null, 2));
-      console.log(`DEBUG: vectorStoreId from body: "${vectorStoreId}"`);
+      //console.log(`Creating chapter from processed text: ${title}`);
+      //console.log(`DEBUG: Full request body:`, JSON.stringify(req.body, null, 2));
+      //console.log(`DEBUG: vectorStoreId from body: "${vectorStoreId}"`);
       console.log(`DEBUG: vectorStoreId type2: ${typeof vectorStoreId}`);
-      console.log(`Has questions: ${questionArray ? questionArray.length : 0}`);
+      //console.log(`Has questions: ${questionArray ? questionArray.length : 0}`);
       
       // Ensure vectorStoreId is properly handled
       if (!vectorStoreId) {
-        console.warn('No vectorStoreId provided - chapter will be created without vector store');
+        //console.warn('No vectorStoreId provided - chapter will be created without vector store');
       } else {
-        console.log(`Using vector store ID: ${vectorStoreId}`);
+        //console.log(`Using vector store ID: ${vectorStoreId}`);
       }
       
       // Create chapter data object
@@ -188,15 +188,15 @@ router.post("/create-from-processed-text", authenticateAdmin, async (req, res) =
       // Only add vectorStoreId if it's provided and not null/empty
       if (vectorStoreId && vectorStoreId.trim() !== '') {
         chapterData.vectorStoreId = vectorStoreId.trim();
-        console.log(`Added vectorStoreId to chapter data: ${chapterData.vectorStoreId}`);
+        //console.log(`Added vectorStoreId to chapter data: ${chapterData.vectorStoreId}`);
       }
       
       // Create and save the chapter
       const newChapter = new Chapter(chapterData);
       const savedChapter = await newChapter.save();
       
-      console.log(`Successfully created chapter: ${savedChapter.chapterId}`);
-      console.log(`Chapter vectorStoreId: ${savedChapter.vectorStoreId}`);
+      //console.log(`Successfully created chapter: ${savedChapter.chapterId}`);
+      //console.log(`Chapter vectorStoreId: ${savedChapter.vectorStoreId}`);
       
       res.status(201).json({
         success: true,
@@ -205,7 +205,7 @@ router.post("/create-from-processed-text", authenticateAdmin, async (req, res) =
       });
       
     } catch (error) {
-      console.error("Error creating chapter from processed text:", error);
+      //console.error("Error creating chapter from processed text:", error);
       res.status(500).json({ 
         error: "Failed to create chapter from processed text",
         details: error.message 
@@ -237,7 +237,7 @@ router.post("/send", async (req, res) => {
                     systemPrompt = chapter.prompt;
                 }
             } catch (err) {
-                console.error("Error fetching chapter:", err);
+                //console.error("Error fetching chapter:", err);
                 // Continue with default prompt if chapter fetch fails
             }
             
@@ -266,7 +266,7 @@ router.post("/send", async (req, res) => {
         // Add the new user message
         messagesForOpenAI.push({ role: "user", content: message });
 
-        console.log("Sending to OpenAI:", messagesForOpenAI);
+        //console.log("Sending to OpenAI:", messagesForOpenAI);
 
         // Get AI response
         const response = await openai.chat.completions.create({
@@ -290,7 +290,7 @@ router.post("/send", async (req, res) => {
         res.json({ response: botMessage });
 
     } catch (error) {
-        console.error("Error in chatbot API:", error);
+        //console.error("Error in chatbot API:", error);
         res.status(500).json({ message: "Error getting response from OpenAI", error: error.message });
     }
 });
@@ -313,7 +313,7 @@ router.get("/history/:userId", async (req, res) => {
         res.json(chat.messages);
 
     } catch (error) {
-        console.error("Error fetching chat history:", error);
+        //console.error("Error fetching chat history:", error);
         res.status(500).json({ error: "Failed to fetch chat history" });
     }
 });
@@ -337,24 +337,24 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             userId = decoded.userId || decoded.id || decoded._id;
         } catch (err) {
-            console.error("Error decoding token:", err);
+            //console.error("Error decoding token:", err);
             return res.status(401).json({ error: "Invalid token" });
         }
         
-        console.log(`Looking for chat with userId: ${userId}, chapterId: ${chapterId}`);
+        //console.log(`Looking for chat with userId: ${userId}, chapterId: ${chapterId}`);
         
         const chat = await Chat.findOne({ userId, chapterId });
         
         if (!chat || !Array.isArray(chat.messages)) {
-            console.log("No chat found or messages is not an array");
+            //console.log("No chat found or messages is not an array");
             return res.json([]);
         }
         
-        console.log(`Found chat with ${chat.messages.length} messages`);
+        //console.log(`Found chat with ${chat.messages.length} messages`);
         res.json(chat.messages);
         
     } catch (error) {
-        console.error("Error fetching chapter chat history:", error);
+        //console.error("Error fetching chapter chat history:", error);
         res.status(500).json({ error: "Failed to fetch chapter chat history" });
   }
 });
@@ -387,17 +387,17 @@ async function processBatchText(req, res) {
     }
     
     // Log processing attempt
-    console.log(`Processing text with batching. Text length: ${rawText.length} characters`);
-    console.log(`Subject: ${subject || 'Not provided'}, Chapter: ${chapterTitle || 'Not provided'}`);
+    //console.log(`Processing text with batching. Text length: ${rawText.length} characters`);
+    //console.log(`Subject: ${subject || 'Not provided'}, Chapter: ${chapterTitle || 'Not provided'}`);
     
     // Split text into smaller parts (min 20 parts with min 1000 words each) at sentence boundaries
     let vectorBase;
     try {
-      console.log('Creating vector store for raw text...');
+      //console.log('Creating vector store for raw text...');
       vectorBase = await saveTextToVectorStore(rawText);
-      console.log('Vector store creation completed');
+      //console.log('Vector store creation completed');
     } catch (vectorError) {
-      console.error('Error creating vector store:', vectorError);
+      //console.error('Error creating vector store:', vectorError);
       return res.status(500).json({ 
         error: "Failed to create vector store for text", 
         message: vectorError.message 
@@ -405,28 +405,28 @@ async function processBatchText(req, res) {
     }
     
     // Debug logging for vectorBase
-    console.log(`DEBUG: vectorBase after saveTextToVectorStore:`);
-    console.log(`DEBUG: vectorBase type: ${typeof vectorBase}`);
-    console.log(`DEBUG: vectorBase value: ${JSON.stringify(vectorBase)}`);
-    console.log(`DEBUG: vectorBase.vectorStoreId type: ${typeof vectorBase?.vectorStoreId}`);
-    console.log(`DEBUG: vectorBase.vectorStoreId value: ${vectorBase?.vectorStoreId}`);
+    //console.log(`DEBUG: vectorBase after saveTextToVectorStore:`);
+    //console.log(`DEBUG: vectorBase type: ${typeof vectorBase}`);
+    //console.log(`DEBUG: vectorBase value: ${JSON.stringify(vectorBase)}`);
+    //console.log(`DEBUG: vectorBase.vectorStoreId type: ${typeof vectorBase?.vectorStoreId}`);
+    //console.log(`DEBUG: vectorBase.vectorStoreId value: ${vectorBase?.vectorStoreId}`);
     
     const textParts = splitTextIntoSentenceParts(rawText, 20);
-    console.log(`Split text into ${textParts.length} parts`);
+    //console.log(`Split text into ${textParts.length} parts`);
     
     // Check if vector base was created successfully
     if (!vectorBase || !vectorBase.success || !vectorBase.vectorStoreId) {
-      console.error("Failed to create vector store for text processing");
-      console.error("vectorBase:", JSON.stringify(vectorBase, null, 2));
+      //console.error("Failed to create vector store for text processing");
+      //console.error("vectorBase:", JSON.stringify(vectorBase, null, 2));
       return res.status(500).json({ 
         error: "Failed to create vector store for text", 
         message: vectorBase?.error || "Unknown error"
       });
     }
     
-    console.log(`Successfully created vector store with ID: ${vectorBase.vectorStoreId}`);
-    console.log(`DEBUG: vectorBase.vectorStoreId type: ${typeof vectorBase.vectorStoreId}`);
-    console.log(`DEBUG: vectorBase.vectorStoreId value: "${vectorBase.vectorStoreId}"`);
+    //console.log(`Successfully created vector store with ID: ${vectorBase.vectorStoreId}`);
+    //console.log(`DEBUG: vectorBase.vectorStoreId type: ${typeof vectorBase.vectorStoreId}`);
+    //console.log(`DEBUG: vectorBase.vectorStoreId value: "${vectorBase.vectorStoreId}"`);
     
     
     // Fetch the system prompt from the database
@@ -435,7 +435,7 @@ async function processBatchText(req, res) {
       const promptDoc = await Prompt.findOne({ prompt_type: "batchProcessing", isActive: true });
       if (promptDoc) {
         systemPrompt = promptDoc.prompt;
-        console.log("Successfully loaded Batch Processing prompt from database");
+        //console.log("Successfully loaded Batch Processing prompt from database");
         
         // Replace variables in the prompt if subject and chapter are provided
         if (subject) {
@@ -446,14 +446,14 @@ async function processBatchText(req, res) {
           systemPrompt = systemPrompt.replace(/<Chapter>/g, chapterTitle);
         }
         
-        console.log("Replaced variables in prompt template");
+        //console.log("Replaced variables in prompt template");
       } else {
         // Fallback to default prompt
         systemPrompt = "";
-        console.warn("Warning: Batch Processing system prompt not found in database, using default");
+        //console.warn("Warning: Batch Processing system prompt not found in database, using default");
       }
     } catch (error) {
-      console.error("Error fetching Batch Processing system prompt:", error);
+      //console.error("Error fetching Batch Processing system prompt:", error);
       // Fallback to default prompt
       systemPrompt = "";
     }
@@ -463,13 +463,13 @@ async function processBatchText(req, res) {
     
     for (let i = 0; i < textParts.length; i++) {
       try {
-        console.log(`Processing part ${i+1}/${textParts.length}`);
+        //console.log(`Processing part ${i+1}/${textParts.length}`);
         
         // Memory monitoring every 10 parts
         if (i % 10 === 0 && global.gc) {
           global.gc();
           const memUsage = process.memoryUsage();
-          console.log(`Memory usage: RSS: ${(memUsage.rss / 1024 / 1024).toFixed(2)}MB, Heap Total: ${(memUsage.heapTotal / 1024 / 1024).toFixed(2)}MB, Heap Used: ${(memUsage.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+          //console.log(`Memory usage: RSS: ${(memUsage.rss / 1024 / 1024).toFixed(2)}MB, Heap Total: ${(memUsage.heapTotal / 1024 / 1024).toFixed(2)}MB, Heap Used: ${(memUsage.heapUsed / 1024 / 1024).toFixed(2)}MB`);
         }
         
         // Construct messages for OpenAI
@@ -486,7 +486,7 @@ async function processBatchText(req, res) {
         // Function to make OpenAI request with retry logic
         const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
           try {
-            console.log(`OpenAI request for part ${i+1} attempt ${retryCount + 1}/${maxRetries + 1}`);
+            //console.log(`OpenAI request for part ${i+1} attempt ${retryCount + 1}/${maxRetries + 1}`);
             
             // Send request to OpenAI
             const response = await openai.chat.completions.create({
@@ -506,7 +506,7 @@ async function processBatchText(req, res) {
               throw error;
             }
             
-            console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
+            //console.log(`Retry ${retryCount + 1}/${maxRetries} due to error: ${error.message}`);
             
             // Wait before retrying (exponential backoff: 2s, 4s)
             await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, retryCount)));
@@ -521,15 +521,15 @@ async function processBatchText(req, res) {
         const response = await Promise.race([openAIPromise, timeoutPromise]);
 
         if (!response || !response.choices || response.choices.length === 0) {
-          console.error(`Invalid or empty response from OpenAI for part ${i+1}`);
+          //console.error(`Invalid or empty response from OpenAI for part ${i+1}`);
           collatedResponses[`part_${i+1}`] = "Error processing this section";
         } else {
           const processedText = response.choices[0].message.content;
-          console.log(`Part ${i+1} processed successfully. Result length: ${processedText.length}`);
+          //console.log(`Part ${i+1} processed successfully. Result length: ${processedText.length}`);
           collatedResponses[`part_${i+1}`] = processedText;
         }
       } catch (error) {
-        console.error(`Error processing part ${i+1}:`, error);
+        //console.error(`Error processing part ${i+1}:`, error);
         collatedResponses[`part_${i+1}`] = "Error processing this section";
       }
     }
@@ -538,34 +538,34 @@ async function processBatchText(req, res) {
     try {
       // Combine all responses
       const combinedPrompt = Object.values(collatedResponses).join("\n\n");
-      console.log(`Combined all responses into text of length: ${combinedPrompt.length}`);
+      //console.log(`Combined all responses into text of length: ${combinedPrompt.length}`);
       
       // Check if the combined text appears to contain JSON formatted questions
       const hasQField = combinedPrompt.includes('"Q":');
       const hasQuestionField = combinedPrompt.includes('"question":');
-      console.log(`Text contains Q field: ${hasQField}, question field: ${hasQuestionField}`);
+      //console.log(`Text contains Q field: ${hasQField}, question field: ${hasQuestionField}`);
       
       if (hasQuestionField) {
         try {
-          console.log("Detected question format in the batch output - attempting to structure as question array");
+          //console.log("Detected question format in the batch output - attempting to structure as question array");
           
           // Extract JSON objects with question field (modified regex to not require Q field)
           const questionJsonObjects = combinedPrompt.match(/\{[\s\S]*?"question"[\s\S]*?\}/g);
-          console.log(`Regex match result: ${questionJsonObjects ? `Found ${questionJsonObjects.length} matches` : 'No matches found'}`);
+          //console.log(`Regex match result: ${questionJsonObjects ? `Found ${questionJsonObjects.length} matches` : 'No matches found'}`);
           
           if (questionJsonObjects && questionJsonObjects.length > 0) {
-            console.log(`Found ${questionJsonObjects.length} potential question objects in the text`);
+            //console.log(`Found ${questionJsonObjects.length} potential question objects in the text`);
             
             // Log a sample of the first match for debugging
             if (questionJsonObjects.length > 0) {
-              console.log(`Sample first match: ${questionJsonObjects[0].substring(0, 200)}...`);
+              //console.log(`Sample first match: ${questionJsonObjects[0].substring(0, 200)}...`);
               
               try {
                 const sampleParsed = JSON.parse(questionJsonObjects[0]);
-                console.log(`Sample parsed successfully: subtopic=${sampleParsed.subtopic}, question=${sampleParsed.question?.substring(0, 50)}..., question type=${sampleParsed["question type"] || sampleParsed.question_type || "N/A"}`);
+                //console.log(`Sample parsed successfully: subtopic=${sampleParsed.subtopic}, question=${sampleParsed.question?.substring(0, 50)}..., question type=${sampleParsed["question type"] || sampleParsed.question_type || "N/A"}`);
               } catch (parseError) {
-                console.error(`Could not parse sample match as JSON: ${parseError.message}`);
-                console.log(`Raw sample found with regex - first few characters: ${questionJsonObjects[0].substring(0, 100)}...`);
+                //console.error(`Could not parse sample match as JSON: ${parseError.message}`);
+                //console.log(`Raw sample found with regex - first few characters: ${questionJsonObjects[0].substring(0, 100)}...`);
               }
             }
             
@@ -579,10 +579,10 @@ async function processBatchText(req, res) {
             function finishProcessing() {
               if (successCount + errorCount === questionJsonObjects.length && pendingValidations === 0) {
                 if (structuredQuestions.length > 0) {
-                  console.log(`Successfully structured ${successCount} questions with ${errorCount} errors`);
+                  //console.log(`Successfully structured ${successCount} questions with ${errorCount} errors`);
                   
                   // If we have successfully parsed questions, return them as a proper array
-                  console.log(`DEBUG: Returning response with vectorStoreId: ${vectorBase.vectorStoreId}`);
+                  //console.log(`DEBUG: Returning response with vectorStoreId: ${vectorBase.vectorStoreId}`);
                   return res.json({ 
                     success: true, 
                     message: `Text processed and structured into ${structuredQuestions.length} questions`,
@@ -623,19 +623,19 @@ async function processBatchText(req, res) {
                   
                   if (numberMatch && numberMatch[1]) {
                     questionNumber = parseInt(numberMatch[1], 10);
-                    console.log(`Extracted question number ${questionNumber} from question text`);
+                    //console.log(`Extracted question number ${questionNumber} from question text`);
                   }
                   
                   // Add Q field if missing
                   if (!questionObj.Q) {
                     questionObj.Q = questionNumber;
-                    console.log(`Added Q field with value ${questionNumber} to question at index ${index}`);
+                    //console.log(`Added Q field with value ${questionNumber} to question at index ${index}`);
                   }
                   
                   // Normalize question type field
                   if (questionObj["question type"] && !questionObj.question_type) {
                     questionObj.question_type = questionObj["question type"];
-                    console.log(`Normalized "question type" to question_type: ${questionObj.question_type}`);
+                    //console.log(`Normalized "question type" to question_type: ${questionObj.question_type}`);
                   }
                   
                   // Track this validation
@@ -650,10 +650,10 @@ async function processBatchText(req, res) {
                       
                       // Check if the question should be kept
                       const validationResult = await validateQuestionWithOpenAI(questionObj.question);
-                      console.log(`Question validation result: ${validationResult}`);
+                      //console.log(`Question validation result: ${validationResult}`);
                       
                       // Process the question to get answer, difficulty, and marks
-                      console.log(`Getting analysis for question: "${questionObj.question.substring(0, 50)}..."`);
+                      //console.log(`Getting analysis for question: "${questionObj.question.substring(0, 50)}..."`);
                       
                       let questionAnalysis;
                       try {
@@ -682,21 +682,21 @@ async function processBatchText(req, res) {
                         await new Promise(resolve => setTimeout(resolve, searchDelay));
                         
                         // Debug logging
-                        console.log(`DEBUG: vectorBase type: ${typeof vectorBase}`);
-                        console.log(`DEBUG: vectorBase value: ${JSON.stringify(vectorBase)}`);
-                        console.log(`DEBUG: vectorBase.vectorStoreId: ${vectorBase.vectorStoreId}`);
+                        //console.log(`DEBUG: vectorBase type: ${typeof vectorBase}`);
+                        //console.log(`DEBUG: vectorBase value: ${JSON.stringify(vectorBase)}`);
+                        //console.log(`DEBUG: vectorBase.vectorStoreId: ${vectorBase.vectorStoreId}`);
                         
                         // Ensure we have a valid string ID
                         let vectorStoreId = vectorBase.vectorStoreId;
                         if (typeof vectorStoreId !== 'string') {
-                          console.error(`ERROR: vectorStoreId is not a string. Type: ${typeof vectorStoreId}, Value: ${JSON.stringify(vectorStoreId)}`);
-                          console.error(`Full vectorBase object: ${JSON.stringify(vectorBase)}`);
+                          //console.error(`ERROR: vectorStoreId is not a string. Type: ${typeof vectorStoreId}, Value: ${JSON.stringify(vectorStoreId)}`);
+                          //console.error(`Full vectorBase object: ${JSON.stringify(vectorBase)}`);
                           throw new Error(`Invalid vectorStoreId type: expected string, got ${typeof vectorStoreId}`);
                         }
                         
                         const response = await searchVectorStoreForAnswer(vectorStoreId, questionObj.question);
                         // const response = await answerQuestion(questionObj.question, embeddings);
-                        console.log(`Raw answer response: ${response.answer}`);
+                        //console.log(`Raw answer response: ${response.answer}`);
                         
                         // Handle different response formats
                         let answerText = response.answer;
@@ -705,15 +705,15 @@ async function processBatchText(req, res) {
                         if (answerText.startsWith('[') && answerText.endsWith(']')) {
                           try {
                             questionAnalysis = JSON.parse(answerText);
-                            console.log(`Successfully parsed questionAnalysis with ${questionAnalysis.length} questions`);
+                            //console.log(`Successfully parsed questionAnalysis with ${questionAnalysis.length} questions`);
                           } catch (parseError) {
-                            console.error(`Error parsing JSON response: ${parseError.message}`);
+                            //console.error(`Error parsing JSON response: ${parseError.message}`);
                             // Create fallback response
                             questionAnalysis = ["Unable to parse answer", "Medium", 1];
                           }
                         } else {
                           // Handle plain text responses or error messages
-                          console.log(`Received non-JSON response, creating structured format`);
+                          //console.log(`Received non-JSON response, creating structured format`);
                           
                           // Extract meaningful information from plain text
                           if (answerText.toLowerCase().includes('no') && answerText.toLowerCase().includes('information')) {
@@ -727,15 +727,15 @@ async function processBatchText(req, res) {
                           }
                         }
                       } catch (analysisError) {
-                        console.error(`Error getting question analysis: ${analysisError.message}`);
+                        //console.error(`Error getting question analysis: ${analysisError.message}`);
                         questionAnalysis = ["Error analyzing question", "Medium", 1];
                       }
                       
-                      console.log(`Final questionAnalysis: [${questionAnalysis.map(item => typeof item === 'string' ? item.substring(0, 30) + '...' : typeof item).join(', ')}]`);
+                      //console.log(`Final questionAnalysis: [${questionAnalysis.map(item => typeof item === 'string' ? item.substring(0, 30) + '...' : typeof item).join(', ')}]`);
                       
                       if (validationResult === "keep") {
                         // Add default values for missing fields
-                        console.log(`Adding question to structuredQuestions array`);
+                        //console.log(`Adding question to structuredQuestions array`);
                         structuredQuestions.push({
                           Q: questionObj.Q,
                           question: questionObj.question,
@@ -747,14 +747,14 @@ async function processBatchText(req, res) {
                         });
                         successCount++;
                       } else {
-                        console.log(`Skipping question at index ${index} based on validation`);
+                        //console.log(`Skipping question at index ${index} based on validation`);
                         errorCount++;
                       }
                     } catch (error) {
-                      console.error(`Error in question processing at index ${index}:`, error);
+                      //console.error(`Error in question processing at index ${index}:`, error);
                       
                       // Default to keeping the question if validation fails
-                      console.log(`Using fallback values for question at index ${index}`);
+                      //console.log(`Using fallback values for question at index ${index}`);
                       
                       // Create safe questionAnalysis with defaults if it's not defined
                       const safeQuestionAnalysis = Array.isArray(questionAnalysis) ? questionAnalysis : ["No answer available", "Medium", 1];
@@ -772,20 +772,20 @@ async function processBatchText(req, res) {
                     } finally {
                       // Mark this validation as complete
                       pendingValidations--;
-                      console.log(`Validation complete. Remaining validations: ${pendingValidations}`);
+                      //console.log(`Validation complete. Remaining validations: ${pendingValidations}`);
                       // Check if all processing is complete and send response if needed
                       finishProcessing();
                     }
                   })();
                 } else {
-                  console.log(`Question object at index ${index} is missing required fields`);
+                  //console.log(`Question object at index ${index} is missing required fields`);
                   errorCount++;
                   
                   // No validation to do, check if all processing is done
                   finishProcessing();
                 }
               } catch (parseError) {
-                console.error(`Error parsing question JSON at index ${index}:`, parseError.message);
+                //console.error(`Error parsing question JSON at index ${index}:`, parseError.message);
                 errorCount++;
                 
                 // Check if all questions have been processed
@@ -810,14 +810,14 @@ async function processBatchText(req, res) {
             return;
           }
         } catch (formatError) {
-          console.error("Error attempting to format as questions:", formatError);
+          //console.error("Error attempting to format as questions:", formatError);
           // Continue with normal processing if question formatting fails
         }
       } else {
         // If no questions are detected or if the regex failed to find matches
-        console.log("No question format detected in the batch output or regex failed to find matches");
-        console.log("First 500 characters of output for inspection:");
-        console.log(combinedPrompt.substring(0, 500));
+        //console.log("No question format detected in the batch output or regex failed to find matches");
+        //console.log("First 500 characters of output for inspection:");
+        //console.log(combinedPrompt.substring(0, 500));
         
         // Standard response format - only reaches here if we didn't return from question processing
         return res.json({ 
@@ -830,7 +830,7 @@ async function processBatchText(req, res) {
         });
       }
     } catch (error) {
-      console.error("Error processing responses:", error);
+      //console.error("Error processing responses:", error);
       res.status(500).json({ 
         error: "Failed to process responses", 
         message: error.message || "Unknown error",
@@ -838,7 +838,7 @@ async function processBatchText(req, res) {
       });
     }
   } catch (error) {
-    console.error("Error in batch processing:", error);
+    //console.error("Error in batch processing:", error);
     
     // Add specific error messages based on the error type
     if (error.message === 'OpenAI request timed out') {
@@ -849,7 +849,7 @@ async function processBatchText(req, res) {
     
     // Check for OpenAI API errors
     if (error.response?.status) {
-      console.error("OpenAI API error:", error.response.status, error.response.data);
+      //console.error("OpenAI API error:", error.response.status, error.response.data);
       return res.status(502).json({ 
         error: "Error from AI service. Please try again later." 
       });
@@ -883,7 +883,7 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
   // Estimate number of words in the text using a safer approach
   // Count spaces as an approximation instead of using split for large texts
   const wordCount = (text.match(/\s+/g) || []).length + 1;
-  console.log(`Estimated total word count: ~${wordCount}`);
+  //console.log(`Estimated total word count: ~${wordCount}`);
   
   // Determine minimum number of parts (ensure at least 20 parts)
   const minParts = Math.max(20, maxParts);
@@ -906,7 +906,7 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
   // Choose the larger value to satisfy both constraints (min parts and min words)
   sentencesPerPart = Math.max(sentencesPerPart, sentencesNeededFor1000Words);
   
-  console.log(`Targeting approximately ${sentencesPerPart} sentences per part to achieve minimum parts and word count goals`);
+  //console.log(`Targeting approximately ${sentencesPerPart} sentences per part to achieve minimum parts and word count goals`);
   
   const parts = [];
   let startPos = 0;
@@ -918,7 +918,7 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
     
     // Count words in this part using a safer approach
     const partWordCount = (part.match(/\s+/g) || []).length + 1;
-    console.log(`Part ${parts.length + 1} word count: ~${partWordCount}`);
+    //console.log(`Part ${parts.length + 1} word count: ~${partWordCount}`);
     
     parts.push(part);
     startPos = endPos;
@@ -933,11 +933,11 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
   if (startPos < text.length) {
     const lastPart = text.substring(startPos).trim();
     const lastPartWordCount = (lastPart.match(/\s+/g) || []).length + 1;
-    console.log(`Last part word count: ~${lastPartWordCount}`);
+    //console.log(`Last part word count: ~${lastPartWordCount}`);
     parts.push(lastPart);
   }
   
-  console.log(`Split text into ${parts.length} parts`);
+  //console.log(`Split text into ${parts.length} parts`);
   
   return parts;
 }
@@ -945,7 +945,7 @@ function splitTextIntoSentenceParts(text, maxParts = 20) {
 async function validateQuestionWithOpenAI(questionText) {
   try {
     if (!questionText || questionText.trim() === '') {
-      console.log("Empty question, skipping validation");
+      //console.log("Empty question, skipping validation");
       return "skip";
     }
 
@@ -995,11 +995,11 @@ given to you, then you can rephrase the question to make it complete. Keep the t
     if (result === "keep" || result === "skip") {
       return result;
     } else {
-      console.warn(`Unexpected validation response: ${result}, defaulting to "keep"`);
+      //console.warn(`Unexpected validation response: ${result}, defaulting to "keep"`);
       return "keep";
     }
   } catch (error) {
-    console.error("Error validating question:", error.message);
+    //console.error("Error validating question:", error.message);
     // Default to keep if there's an error
     return "keep";
   }
@@ -1014,7 +1014,7 @@ given to you, then you can rephrase the question to make it complete. Keep the t
  */
 async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base', attributes = {}) {
     try {
-        console.log(`Saving text to vector store. Text length: ${rawText.length} characters, Store name: "${vectorStoreName}"`);
+        //console.log(`Saving text to vector store. Text length: ${rawText.length} characters, Store name: "${vectorStoreName}"`);
         
         // Create a temporary text file from raw text
         const tempFileName = `temp_knowledge_${Date.now()}.txt`;
@@ -1027,29 +1027,29 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
         
         const tempFilePath = path.join(tempDir, tempFileName);
         
-        console.log(`Creating temporary file at: ${tempFilePath}`);
+        //console.log(`Creating temporary file at: ${tempFilePath}`);
         
         // Write raw text to temporary file
         fs.writeFileSync(tempFilePath, rawText, 'utf8');
-        console.log(`Wrote ${rawText.length} characters to temporary file`);
+        //console.log(`Wrote ${rawText.length} characters to temporary file`);
         
         // Create vector store - now directly in openai, not in beta
-        console.log(`Creating vector store with name: "${vectorStoreName}"`);
+        //console.log(`Creating vector store with name: "${vectorStoreName}"`);
         const vectorStore = await openai.vectorStores.create({
             name: vectorStoreName,
         });
         
-        console.log(`Created vector store: ${vectorStore.id}`);
+        //console.log(`Created vector store: ${vectorStore.id}`);
         // Avoid circular references by only logging essential properties
-        console.log(`Vector store name: "${vectorStore.name}", status: ${vectorStore.status}`);
+        //console.log(`Vector store name: "${vectorStore.name}", status: ${vectorStore.status}`);
         
         // Debug logging for vector store ID
-        console.log(`DEBUG: vectorStore.id type: ${typeof vectorStore.id}`);
-        console.log(`DEBUG: vectorStore.id value: ${JSON.stringify(vectorStore.id)}`);
+        //console.log(`DEBUG: vectorStore.id type: ${typeof vectorStore.id}`);
+        //console.log(`DEBUG: vectorStore.id value: ${JSON.stringify(vectorStore.id)}`);
         
         try {
             // Use the upload_and_poll method which handles both upload and polling automatically
-            console.log(`Uploading file directly to vector store using upload_and_poll`);
+            //console.log(`Uploading file directly to vector store using upload_and_poll`);
             const fileStream = fs.createReadStream(tempFilePath);
             
             const vectorStoreFile = await openai.vectorStores.files.uploadAndPoll(
@@ -1057,21 +1057,21 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                 fileStream
             );
             
-            console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
-            console.log(`Vector store file status: ${vectorStoreFile.status}`);
+            //console.log(`Successfully added file to vector store: ${vectorStoreFile.id}`);
+            //console.log(`Vector store file status: ${vectorStoreFile.status}`);
             
             // The uploadAndPoll method already handles polling, so we don't need manual polling
             if (vectorStoreFile.status === "completed") {
-                console.log(`File processing completed successfully`);
+                //console.log(`File processing completed successfully`);
             } else if (vectorStoreFile.status === "failed") {
-                console.error(`File processing failed`);
+                //console.error(`File processing failed`);
                 throw new Error(`Vector store file processing failed with status: ${vectorStoreFile.status}`);
             } else {
-                console.warn(`File processing ended with unexpected status: ${vectorStoreFile.status}`);
+                //console.warn(`File processing ended with unexpected status: ${vectorStoreFile.status}`);
             }
             
             // Clean up temporary file
-            console.log(`Cleaning up temporary file: ${tempFilePath}`);
+            //console.log(`Cleaning up temporary file: ${tempFilePath}`);
             fs.unlinkSync(tempFilePath);
             
             const result = {
@@ -1081,37 +1081,37 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
                 message: 'Text successfully saved to vector store'
             };
             
-            console.log(`Vector store operation complete: success=${result.success}, vectorStoreId=${result.vectorStoreId}, fileId=${result.fileId}`);
+            //console.log(`Vector store operation complete: success=${result.success}, vectorStoreId=${result.vectorStoreId}, fileId=${result.fileId}`);
             
             // Debug logging for result object
-            console.log(`DEBUG: result.vectorStoreId type1: ${typeof result.vectorStoreId}`);
-            console.log(`DEBUG: result.vectorStoreId value: ${JSON.stringify(result.vectorStoreId)}`);
+            //console.log(`DEBUG: result.vectorStoreId type1: ${typeof result.vectorStoreId}`);
+            //console.log(`DEBUG: result.vectorStoreId value: ${JSON.stringify(result.vectorStoreId)}`);
             
             return result;
         } catch (uploadError) {
-            console.error(`Error during file upload: ${uploadError.message}`);
+            //console.error(`Error during file upload: ${uploadError.message}`);
             
             // Clean up temporary file if it exists
             try {
                 if (fs.existsSync(tempFilePath)) {
-                    console.log(`Cleaning up temporary file after error: ${tempFilePath}`);
+                    //console.log(`Cleaning up temporary file after error: ${tempFilePath}`);
                     fs.unlinkSync(tempFilePath);
                 }
             } catch (cleanupError) {
-                console.error(`Error cleaning up temporary file: ${cleanupError.message}`);
+                //console.error(`Error cleaning up temporary file: ${cleanupError.message}`);
             }
             
             throw uploadError;
         }
         
     } catch (error) {
-        console.error('Error saving text to vector store:', error);
+        //console.error('Error saving text to vector store:', error);
         
         // Clean up temporary file if it exists (use the same path logic)
         const tempDir = path.join(__dirname, '../uploads');
         // Note: We can't get the exact filename here since Date.now() will be different
         // This is a limitation, but the main cleanup happens in the try block
-        console.log(`Error occurred during vector store creation`);
+        //console.log(`Error occurred during vector store creation`);
         
         return {
             success: false,
@@ -1131,11 +1131,11 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
     try {
         // Debug logging to see what we received
         console.log(`DEBUG: vectorStoreId type3: ${typeof vectorStoreId}`);
-        console.log(`DEBUG: vectorStoreId value: ${JSON.stringify(vectorStoreId)}`);
+        //console.log(`DEBUG: vectorStoreId value: ${JSON.stringify(vectorStoreId)}`);
         
         // Check if vectorStoreId is valid
         if (!vectorStoreId) {
-            console.error('Error: vectorStoreId is undefined or null');
+            //console.error('Error: vectorStoreId is undefined or null');
             return {
                 answer: '["No vector store available", "Medium", 1]',
                 sources: [],
@@ -1146,7 +1146,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         // Ensure vectorStoreId is a string
         if (typeof vectorStoreId !== 'string') {
-            console.error(`Error: vectorStoreId is not a string. Type: ${typeof vectorStoreId}, Value: ${JSON.stringify(vectorStoreId)}`);
+            //console.error(`Error: vectorStoreId is not a string. Type: ${typeof vectorStoreId}, Value: ${JSON.stringify(vectorStoreId)}`);
             return {
                 answer: '["Invalid vector store ID format", "Medium", 1]',
                 sources: [],
@@ -1157,29 +1157,29 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         // First, check if the vector store is ready and has files
         try {
-            console.log(`Checking vector store status: ${vectorStoreId}`);
+            //console.log(`Checking vector store status: ${vectorStoreId}`);
             // Try both methods to see which one works
             let vectorStore;
             try {
                 // Method 1: Direct ID parameter (common in many SDKs)
                 vectorStore = await openai.vectorStores.retrieve(vectorStoreId);
-                console.log(`DEBUG: retrieve method 1 (direct ID) succeeded`);
+                //console.log(`DEBUG: retrieve method 1 (direct ID) succeeded`);
             } catch (method1Error) {
-                console.log(`DEBUG: retrieve method 1 failed: ${method1Error.message}`);
+                //console.log(`DEBUG: retrieve method 1 failed: ${method1Error.message}`);
                 try {
                     // Method 2: Object parameter as shown in documentation
                     vectorStore = await openai.vectorStores.retrieve({
                         vector_store_id: vectorStoreId
                     });
-                    console.log(`DEBUG: retrieve method 2 (object param) succeeded`);
+                    //console.log(`DEBUG: retrieve method 2 (object param) succeeded`);
                 } catch (method2Error) {
-                    console.log(`DEBUG: retrieve method 2 failed: ${method2Error.message}`);
+                    //console.log(`DEBUG: retrieve method 2 failed: ${method2Error.message}`);
                     throw method2Error;
                 }
             }
             
             if (vectorStore.status !== 'completed') {
-                console.log(`Vector store status is ${vectorStore.status}, not ready for search`);
+                //console.log(`Vector store status is ${vectorStore.status}, not ready for search`);
                 return {
                     answer: '["Vector store not ready", "Medium", 1]',
                     sources: [],
@@ -1189,7 +1189,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             }
             
             if (vectorStore.file_counts.completed === 0) {
-                console.log(`Vector store has no completed files`);
+                //console.log(`Vector store has no completed files`);
                 return {
                     answer: '["No files in vector store", "Medium", 1]',
                     sources: [],
@@ -1198,13 +1198,13 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                 };
             }
             
-            console.log(`Vector store ready with ${vectorStore.file_counts.completed} files`);
+            //console.log(`Vector store ready with ${vectorStore.file_counts.completed} files`);
         } catch (statusError) {
-            console.error(`Error checking vector store status: ${statusError.message}`);
+            //console.error(`Error checking vector store status: ${statusError.message}`);
             // Continue with search attempt anyway
         }
         
-        console.log(`Searching vector store ${vectorStoreId} for question: "${userQuestion.substring(0, 100)}..."`);
+        //console.log(`Searching vector store ${vectorStoreId} for question: "${userQuestion.substring(0, 100)}..."`);
         
         const {
             maxResults = 5, // Reduced from 10 to limit context
@@ -1214,7 +1214,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         } = options;
         
         // Log search parameters
-        console.log(`Search parameters: maxResults=${maxResults}, scoreThreshold=${scoreThreshold}, rewriteQuery=${rewriteQuery}`);
+        //console.log(`Search parameters: maxResults=${maxResults}, scoreThreshold=${scoreThreshold}, rewriteQuery=${rewriteQuery}`);
         
         let results;
         let retryCount = 0;
@@ -1224,12 +1224,12 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         // Retry loop for handling errors
         while (retryCount < maxRetries && !searchSuccessful) {
             try {
-                console.log(`Vector store search attempt ${retryCount + 1}/${maxRetries}`);
+                //console.log(`Vector store search attempt ${retryCount + 1}/${maxRetries}`);
                 
                 // Add delay between retries to avoid overwhelming the API
                 if (retryCount > 0) {
                     const delay = Math.min(2000 * Math.pow(2, retryCount - 1), 10000); // exponential backoff, max 10s
-                    console.log(`Waiting ${delay}ms before retry...`);
+                    //console.log(`Waiting ${delay}ms before retry...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
                 
@@ -1265,12 +1265,12 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                 }
 
                 // Debug log the search parameters
-                console.log(`DEBUG: searchParams object: ${JSON.stringify(searchParams)}`);
-                console.log(`DEBUG: About to call openai.vectorStores.search with vectorStoreId: ${vectorStoreId}`);
+                //console.log(`DEBUG: searchParams object: ${JSON.stringify(searchParams)}`);
+                //console.log(`DEBUG: About to call openai.vectorStores.search with vectorStoreId: ${vectorStoreId}`);
 
                 // Call the search method with the parameters object
                 // Try different approaches to see which one works
-                console.log(`DEBUG: Attempting vector store search...`);
+                //console.log(`DEBUG: Attempting vector store search...`);
                 
                 try {
                     // Method 1: Direct parameter passing with minimal params
@@ -1278,11 +1278,11 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                         vector_store_id: vectorStoreId,
                         query: userQuestion
                     };
-                    console.log(`DEBUG: Method 1 params: ${JSON.stringify(method1Params)}`);
+                    //console.log(`DEBUG: Method 1 params: ${JSON.stringify(method1Params)}`);
                     results = await openai.vectorStores.search(method1Params);
-                    console.log(`DEBUG: Method 1 succeeded`);
+                    //console.log(`DEBUG: Method 1 succeeded`);
                 } catch (method1Error) {
-                    console.log(`Method 1 failed: ${method1Error.message}`);
+                    //console.log(`Method 1 failed: ${method1Error.message}`);
                     
                     // Method 2: Try with different parameter name (some SDKs use 'vectorStoreId' instead of 'vector_store_id')
                     try {
@@ -1290,43 +1290,43 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                             vectorStoreId: vectorStoreId,
                             query: userQuestion
                         };
-                        console.log(`DEBUG: Method 2 params: ${JSON.stringify(method2Params)}`);
+                        //console.log(`DEBUG: Method 2 params: ${JSON.stringify(method2Params)}`);
                         results = await openai.vectorStores.search(method2Params);
-                        console.log(`DEBUG: Method 2 succeeded`);
+                        //console.log(`DEBUG: Method 2 succeeded`);
                     } catch (method2Error) {
-                        console.log(`Method 2 failed: ${method2Error.message}`);
+                        //console.log(`Method 2 failed: ${method2Error.message}`);
                         
                         // Method 3: Try passing vectorStoreId as first parameter, query as second
                         try {
-                            console.log(`DEBUG: Method 3 - vectorStoreId: ${vectorStoreId}, query: ${userQuestion}`);
+                            //console.log(`DEBUG: Method 3 - vectorStoreId: ${vectorStoreId}, query: ${userQuestion}`);
                             results = await openai.vectorStores.search(vectorStoreId, {
                                 query: userQuestion
                             });
-                            console.log(`DEBUG: Method 3 succeeded`);
+                            //console.log(`DEBUG: Method 3 succeeded`);
                         } catch (method3Error) {
-                            console.log(`Method 3 failed: ${method3Error.message}`);
+                            //console.log(`Method 3 failed: ${method3Error.message}`);
                             
                             // Method 4: Using the original searchParams object
                             try {
-                                console.log(`DEBUG: Method 4 params: ${JSON.stringify(searchParams)}`);
+                                //console.log(`DEBUG: Method 4 params: ${JSON.stringify(searchParams)}`);
                                 results = await openai.vectorStores.search(searchParams);
-                                console.log(`DEBUG: Method 4 succeeded`);
+                                //console.log(`DEBUG: Method 4 succeeded`);
                             } catch (method4Error) {
-                                console.log(`Method 4 failed: ${method4Error.message}`);
+                                //console.log(`Method 4 failed: ${method4Error.message}`);
                                 throw method4Error; // Re-throw the last error
                             }
                         }
                     }
                 }
-                console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
+                //console.log(`Search request successful for vector store ID: ${vectorStoreId}`);
                 searchSuccessful = true;
                 
             } catch (searchError) {
-                console.log(`Vector store search error (attempt ${retryCount + 1}/${maxRetries}): ${searchError.message}`);
+                //console.log(`Vector store search error (attempt ${retryCount + 1}/${maxRetries}): ${searchError.message}`);
                 retryCount++;
                 
                 if (retryCount >= maxRetries) {
-                    console.error(`OpenAI vector store search error: ${searchError.message}`);
+                    //console.error(`OpenAI vector store search error: ${searchError.message}`);
                     break;
                 }
             }
@@ -1334,7 +1334,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         // If all retries failed, provide a fallback response
         if (!searchSuccessful) {
-            console.log(`All vector store search attempts failed, providing fallback response`);
+            //console.log(`All vector store search attempts failed, providing fallback response`);
             return {
                 answer: '["Vector store search temporarily unavailable", "Medium", 1]',
                 sources: [],
@@ -1345,7 +1345,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         // Check if we have any results
         if (!results.data || results.data.length === 0) {
-            console.log(`No results found in vector store for query`);
+            //console.log(`No results found in vector store for query`);
             return { 
                 answer: '["No relevant information found", "Medium", 1]',
                 sources: [],
@@ -1353,7 +1353,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             };
         }
         
-        console.log(`Found ${results.data.length} results in vector store`);
+        //console.log(`Found ${results.data.length} results in vector store`);
         
         // Extract text content from all results with length limits
         let textSources = results.data
@@ -1367,13 +1367,13 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         // Limit context to prevent token overflow - keep only first 5000 chars
         if (textSources.length > 5000) {
             textSources = textSources.substring(0, 5000) + "...[truncated]";
-            console.log(`Truncated source text to 5000 characters to avoid token limits`);
+            //console.log(`Truncated source text to 5000 characters to avoid token limits`);
         }
         
-        console.log(`Extracted ${textSources.length} characters of source text for answer synthesis`);
+        //console.log(`Extracted ${textSources.length} characters of source text for answer synthesis`);
         
         // Synthesize response using GPT-4 with reduced max_tokens
-        console.log(`Generating synthesized answer using GPT-4`);
+        //console.log(`Generating synthesized answer using GPT-4`);
         const completion = await openai.chat.completions.create({
             model: "gpt-4o", // Updated to use correct model name
             temperature: 0,
@@ -1392,7 +1392,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         const answerText = completion.choices[0].message.content;
         
-        console.log(`Generated answer (${answerText.length} chars): "${answerText.substring(0, 100)}..."`);
+        //console.log(`Generated answer (${answerText.length} chars): "${answerText.substring(0, 100)}..."`);
         
         // Return object with answer and metadata
         return {
@@ -1405,7 +1405,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         };
         
     } catch (error) {
-        console.error('Error searching vector store:', error);
+        //console.error('Error searching vector store:', error);
         return {
             answer: '["Error occurred during search", "Medium", 1]',
             sources: [],
