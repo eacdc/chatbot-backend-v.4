@@ -1084,7 +1084,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
             console.log(`Vector store operation complete: success=${result.success}, vectorStoreId=${result.vectorStoreId}, fileId=${result.fileId}`);
             
             // Debug logging for result object
-            console.log(`DEBUG: result.vectorStoreId type: ${typeof result.vectorStoreId}`);
+            console.log(`DEBUG: result.vectorStoreId type1: ${typeof result.vectorStoreId}`);
             console.log(`DEBUG: result.vectorStoreId value: ${JSON.stringify(result.vectorStoreId)}`);
             
             return result;
