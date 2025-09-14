@@ -14,7 +14,8 @@ const AddChapter = () => {
     title: "",
     rawText: "",
     subject: "",
-    finalPrompt: ""
+    finalPrompt: "",
+    vectorStoreId: ""
   });
 
   // Fetch books for dropdown
@@ -118,7 +119,8 @@ const AddChapter = () => {
             ...chapterData,
             finalPrompt: response.data.combinedPrompt,
             hasQuestionFormat: true,
-            questionCount: response.data.totalQuestions
+            questionCount: response.data.totalQuestions,
+            vectorStoreId: response.data.vectorStoreId || ""
           });
           
           setSuccessMessage(`Text successfully processed! ${response.data.totalQuestions} questions extracted and ready to save.`);
@@ -127,7 +129,8 @@ const AddChapter = () => {
           setChapterData({
             ...chapterData,
             finalPrompt: response.data.combinedPrompt,
-            hasQuestionFormat: false
+            hasQuestionFormat: false,
+            vectorStoreId: response.data.vectorStoreId || ""
           });
           setSuccessMessage("Text successfully processed! Ready to save as chapter.");
         } else {
@@ -138,7 +141,8 @@ const AddChapter = () => {
         setChapterData({
           ...chapterData,
           finalPrompt: response.data.processedText,
-          hasQuestionFormat: false
+          hasQuestionFormat: false,
+          vectorStoreId: response.data.vectorStoreId || ""
         });
         setSuccessMessage("Text processed successfully! Ready to save as chapter.");
       } else {
@@ -209,7 +213,8 @@ const AddChapter = () => {
       bookId: chapterData.bookId,
       title: chapterData.title,
       subject: chapterData.subject,
-      prompt: chapterData.finalPrompt
+      prompt: chapterData.finalPrompt,
+      vectorStoreId: chapterData.vectorStoreId
     };
     
     try {
@@ -241,7 +246,8 @@ const AddChapter = () => {
           title: "",
           rawText: "",
           subject: "",
-          finalPrompt: ""
+          finalPrompt: "",
+          vectorStoreId: ""
         });
       }
     } catch (error) {
