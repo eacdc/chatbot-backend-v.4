@@ -97,7 +97,7 @@ router.post("/", authenticateAdmin, async (req, res) => {
       console.log(`Creating new chapter: ${title}`);
       console.log(`DEBUG: Full request body:`, JSON.stringify(req.body, null, 2));
       console.log(`DEBUG: vectorStoreId from body: "${vectorStoreId}"`);
-      console.log(`DEBUG: vectorStoreId type: ${typeof vectorStoreId}`);
+      console.log(`DEBUG: vectorStoreId type1: ${typeof vectorStoreId}`);
       
       const chapterData = { bookId, title, prompt };
       
@@ -167,7 +167,7 @@ router.post("/create-from-processed-text", authenticateAdmin, async (req, res) =
       console.log(`Creating chapter from processed text: ${title}`);
       console.log(`DEBUG: Full request body:`, JSON.stringify(req.body, null, 2));
       console.log(`DEBUG: vectorStoreId from body: "${vectorStoreId}"`);
-      console.log(`DEBUG: vectorStoreId type: ${typeof vectorStoreId}`);
+      console.log(`DEBUG: vectorStoreId type2: ${typeof vectorStoreId}`);
       console.log(`Has questions: ${questionArray ? questionArray.length : 0}`);
       
       // Ensure vectorStoreId is properly handled
@@ -1130,7 +1130,7 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
 async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options = {}) {
     try {
         // Debug logging to see what we received
-        console.log(`DEBUG: vectorStoreId type: ${typeof vectorStoreId}`);
+        console.log(`DEBUG: vectorStoreId type3: ${typeof vectorStoreId}`);
         console.log(`DEBUG: vectorStoreId value: ${JSON.stringify(vectorStoreId)}`);
         
         // Check if vectorStoreId is valid
