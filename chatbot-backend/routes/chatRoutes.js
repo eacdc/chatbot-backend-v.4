@@ -181,18 +181,50 @@ const upload = multer({
 const previousQuestionsMap = new Map();
 
 // Function to beautify oldchat_ai responses using GPT-4.1
-async function beautifyBotResponse(message) {
+async function beautifyBotResponse(message, questionAsked = false, currentQuestion = null) {
     if (!message || typeof message !== 'string') {
         return message;
     }
     
     try {
-        const beautifyResponse = await openaiSelector.chat.completions.create({
-            model: "gpt-4.1",
-            messages: [
-                {
-                    role: "system",
-                    content: `You are a text formatter. Your job is to take educational chatbot responses and make them beautifully formatted and easy to read.
+        let systemPrompt = "";
+        
+        if (questionAsked && currentQuestion) {
+            // Special prompt when user is asking a question - filter out scoring and explanations
+            const questionMarks = currentQuestion.question_marks || 1;
+            systemPrompt = `You are a response formatter for an educational chatbot. The user is asking a question about the current question, so you need to:
+
+CRITICAL TASKS - MUST FOLLOW EXACTLY:
+1. REMOVE ALL SCORING INFORMATION: Remove any mentions of scores, marks awarded, score breakdowns, or grading information
+2. REMOVE PREVIOUS QUESTION EXPLANATIONS: Remove any explanations, feedback, or analysis about the previous question
+3. REMOVE SCORE-RELATED TEXT: Remove phrases like "Score:", "You got", "Marks:", "Your answer was", etc.
+4. KEEP ONLY THE CURRENT QUESTION: Extract and present only the current question clearly
+5. ADD QUESTION MARKS: Show the question with its marks (${questionMarks} mark${questionMarks > 1 ? 's' : ''})
+6. ADD LEARN SECTION NOTICE: Add a polite message informing the user that for queries or doubts, they should use the "Learn" section
+7. FORMAT NICELY: Use proper markdown formatting with **bold** for the question header
+
+REQUIRED OUTPUT FORMAT:
+**Question:** [Current question text]
+**Marks:** ${questionMarks} mark${questionMarks > 1 ? 's' : ''}
+
+[Current question content]
+
+---
+💡 **Note:** If you have any queries or doubts about this topic, please use the **Learn** section to get detailed explanations.
+
+REMOVE:
+- Any scoring information
+- Any previous question feedback
+- Any explanations of past answers
+- Any score-related text
+
+KEEP:
+- Only the current question
+- Question marks information
+- Learn section notice`;
+        } else {
+            // Normal beautification prompt (preserve everything)
+            systemPrompt = `You are a text formatter. Your job is to take educational chatbot responses and make them beautifully formatted and easy to read.
 
 CRITICAL RULES - MUST FOLLOW EXACTLY:
 1. PRESERVE ALL ORIGINAL CONTENT: Do not change, add, remove, or modify any text, emojis, symbols, or formatting
@@ -212,7 +244,15 @@ DO NOT:
 - Remove or change any formatting
 - Modify any text content
 - Add new content
-- Change the tone or style`
+- Change the tone or style`;
+        }
+        
+        const beautifyResponse = await openaiSelector.chat.completions.create({
+            model: "gpt-4.1",
+            messages: [
+                {
+                    role: "system",
+                    content: systemPrompt
                 },
                 {
                     role: "user", 
@@ -881,18 +921,51 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // Add the current user message
             messagesForOpenAI.push({ role: "user", content: message });
             
+            // Define tool for question detection
+            const questionDetectionTool = {
+                type: "function",
+                function: {
+                    name: "detect_question",
+                    description: "Detects if the user is asking a question or requesting an explanation. Returns true if a question is asked, false otherwise.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            questionAsked: {
+                                type: "boolean",
+                                description: "True if the user is asking a question (contains question words like what, why, how, explain, tell me, etc.), false if it's just a statement or command"
+                            }
+                        },
+                        required: ["questionAsked"]
+                    }
+                }
+            };
+
+            // Determine if we should use tool calling (for explanation_ai or when user might be asking questions)
+            const shouldUseToolCall = classification === "explanation_ai" || classification === "oldchat_ai";
+            
             // Make the OpenAI request with retry logic
             const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
                 try {
                     // Attempt the request
                     console.log(`📊 messagesForOpenAI: ${JSON.stringify(messagesForOpenAI)}`);
-                    const response = await openaiSelector.chat.completions.create({
+                    
+                    const requestOptions = {
                         model: "gpt-4.1", // For DeepSeek API we use this model
                         messages: messagesForOpenAI,
                         temperature: 0.25,
                         max_tokens: 1000
-                      
-                    });
+                    };
+                    
+                    // Add tool calling for explanation_ai and oldchat_ai
+                    if (shouldUseToolCall) {
+                        requestOptions.tools = [questionDetectionTool];
+                        requestOptions.tool_choice = {
+                            type: "function",
+                            function: { name: "detect_question" }
+                        }; // Force the tool to be called for question detection
+                    }
+                    
+                    const response = await openaiSelector.chat.completions.create(requestOptions);
             
             return response;
           } catch (error) {
@@ -911,11 +984,79 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
         };
         
             // Call OpenAI with retries
-            const openaiResponse = await makeOpenAIRequest();
+            let openaiResponse = await makeOpenAIRequest();
 
             if (!openaiResponse || !openaiResponse.choices || !openaiResponse.choices[0]) {
                 return res.status(500).json({ error: "Invalid response from OpenAI" });
         }
+
+            // Handle tool calls if they exist
+            let questionAsked = false;
+            const message = openaiResponse.choices[0].message;
+            
+            if (shouldUseToolCall && message.tool_calls && message.tool_calls.length > 0) {
+                // Extract questionAsked value from tool call
+                const toolCall = message.tool_calls[0];
+                if (toolCall.function.name === "detect_question") {
+                    try {
+                        const toolArguments = JSON.parse(toolCall.function.arguments);
+                        questionAsked = toolArguments.questionAsked || false;
+                        console.log(`🔍 Question Detection: questionAsked = ${questionAsked}`);
+                    } catch (parseError) {
+                        console.error("Error parsing tool call arguments:", parseError);
+                    }
+                }
+                
+                // Add tool response to messages and get final bot response
+                messagesForOpenAI.push({
+                    role: "assistant",
+                    content: message.content || null,
+                    tool_calls: message.tool_calls
+                });
+                
+                // Add tool response
+                messagesForOpenAI.push({
+                    role: "tool",
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify({ questionAsked: questionAsked })
+                });
+                
+                // Make second request to get the actual bot response
+                const requestOptions = {
+                    model: "gpt-4.1",
+                    messages: messagesForOpenAI,
+                    temperature: 0.25,
+                    max_tokens: 1000
+                };
+                
+                openaiResponse = await openaiSelector.chat.completions.create(requestOptions);
+                
+                if (!openaiResponse || !openaiResponse.choices || !openaiResponse.choices[0]) {
+                    return res.status(500).json({ error: "Invalid response from OpenAI" });
+                }
+            } else if (shouldUseToolCall) {
+                // Tool call was not made, but we wanted to use it - set default value
+                console.log(`🔍 Question Detection: Tool was not called, defaulting questionAsked to false`);
+                questionAsked = false;
+            }
+
+            // Check if user is asking a question - if so, use previous question instead of new one
+            // This prevents question rotation when user is asking for clarification
+            if (shouldUseToolCall && questionAsked === true && previousQuestion && 
+                (classification === "oldchat_ai" || classification === "newchat_ai")) {
+                
+                console.log(`🔄 Question Asked = true: Using previous question (no rotation)`);
+                console.log(`🔄 Previous Question ID: ${previousQuestion.questionId}`);
+                console.log(`🔄 Overriding currentQuestion with previousQuestion`);
+                
+                // Override currentQuestion with previousQuestion to prevent rotation
+                currentQuestion = previousQuestion;
+                
+                // Update currentScore to match
+                currentScore = previousQuestion.question_marks || 1;
+            } else if (shouldUseToolCall && questionAsked === false) {
+                console.log(`🔄 Question Asked = false: Proceeding with normal question rotation`);
+            }
 
             // Extract the bot message
             const botMessage = openaiResponse.choices[0].message.content;
@@ -1001,83 +1142,97 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // We'll save after beautification to ensure DB and user get the same content
             
             // If in question mode and classification is oldchat_ai, process scores and update questions
+            // BUT skip saving to QnA collection if questionAsked is true (user is asking about the question)
             if (classification === "oldchat_ai") {
                 console.log(`🔍 DEBUG: Starting score processing - Classification: ${classification}`);
-                // Check if we have a valid previous question to record the answer for
-                if (previousQuestion) {
-                    console.log(`🔍 DEBUG: Previous question found - ID: ${previousQuestion.questionId}, Text: ${previousQuestion.question?.substring(0, 30)}...`);
-                    
-                    // Use extracted scores from array or fallback to 0
-                    let marksAwarded = 0;
-                    let maxScore = previousQuestion.question_marks || 1;
-                    
-                    if (extractedScore !== null && extractedMaxScore !== null) {
-                        marksAwarded = extractedScore;
-                        maxScore = extractedMaxScore;
-                        console.log(`✅ Using scores from array response: ${marksAwarded}/${maxScore}`);
-                    } else {
-                        console.log(`⚠️ No valid scores in array response, using default: ${marksAwarded}/${maxScore}`);
-                    }
-                    
-                    // Verify the extracted score is valid
-                    if (isNaN(marksAwarded) || marksAwarded < 0) {
-                        console.log(`❌ Invalid score detected: ${marksAwarded}. Resetting to 0.`);
-                                marksAwarded = 0;
-                        console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0 after validation`);
-                    }
-                    
-                    // Ensure maxScore is positive
-                    if (isNaN(maxScore) || maxScore <= 0) {
-                        console.log(`❌ Invalid maxScore detected: ${maxScore}. Using question's marks: ${previousQuestion.question_marks || 1}`);
-                        maxScore = previousQuestion.question_marks || 1;
-                    }
-                    
-                    // Final score validation - make sure score doesn't exceed max
-                    if (marksAwarded > maxScore) {
-                        console.log(`⚠️ Score exceeds maximum: ${marksAwarded}/${maxScore}. Capping at ${maxScore}.`);
-                        marksAwarded = maxScore;
-                    }
-                    
-                    console.log(`📊 FINAL SCORE DETERMINATION: ${marksAwarded}/${maxScore}`);
-                    console.log(`🔍 ZERO SCORE DEBUG: Final marksAwarded value: ${marksAwarded}, type: ${typeof marksAwarded}, isZero: ${marksAwarded === 0}, toString(): "${marksAwarded.toString()}"`);
                 
-                try {
-                        console.log(`🔍 DEBUG: About to call markQuestionAsAnswered with score ${marksAwarded}/${maxScore}`);
-                        console.log(`🔍 DEBUG: Parameters for markQuestionAsAnswered:`);
-                        console.log(`  - userId: ${userId}`);
-                        console.log(`  - chapterId: ${chapterId}`);
-                        console.log(`  - questionId: ${previousQuestion.questionId}`);
-                        console.log(`  - marksAwarded: ${marksAwarded} (type: ${typeof marksAwarded}, isZero: ${marksAwarded === 0})`);
-                        console.log(`  - maxScore: ${maxScore} (type: ${typeof maxScore})`);
-                        console.log(`  - questionText length: ${(previousQuestion.question || "").length}`);
-                        console.log(`  - answerText length: ${message.length}`);
-                        
-                        // Record the answer for the PREVIOUS question with the user's current message as the answer
-                        await markQuestionAsAnswered(
-                            userId, 
-                            chapterId, 
-                            previousQuestion.questionId, 
-                            marksAwarded, 
-                            maxScore,
-                            previousQuestion.question || "", // Use previous question text
-                            message // Current message is the answer to the previous question
-                        );
-                        
-                        console.log(`✅ Successfully recorded answer for previous question: ${previousQuestion.questionId} with score ${marksAwarded}/${maxScore}`);
-                } catch (markError) {
-                    console.error(`❌ ERROR marking question as answered:`, markError);
-                    console.error(`❌ Error details - Question ID: ${previousQuestion.questionId}, Score: ${marksAwarded}/${maxScore}`);
-                    }
+                // Check if user is asking a question - if so, skip QnA collection saving
+                if (shouldUseToolCall && questionAsked === true) {
+                    console.log(`🔄 Question Asked = true: Skipping QnA collection save (user is asking about the question, not answering)`);
                 } else {
-                    console.log(`⚠️ No previous question found to record score for`);
+                    // Check if we have a valid previous question to record the answer for
+                    if (previousQuestion) {
+                        console.log(`🔍 DEBUG: Previous question found - ID: ${previousQuestion.questionId}, Text: ${previousQuestion.question?.substring(0, 30)}...`);
+                        
+                        // Use extracted scores from array or fallback to 0
+                        let marksAwarded = 0;
+                        let maxScore = previousQuestion.question_marks || 1;
+                        
+                        if (extractedScore !== null && extractedMaxScore !== null) {
+                            marksAwarded = extractedScore;
+                            maxScore = extractedMaxScore;
+                            console.log(`✅ Using scores from array response: ${marksAwarded}/${maxScore}`);
+                        } else {
+                            console.log(`⚠️ No valid scores in array response, using default: ${marksAwarded}/${maxScore}`);
+                        }
+                        
+                        // Verify the extracted score is valid
+                        if (isNaN(marksAwarded) || marksAwarded < 0) {
+                            console.log(`❌ Invalid score detected: ${marksAwarded}. Resetting to 0.`);
+                                    marksAwarded = 0;
+                            console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0 after validation`);
+                        }
+                        
+                        // Ensure maxScore is positive
+                        if (isNaN(maxScore) || maxScore <= 0) {
+                            console.log(`❌ Invalid maxScore detected: ${maxScore}. Using question's marks: ${previousQuestion.question_marks || 1}`);
+                            maxScore = previousQuestion.question_marks || 1;
+                        }
+                        
+                        // Final score validation - make sure score doesn't exceed max
+                        if (marksAwarded > maxScore) {
+                            console.log(`⚠️ Score exceeds maximum: ${marksAwarded}/${maxScore}. Capping at ${maxScore}.`);
+                            marksAwarded = maxScore;
+                        }
+                        
+                        console.log(`📊 FINAL SCORE DETERMINATION: ${marksAwarded}/${maxScore}`);
+                        console.log(`🔍 ZERO SCORE DEBUG: Final marksAwarded value: ${marksAwarded}, type: ${typeof marksAwarded}, isZero: ${marksAwarded === 0}, toString(): "${marksAwarded.toString()}"`);
+                    
+                    try {
+                            console.log(`🔍 DEBUG: About to call markQuestionAsAnswered with score ${marksAwarded}/${maxScore}`);
+                            console.log(`🔍 DEBUG: Parameters for markQuestionAsAnswered:`);
+                            console.log(`  - userId: ${userId}`);
+                            console.log(`  - chapterId: ${chapterId}`);
+                            console.log(`  - questionId: ${previousQuestion.questionId}`);
+                            console.log(`  - marksAwarded: ${marksAwarded} (type: ${typeof marksAwarded}, isZero: ${marksAwarded === 0})`);
+                            console.log(`  - maxScore: ${maxScore} (type: ${typeof maxScore})`);
+                            console.log(`  - questionText length: ${(previousQuestion.question || "").length}`);
+                            console.log(`  - answerText length: ${message.length}`);
+                            
+                            // Record the answer for the PREVIOUS question with the user's current message as the answer
+                            await markQuestionAsAnswered(
+                                userId, 
+                                chapterId, 
+                                previousQuestion.questionId, 
+                                marksAwarded, 
+                                maxScore,
+                                previousQuestion.question || "", // Use previous question text
+                                message // Current message is the answer to the previous question
+                            );
+                            
+                            console.log(`✅ Successfully recorded answer for previous question: ${previousQuestion.questionId} with score ${marksAwarded}/${maxScore}`);
+                    } catch (markError) {
+                        console.error(`❌ ERROR marking question as answered:`, markError);
+                        console.error(`❌ Error details - Question ID: ${previousQuestion.questionId}, Score: ${marksAwarded}/${maxScore}`);
+                        }
+                    } else {
+                        console.log(`⚠️ No previous question found to record score for`);
+                    }
                 }
             } else {
                 console.log(`🔍 DEBUG: Classification ${classification} not eligible for score recording`);
             }
             
             // Store current question as the previous question for next time, for both oldchat_ai and newchat_ai
+            // BUT only rotate if questionAsked is false (user is not asking about the question)
             if (questionModeEnabled && (classification === "oldchat_ai" || classification === "newchat_ai")) {
-                if (currentQuestion) {
+                // Only rotate question if user is not asking a question about it
+                if (shouldUseToolCall && questionAsked === true) {
+                    // Don't rotate - keep the same question in previousQuestionsMap
+                    console.log(`🔄 Question Asked = true: Keeping same question (no rotation)`);
+                    // previousQuestion stays the same, no update to previousQuestionsMap
+                } else if (currentQuestion) {
+                    // Normal rotation - set new currentQuestion as previousQuestion for next time
                     previousQuestionsMap.set(userChapterKey, currentQuestion);
                     console.log(`✅ Set current question as previous for next time: ${currentQuestion.questionId}`);
                 } else {
@@ -1090,10 +1245,15 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             
             // Beautify the response for oldchat_ai using GPT-4.1 (with improved emoji/formatting preservation)
             if (classification === "oldchat_ai") {
-                console.log(`🎨 Beautifying oldchat_ai response (preserving emojis and formatting)...`);
+                if (shouldUseToolCall && questionAsked === true) {
+                    console.log(`🎨 Beautifying oldchat_ai response (questionAsked=true - filtering scoring and explanations)...`);
+                } else {
+                    console.log(`🎨 Beautifying oldchat_ai response (preserving emojis and formatting)...`);
+                }
                 try {
                     const originalMessage = finalBotMessage;
-                    finalBotMessage = await beautifyBotResponse(finalBotMessage);
+                    // Pass questionAsked and currentQuestion to beautifyBotResponse
+                    finalBotMessage = await beautifyBotResponse(finalBotMessage, shouldUseToolCall ? questionAsked : false, currentQuestion);
                     console.log(`✅ Response beautified successfully`);
                     console.log(`📝 Original length: ${originalMessage.length}, Beautified length: ${finalBotMessage.length}`);
                 } catch (beautifyError) {
@@ -1129,6 +1289,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 fullQuestion: currentQuestion,
                 agentType: classification,
                 previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
+                questionAsked: shouldUseToolCall ? questionAsked : null, // Include questionAsked when tool call was used
                 score: {
                     marksAwarded: (previousQuestion && classification === "oldchat_ai" && typeof marksAwarded !== 'undefined') ? marksAwarded : null,
                     maxMarks: (previousQuestion && classification === "oldchat_ai" && typeof maxScore !== 'undefined') ? maxScore : null,
@@ -1149,6 +1310,9 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             console.log(`🚀 Response being sent to frontend:`);
             console.log(`🚀 Message length: ${responseObject.message.length}`);
             console.log(`🚀 Message content (first 200 chars): ${responseObject.message.substring(0, 200)}...`);
+            if (shouldUseToolCall) {
+                console.log(`🚀 Question Asked: ${responseObject.questionAsked}`);
+            }
             console.log(`🚀 Full response object:`, JSON.stringify(responseObject, null, 2));
             
             // Return the response
