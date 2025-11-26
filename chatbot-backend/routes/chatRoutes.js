@@ -363,6 +363,10 @@ Rules:
    - Ongoing conversation (not a greeting)
    - User is continuing a knowledge check or answering a question
    - select this agent even if user says he/she don't know the answer and asks to explain the  answer.
+   - Not an answer, but a question about the topic 
+   - General doubt or concept help
+   - If user askes for a clarification of a previously asked question
+
 
 2. "newchat_ai":
    - First message, like "Hi", "Hello"
@@ -371,15 +375,7 @@ Rules:
 
 3. "closureChat_ai":
    - User wants to stop, see score, or end assessment
-   - Says: "finish", "stop", "done", "end", "that's all"
-
-4. "explanation_ai":
-    - Not an answer, but a question about the topic 
-   - General doubt or concept help
-   - If user askes for a clarification of a previously asked question
-
-
-Return only the JSON object. Do not include anything else.`,
+   - Says: "finish", "stop", "done", "end", "that's all"`,
   },
 ];
             
@@ -1970,7 +1966,7 @@ async function makeHttpsRequest(url, options = {}) {
 }
 
 /**
- * Search vector store for relevant content based on a user question using OpenAI Assistants API
+ * Search vector store for relevant content based on a user question
  * @param {string} vectorStoreId - The ID of the vector store to search
  * @param {string} userQuestion - The question to search for
  * @returns {Promise<string>} - Relevant content from the vector store
@@ -1985,91 +1981,59 @@ async function searchVectorStoreForContent(vectorStoreId, userQuestion) {
         
         console.log(`Searching vector store ${vectorStoreId} for question: "${userQuestion.substring(0, 100)}..."`);
         
-        // Create a temporary assistant with file search capability
-        const assistant = await openai.beta.assistants.create({
-            name: "Temporary Search Assistant",
-            instructions: "You are a helpful assistant that searches through documents to find relevant information. Extract and return the most relevant content from the documents to answer the user's question. If you find relevant information, return it directly without additional commentary.",
-            model: "gpt-4-turbo-preview",
-            tools: [{ type: "file_search" }],
-            tool_resources: {
-                file_search: {
-                    vector_store_ids: [vectorStoreId]
+        // Configure search parameters
+        const maxResults = 5;
+        const scoreThreshold = 0.3;
+        const rewriteQuery = true;
+        
+        // Use direct REST API call for more reliable results
+        const searchResponse = await makeHttpsRequest(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                query: userQuestion,
+                max_num_results: maxResults,
+                rewrite_query: rewriteQuery,
+                ranking_options: {
+                    score_threshold: scoreThreshold
                 }
-            }
+            })
         });
-
-        // Create a thread for the conversation
-        const thread = await openai.beta.threads.create();
-
-        // Add the user's message to the thread
-        await openai.beta.threads.messages.create(thread.id, {
-            role: "user",
-            content: `Search the documents for information relevant to this question: "${userQuestion}". Return the most relevant content found.`
-        });
-
-        // Run the assistant to search through the vector store
-        const run = await openai.beta.threads.runs.createAndPoll(thread.id, {
-            assistant_id: assistant.id,
-            max_prompt_tokens: 4000,
-            max_completion_tokens: 2000
-        });
-
-        if (run.status === 'completed') {
-            // Get the assistant's response
-            const messages = await openai.beta.threads.messages.list(thread.id);
-            const assistantMessage = messages.data.find(msg => msg.role === 'assistant');
-            
-            if (assistantMessage && assistantMessage.content && assistantMessage.content.length > 0) {
-                const content = assistantMessage.content[0].text.value;
-                
-                // Clean up the response to remove assistant commentary
-                let cleanedContent = content;
-                
-                // Remove common assistant prefixes/suffixes
-                cleanedContent = cleanedContent.replace(/^(Based on the documents?|According to the information|From the provided content|Here's what I found)[,:]\s*/i, '');
-                cleanedContent = cleanedContent.replace(/\s*(I hope this helps|Let me know if you need more information)[.!]*\s*$/i, '');
-                
-                console.log(`Found relevant content (${cleanedContent.length} characters) from vector store`);
-                
-                // Limit content to prevent token overflow
-                const maxChars = 5000;
-                const limitedContent = cleanedContent.length > maxChars 
-                    ? cleanedContent.substring(0, maxChars) + "...[truncated]"
-                    : cleanedContent;
-                
-                // Clean up: delete the temporary assistant and thread
-                try {
-                    await openai.beta.assistants.del(assistant.id);
-                    // Note: Threads are automatically cleaned up by OpenAI after some time
-                } catch (cleanupError) {
-                    console.warn('Error cleaning up temporary assistant:', cleanupError.message);
-                }
-                
-                return limitedContent;
-            } else {
-                console.log('No relevant content found in assistant response');
-                
-                // Clean up: delete the temporary assistant
-                try {
-                    await openai.beta.assistants.del(assistant.id);
-                } catch (cleanupError) {
-                    console.warn('Error cleaning up temporary assistant:', cleanupError.message);
-                }
-                
-                return null;
-            }
-        } else {
-            console.log(`Assistant run failed with status: ${run.status}`);
-            
-            // Clean up: delete the temporary assistant
-            try {
-                await openai.beta.assistants.del(assistant.id);
-            } catch (cleanupError) {
-                console.warn('Error cleaning up temporary assistant:', cleanupError.message);
-            }
-            
+        
+        if (!searchResponse.ok) {
+            throw new Error(`HTTP error ${searchResponse.status}: ${await searchResponse.text()}`);
+        }
+        
+        const results = await searchResponse.json();
+        
+        // Check if we have any results
+        if (!results.data || results.data.length === 0) {
+            console.log(`No results found in vector store for query`);
             return null;
         }
+        
+        console.log(`Found ${results.data.length} results in vector store`);
+        
+        // Extract text content from all results
+        const textSources = results.data
+            .map(result => 
+                result.content
+                    .map(content => content.text)
+                    .join('\n')
+            )
+            .join('\n\n');
+        
+        // Limit content to prevent token overflow
+        const maxChars = 5000;
+        const limitedContent = textSources.length > maxChars 
+            ? textSources.substring(0, maxChars) + "...[truncated]"
+            : textSources;
+        
+        console.log(`Extracted ${limitedContent.length} characters of content from vector store`);
+        return limitedContent;
         
     } catch (error) {
         console.error(`Error searching vector store: ${error.message}`);
