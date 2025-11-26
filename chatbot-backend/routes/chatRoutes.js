@@ -456,11 +456,85 @@ Rules:
                 console.log(`FALLBACK: Using default agent "${classification}"`);
             }
 
+            // Early question detection - check if user is asking a question BEFORE question selection
+            // This allows us to skip question selection when questionAsked=true
+            let questionAsked = false;
+            const shouldUseToolCall = classification === "explanation_ai" || classification === "oldchat_ai" || classification === "newchat_ai";
+            
+            if (shouldUseToolCall && previousQuestion) {
+                // Define tool for question detection
+                const questionDetectionTool = {
+                    type: "function",
+                    function: {
+                        name: "detect_question",
+                        description: "Detects if the user is asking a question or requesting an explanation. Returns true if a question is asked, false otherwise.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                questionAsked: {
+                                    type: "boolean",
+                                    description: "True if the user is asking a question (contains question words like what, why, how, explain, tell me, etc.), false if it's just a statement or command"
+                                }
+                            },
+                            required: ["questionAsked"]
+                        }
+                    }
+                };
+                
+                try {
+                    // Quick early check for question detection
+                    const earlyDetectionMessages = [
+                        {
+                            role: "system",
+                            content: "Analyze if the user is asking a question. Return only JSON with questionAsked boolean."
+                        },
+                        {
+                            role: "user",
+                            content: message
+                        }
+                    ];
+                    
+                    const earlyDetectionResponse = await openaiSelector.chat.completions.create({
+                        model: "gpt-4.1",
+                        messages: earlyDetectionMessages,
+                        tools: [questionDetectionTool],
+                        tool_choice: {
+                            type: "function",
+                            function: { name: "detect_question" }
+                        },
+                        temperature: 0,
+                        max_tokens: 100
+                    });
+                    
+                    const earlyMessage = earlyDetectionResponse.choices[0].message;
+                    if (earlyMessage.tool_calls && earlyMessage.tool_calls.length > 0) {
+                        const toolCall = earlyMessage.tool_calls[0];
+                        if (toolCall.function.name === "detect_question") {
+                            const toolArguments = JSON.parse(toolCall.function.arguments);
+                            questionAsked = toolArguments.questionAsked || false;
+                            console.log(`🔍 Early Question Detection: questionAsked = ${questionAsked}`);
+                        }
+                    }
+                } catch (earlyDetectionError) {
+                    console.error("Error in early question detection:", earlyDetectionError);
+                    // Continue with default (questionAsked = false)
+                }
+            }
+
             // Handle questions differently based on context
             if (chapter.questionPrompt && chapter.questionPrompt.length > 0) {
                 
                 // Special case for assessment or explanation mode
-                if (questionModeEnabled && classification === "oldchat_ai" || classification === "newchat_ai") {
+                // Skip question selection if user is asking about the current question
+                if (questionModeEnabled && (classification === "oldchat_ai" || classification === "newchat_ai")) {
+                    // If user is asking a question and we have a previous question, skip selection
+                    if (shouldUseToolCall && questionAsked === true && previousQuestion) {
+                        console.log(`🔄 Question Asked = true: Skipping question selection, reusing previous question`);
+                        currentQuestion = previousQuestion;
+                        currentScore = previousQuestion.question_marks || 1;
+                        console.log(`🔄 Reusing previous question ID: ${previousQuestion.questionId}`);
+                    } else {
+                        // Normal flow - proceed with question selection
                     
                     // For assessment mode, we want to select a specific question based on subtopic progression
                     // Check if the user has answered any questions yet for this chapter
@@ -655,6 +729,7 @@ Rules:
                             console.log(`📊 Previous question marks: ${previousQuestion.question_marks || 1}`);
                         }
                     }
+                    } // End of else block for normal question selection
                     
                 } else if (classification === "explanation_ai") {
                     // For explanation mode, we'll just use the first question as reference material
@@ -1048,23 +1123,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 questionAsked = false;
             }
 
-            // Check if user is asking a question - if so, use previous question instead of new one
-            // This prevents question rotation when user is asking for clarification
-            if (shouldUseToolCall && questionAsked === true && previousQuestion && 
-                (classification === "oldchat_ai" || classification === "newchat_ai")) {
-                
-                console.log(`🔄 Question Asked = true: Using previous question (no rotation)`);
-                console.log(`🔄 Previous Question ID: ${previousQuestion.questionId}`);
-                console.log(`🔄 Overriding currentQuestion with previousQuestion`);
-                
-                // Override currentQuestion with previousQuestion to prevent rotation
-                currentQuestion = previousQuestion;
-                
-                // Update currentScore to match
-                currentScore = previousQuestion.question_marks || 1;
-            } else if (shouldUseToolCall && questionAsked === false) {
-                console.log(`🔄 Question Asked = false: Proceeding with normal question rotation`);
-            }
+            // Note: Question reuse when questionAsked=true is now handled earlier 
+            // (before question selection) to optimize the flow and avoid unnecessary question selection
 
             // Extract the bot message
             const botMessage = openaiResponse.choices[0].message.content;
