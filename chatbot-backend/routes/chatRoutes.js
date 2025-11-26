@@ -203,14 +203,12 @@ CRITICAL TASKS - MUST FOLLOW EXACTLY:
 6. ADD LEARN SECTION NOTICE: Add a polite message informing the user that for queries or doubts, they should use the "Learn" section
 7. FORMAT NICELY: Use proper markdown formatting with **bold** for the question header
 
-REQUIRED OUTPUT FORMAT:
+REQUIRED OUTPUT FORMAT (sentence construction can be changed slightly):
+
+💡 **Note:** If you have any queries or doubts about this topic, please use the **Learn** section to get detailed explanations. Please continue with the quiz questions.
+---
 **Question:** [Current question text]
 **Marks:** ${questionMarks} mark${questionMarks > 1 ? 's' : ''}
-
-[Current question content]
-
----
-💡 **Note:** If you have any queries or doubts about this topic, please use the **Learn** section to get detailed explanations.
 
 REMOVE:
 - Any scoring information
