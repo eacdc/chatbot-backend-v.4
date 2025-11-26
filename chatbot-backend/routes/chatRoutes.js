@@ -1023,9 +1023,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 }
             };
 
-            // Determine if we should use tool calling (for explanation_ai or when user might be asking questions)
-            const shouldUseToolCall = classification === "explanation_ai" || classification === "oldchat_ai";
-            
+            // Note: shouldUseToolCall is already declared earlier in the function (line 462)
             // Make the OpenAI request with retry logic
             const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
                 try {
@@ -1074,7 +1072,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
         }
 
             // Handle tool calls if they exist
-            let questionAsked = false;
+            // Note: questionAsked is already declared earlier (line 461) for early detection
             const openaiMessage = openaiResponse.choices[0].message;
             
             if (shouldUseToolCall && openaiMessage.tool_calls && openaiMessage.tool_calls.length > 0) {
