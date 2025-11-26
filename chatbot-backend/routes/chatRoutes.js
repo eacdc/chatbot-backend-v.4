@@ -277,6 +277,14 @@ router.post("/send", authenticateUser, async (req, res) => {
     let userId, message, chapterId;
     
     try {
+        // Ensure req.body exists before destructuring
+        if (!req.body) {
+            return res.status(400).json({ 
+                error: "Missing request body", 
+                details: "Request body is required"
+            });
+        }
+        
         ({ userId, message, chapterId } = req.body);
         
         // Validate required fields
@@ -992,11 +1000,11 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
 
             // Handle tool calls if they exist
             let questionAsked = false;
-            const message = openaiResponse.choices[0].message;
+            const openaiMessage = openaiResponse.choices[0].message;
             
-            if (shouldUseToolCall && message.tool_calls && message.tool_calls.length > 0) {
+            if (shouldUseToolCall && openaiMessage.tool_calls && openaiMessage.tool_calls.length > 0) {
                 // Extract questionAsked value from tool call
-                const toolCall = message.tool_calls[0];
+                const toolCall = openaiMessage.tool_calls[0];
                 if (toolCall.function.name === "detect_question") {
                     try {
                         const toolArguments = JSON.parse(toolCall.function.arguments);
@@ -1010,8 +1018,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 // Add tool response to messages and get final bot response
                 messagesForOpenAI.push({
                     role: "assistant",
-                    content: message.content || null,
-                    tool_calls: message.tool_calls
+                    content: openaiMessage.content || null,
+                    tool_calls: openaiMessage.tool_calls
                 });
                 
                 // Add tool response
