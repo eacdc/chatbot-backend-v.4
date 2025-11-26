@@ -205,7 +205,7 @@ CRITICAL TASKS - MUST FOLLOW EXACTLY:
 
 REQUIRED OUTPUT FORMAT (sentence construction can be changed slightly):
 
-💡 **Note:** If you have any queries or doubts about this topic, please use the **Learn** section to get detailed explanations. Please continue with the quiz questions.
+💡If you have any queries or doubts about this topic, please use the **Learn** section to get detailed explanations. Please continue with the quiz questions.
 ---
 **Question:** [Current question text]
 **Marks:** ${questionMarks} mark${questionMarks > 1 ? 's' : ''}
