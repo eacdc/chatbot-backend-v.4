@@ -257,7 +257,7 @@ DO NOT:
                     content: message
                 }
             ],
-            temperature: 0,
+            temperature: 0.2,
             max_tokens: 1500
         });
         
