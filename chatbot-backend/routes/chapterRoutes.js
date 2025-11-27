@@ -1479,9 +1479,60 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         // Check if we have any results
         if (!results.data || results.data.length === 0) {
-            //console.log(`No results found in vector store for query`);
+            // No results found in vector store - answer from general knowledge
+            // Determine difficulty level and grade context
+            const grade = context.grade || "general";
+            const chapterTitle = context.chapterTitle || "this chapter";
+            const subject = context.subject || "the subject";
+            
+            // Build teacher-like system prompt based on grade level
+            let systemPrompt = `You are a helpful, patient, and encouraging teacher who explains concepts clearly and at an appropriate level for ${grade} grade students. `;
+            
+            // Adjust tone and complexity based on grade
+            if (grade.includes("1") || grade.includes("2") || grade.includes("3") || grade.includes("4") || grade.includes("5")) {
+                systemPrompt += `Use simple language, short sentences, and friendly explanations. Use examples that students can relate to. Be warm and encouraging. `;
+            } else if (grade.includes("6") || grade.includes("7") || grade.includes("8")) {
+                systemPrompt += `Use clear, age-appropriate language. Explain concepts step-by-step with relevant examples. Be supportive and engaging. `;
+            } else if (grade.includes("9") || grade.includes("10") || grade.includes("11") || grade.includes("12")) {
+                systemPrompt += `Use appropriate academic language while remaining accessible. Provide detailed explanations with examples. Be professional yet approachable. `;
+            } else {
+                systemPrompt += `Use clear and accessible language. Explain concepts thoroughly with examples. Be professional and helpful. `;
+            }
+            
+            // Add language instruction to system prompt
+            systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION: 
+The student's question is written in a specific language. You MUST detect the language of the question and respond in the EXACT SAME LANGUAGE. 
+If the question is in French, respond in French. If it's in Spanish, respond in Spanish. 
+If it's in Hindi, respond in Hindi. If it's in Bengali, respond in Bengali. If it's in Arabic, respond in Arabic.
+Match the language of your response to the language of the question. 
+All explanations, examples, and text in your response must be in the same language as the question.`;
+            
+            systemPrompt += `\n\nIMPORTANT: When a question is out of scope from the chapter, you should:
+1. First, politely acknowledge that this question is not covered in "${chapterTitle}" (the current chapter)
+2. Then, still provide a helpful answer from your general knowledge to satisfy the student's curiosity
+3. Maintain a teacher-like, encouraging tone
+4. Use appropriate terminology for ${grade} grade level
+5. Respond in the same language as the student's question`;
+            
+            // Generate response from general knowledge
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o",
+                temperature: 0.7,
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt
+                    },
+                    {
+                        role: "user",
+                        content: `The student asked: "${userQuestion}"\n\nThis question is not covered in the chapter "${chapterTitle}" (${subject}). However, the student is curious and wants to know the answer.\n\nPlease:\n1. First acknowledge that this topic is not part of "${chapterTitle}"\n2. Then provide a helpful, teacher-like explanation from your general knowledge\n3. Make sure your answer is appropriate for ${grade} grade level\n4. Respond in the same language as the student's question\n\nStructure your response to be friendly and educational, as if you're a teacher helping a curious student.`
+                    }
+                ],
+                max_tokens: 800
+            });
+            
             return { 
-                answer: '["No relevant information found", "Medium", 1]',
+                answer: completion.choices[0].message.content,
                 sources: [],
                 totalResults: 0
             };
