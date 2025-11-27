@@ -1486,20 +1486,26 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             const subject = context.subject || "the subject";
             
             // Build system prompt with strict document-based answering
-            let systemPrompt = `Only answer using information from the retrieved documents. If the answer is not in the provided documents, reply: 'No information available in knowledge base.'`;
+            let systemPrompt = `You are a helpful, patient, and encouraging teacher who explains concepts clearly and at an appropriate level for ${grade} grade students. `;
             
             // Add language instruction to maintain language matching
-            systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:- 
+            systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION: 
 The student's question is written in a specific language. You MUST detect the language of the question and respond in the EXACT SAME LANGUAGE. 
 If the question is in French, respond in French. If it's in Spanish, respond in Spanish. 
 If it's in Hindi, respond in Hindi. If it's in Bengali, respond in Bengali. If it's in Arabic, respond in Arabic.
-Match the language of your response to the language of the question. 
-When replying "No information available in knowledge base", translate this message to the same language as the student's question.`;
+Match the language of your response to the language of the question.
+
+IMPORTANT: When the answer is not available in the retrieved documents:
+1. First, politely acknowledge that this question is not covered in "${chapterTitle}" (the current chapter) - it's outside the scope of this chapter
+2. Then, still provide a helpful, friendly teacher-like answer from your general knowledge to satisfy the student's curiosity
+3. Maintain a warm, encouraging, and educational tone throughout your response
+4. Use appropriate language complexity for ${grade} grade level
+5. Respond in the same language as the student's question`;
 
             // Synthesize response using GPT-4 with strict document-based prompt
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o",
-                temperature: 0.7,
+                temperature: 0.4,
                 messages: [
                     {
                         role: "system",
@@ -1507,7 +1513,17 @@ When replying "No information available in knowledge base", translate this messa
                     },
                     {
                         role: "user",
-                        content: `Based on the following information from "${chapterTitle}", please answer the student's question.\n\nIMPORTANT: Respond in the same language that the student used in their question.\n\nSources:\n${textSources}\n\nStudent's Question: ${userQuestion}\n\nPlease provide an answer using only the information from the sources above. If the answer is not in the sources, reply: 'No information available in knowledge base.' (Translate this message to match the student's question language).`
+                        content: `The student asked: "${userQuestion}"
+
+This question is not covered in the chapter "${chapterTitle}" (${subject}). However, the student is curious and wants to know the answer.
+
+Please:
+1. First acknowledge that this topic is not part of "${chapterTitle}" - it's outside the scope of this chapter
+2. Then provide a helpful, friendly teacher-like explanation from your general knowledge
+3. Make sure your answer is appropriate for ${grade} grade level
+4. Respond in the same language as the student's question
+
+Structure your response to be warm, encouraging, and educational, as if you're a teacher helping a curious student.`
                     }
                 ],
                 max_tokens: 800
@@ -1545,15 +1561,21 @@ When replying "No information available in knowledge base", translate this messa
         const subject = context.subject || "the subject";
         
         // Build system prompt - strict document-based answering only
-        let systemPrompt = `Only answer using information from the retrieved documents. If the answer is not in the provided documents, reply: 'No information available in knowledge base.'`;
+        let systemPrompt = `You are a helpful, patient, and encouraging teacher who explains concepts clearly and at an appropriate level for ${grade} grade students. `;
         
         // Add language instruction to maintain language matching
         systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION: 
 The student's question is written in a specific language. You MUST detect the language of the question and respond in the EXACT SAME LANGUAGE. 
 If the question is in French, respond in French. If it's in Spanish, respond in Spanish. 
 If it's in Hindi, respond in Hindi. If it's in Bengali, respond in Bengali. If it's in Arabic, respond in Arabic.
-Match the language of your response to the language of the question. 
-When replying "No information available in knowledge base", translate this message to the same language as the student's question.`;
+Match the language of your response to the language of the question.
+
+IMPORTANT: When the answer is not available in the retrieved documents:
+1. First, politely acknowledge that this question is not covered in "${chapterTitle}" (the current chapter) - it's outside the scope of this chapter
+2. Then, still provide a helpful, friendly teacher-like answer from your general knowledge to satisfy the student's curiosity
+3. Maintain a warm, encouraging, and educational tone throughout your response
+4. Use appropriate language complexity for ${grade} grade level
+5. Respond in the same language as the student's question`;
 
         // Synthesize response using GPT-4 with strict document-based prompt
         const completion = await openai.chat.completions.create({
@@ -1566,7 +1588,21 @@ When replying "No information available in knowledge base", translate this messa
                 },
                 {
                     role: "user",
-                    content: `Based on the following information from "${chapterTitle}", please answer the student's question.\n\nIMPORTANT: Respond in the same language that the student used in their question.\n\nSources:\n${textSources}\n\nStudent's Question: ${userQuestion}\n\nPlease provide an answer using only the information from the sources above. If the answer is not in the sources, reply: 'No information available in knowledge base.' (Translate this message to match the student's question language).`
+                    content: `Based on the following information from "${chapterTitle}" (${subject}), please answer the student's question.
+
+IMPORTANT: Respond in the same language that the student used in their question.
+
+Sources from "${chapterTitle}":
+${textSources}
+
+Student's Question: ${userQuestion}
+
+Instructions:
+- If the answer is in the sources above, provide a clear, teacher-like explanation using only that information
+- If the answer is NOT in the sources above, acknowledge that this question is outside the scope of "${chapterTitle}" but still provide a helpful, friendly teacher-like answer from your general knowledge to satisfy the student's curiosity
+- Maintain a warm, encouraging, and educational tone
+- Use language appropriate for ${grade} grade level
+- Respond in the same language as the student's question`
                 }
             ],
             max_tokens: 800
