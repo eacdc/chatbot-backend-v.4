@@ -305,8 +305,8 @@ router.post("/chat_ask", async (req, res) => {
             return res.status(400).json({ error: "User ID, message, and chapter ID are required" });
         }
 
-        // Find the chapter and get its vectorStoreId
-        const chapter = await Chapter.findById(chapterId);
+        // Find the chapter and populate the book to get grade and subject
+        const chapter = await Chapter.findById(chapterId).populate('bookId');
         if (!chapter) {
             return res.status(404).json({ error: "Chapter not found" });
         }
@@ -336,26 +336,23 @@ router.post("/chat_ask", async (req, res) => {
             chatAsk.messages = [];
         }
 
-        // Search vector store for answer
-        //console.log(`Searching vector store ${chapter.vectorStoreId} for question: "${message}"`);
-        const searchResult = await searchVectorStoreForAnswer(chapter.vectorStoreId, message);
+        // Prepare context from chapter and book
+        const context = {
+            chapterTitle: chapter.title,
+            grade: chapter.bookId?.grade || "general",
+            subject: chapter.bookId?.subject || "the subject"
+        };
+
+        // Search vector store for answer - pass context as 4th parameter
+        const searchResult = await searchVectorStoreForAnswer(
+            chapter.vectorStoreId, 
+            message, 
+            {}, // options (empty object for default)
+            context // context as 4th parameter
+        );
         
-        // Extract answer from search result
+        // Extract answer from search result (no need to parse JSON array for chat)
         let answerText = searchResult.answer;
-        
-        // Parse the answer if it's in JSON array format
-        if (answerText.startsWith('[') && answerText.endsWith(']')) {
-            try {
-                const parsedAnswer = JSON.parse(answerText);
-                if (Array.isArray(parsedAnswer) && parsedAnswer.length >= 1) {
-                    // Use the first element as the answer text
-                    answerText = parsedAnswer[0];
-                }
-            } catch (parseError) {
-                // If parsing fails, use the answer as-is
-                //console.log("Answer is not in JSON array format, using as-is");
-            }
-        }
 
         // Save both user and assistant messages
         chatAsk.messages.push({ 
@@ -830,7 +827,7 @@ async function processBatchText(req, res) {
                           throw new Error(`Invalid vectorStoreId type: expected string, got ${typeof vectorStoreId}`);
                         }
                         
-                        const response = await searchVectorStoreForAnswer(vectorStoreId, questionObj.question);
+                        const response = await searchVectorStoreForAnswer(vectorStoreId, questionObj.question, { chapterTitle: chapterTitle, subject: subject, grade: "general" });
                         // const response = await answerQuestion(questionObj.question, embeddings);
                         //console.log(`Raw answer response: ${response.answer}`);
                         
@@ -1261,9 +1258,10 @@ async function saveTextToVectorStore(rawText, vectorStoreName = 'Knowledge Base'
  * @param {string} vectorStoreId - The ID of the vector store to search
  * @param {string} userQuestion - The question to search for
  * @param {Object} options - Optional search parameters
+ * @param {Object} context - Optional context (chapterTitle, grade, subject) for teacher-like responses
  * @returns {Object} - Object containing the answer and metadata
  */
-async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options = {}) {
+async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options = {}, context = {}) {
     try {
         // Debug logging to see what we received
         console.log(`DEBUG: vectorStoreId type3: ${typeof vectorStoreId}`);
@@ -1508,34 +1506,69 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
         
         //console.log(`Extracted ${textSources.length} characters of source text for answer synthesis`);
         
-        // Synthesize response using GPT-4 with reduced max_tokens
-        //console.log(`Generating synthesized answer using GPT-4`);
+        // Determine difficulty level and grade context
+        const grade = context.grade || "general";
+        const chapterTitle = context.chapterTitle || "this chapter";
+        const subject = context.subject || "the subject";
+        
+        // Build teacher-like system prompt based on grade level
+        let systemPrompt = `You are a helpful, patient, and encouraging teacher who explains concepts clearly and at an appropriate level for ${grade} grade students. `;
+        
+        // Adjust tone and complexity based on grade
+        if (grade.includes("1") || grade.includes("2") || grade.includes("3") || grade.includes("4") || grade.includes("5")) {
+            systemPrompt += `Use simple language, short sentences, and friendly explanations. Use examples that students can relate to. Be warm and encouraging. `;
+        } else if (grade.includes("6") || grade.includes("7") || grade.includes("8")) {
+            systemPrompt += `Use clear, age-appropriate language. Explain concepts step-by-step with relevant examples. Be supportive and engaging. `;
+        } else if (grade.includes("9") || grade.includes("10") || grade.includes("11") || grade.includes("12")) {
+            systemPrompt += `Use appropriate academic language while remaining accessible. Provide detailed explanations with examples. Be professional yet approachable. `;
+        } else {
+            systemPrompt += `Use clear and accessible language. Explain concepts thoroughly with examples. Be professional and helpful. `;
+        }
+        
+        // Add language instruction to system prompt
+        systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION: 
+The student's question is written in a specific language. You MUST detect the language of the question and respond in the EXACT SAME LANGUAGE. 
+If the question is in French, respond in French. If it's in Spanish, respond in Spanish. 
+If it's in Hindi, respond in Hindi. If it's in Bengali, respond in Bengali. If it's in Arabic, respond in Arabic.
+Match the language of your response to the language of the question. 
+All explanations, examples, and text in your response must be in the same language as the question.`;
+        
+        systemPrompt += `\n\nWhen answering questions about "${chapterTitle}" in ${subject}:\n`;
+        systemPrompt += `- Provide clear, well-structured explanations\n`;
+        systemPrompt += `- Use appropriate terminology for ${grade} grade level\n`;
+        systemPrompt += `- Break down complex concepts into understandable parts\n`;
+        systemPrompt += `- Include relevant examples when helpful\n`;
+        systemPrompt += `- Format your answer in a friendly, conversational tone\n`;
+        systemPrompt += `- If the question cannot be answered from the provided sources, politely say so\n`;
+        systemPrompt += `- Keep your answer comprehensive but not overwhelming\n`;
+        systemPrompt += `- RESPOND IN THE SAME LANGUAGE AS THE STUDENT'S QUESTION - all text, explanations, and examples must match the question's language\n\n`;
+        systemPrompt += `Answer the student's question directly and helpfully in the same language they used, as if you're having a one-on-one conversation with them.`;
+
+        // Synthesize response using GPT-4 with teacher-like prompt
         const completion = await openai.chat.completions.create({
-            model: "gpt-4o", // Updated to use correct model name
-            temperature: 0,
+            model: "gpt-4o",
+            temperature: 0.7, // Slightly higher for more natural, conversational responses
             messages: [
                 {
                     role: "system",
-                    content: "You are a helpful assistant. Provide a concise answer in this exact JSON array format: [\"answer\", \"difficulty\", marks]. The answer should be a string with less than 25 words, difficulty should be Easy/Medium/Hard, and marks should be 1-5."
+                    content: systemPrompt
                 },
                 {
                     role: "user",
-                    content: `Sources:\n${textSources}\n\nQuestion: ${userQuestion}\n\nProvide answer as: ["answer text", "difficulty", marks]`
+                    content: `Based on the following information from "${chapterTitle}", please answer the student's question.\n\nIMPORTANT: Respond in the same language that the student used in their question.\n\nSources:\n${textSources}\n\nStudent's Question: ${userQuestion}\n\nPlease provide a helpful, teacher-like explanation that matches the ${grade} grade level, using the same language as the student's question.`
                 }
             ],
-            max_tokens: 300 // Reduced from 500 to ensure we stay within limits
+            max_tokens: 800 // Increased for more detailed teacher-like responses
         });
         
         const answerText = completion.choices[0].message.content;
-        
-        //console.log(`Generated answer (${answerText.length} chars): "${answerText.substring(0, 100)}..."`);
         
         // Return object with answer and metadata
         return {
             answer: answerText,
             sources: results.data.map(r => ({
                 score: r.score,
-                text: r.content.map(c => c.text).join('\n').substring(0, 500) // Limit source text
+                text: r.content.map(c => c.text).join('\n').substring(0, 500)
             })),
             totalResults: results.data.length
         };
