@@ -34,6 +34,7 @@ The vectorStoreId will be saved to the chapter's vectorStoreId field in MongoDB.
 const express = require("express");
 const router = express.Router();
 const Chat = require("../models/Chat");
+const ChatAsk = require("../models/ChatAsk");
 const Chapter = require("../models/Chapter");
 const OpenAI = require("openai");
 const jwt = require("jsonwebtoken"); // Make sure to import jwt
@@ -295,6 +296,100 @@ router.post("/send", async (req, res) => {
     }
 });
 
+// Chat Ask - Answer user questions from a chapter using its vector store ID
+router.post("/chat_ask", async (req, res) => {
+    try {
+        const { userId, message, chapterId } = req.body;
+
+        if (!userId || !message || !chapterId) {
+            return res.status(400).json({ error: "User ID, message, and chapter ID are required" });
+        }
+
+        // Find the chapter and get its vectorStoreId
+        const chapter = await Chapter.findById(chapterId);
+        if (!chapter) {
+            return res.status(404).json({ error: "Chapter not found" });
+        }
+
+        if (!chapter.vectorStoreId) {
+            return res.status(400).json({ 
+                error: "Chapter does not have a vector store. Please ensure the chapter has been processed with a vector store ID." 
+            });
+        }
+
+        // Find or create chat ask conversation
+        let chatAsk = await ChatAsk.findOne({ userId, chapterId });
+        
+        if (!chatAsk) {
+            chatAsk = new ChatAsk({ 
+                userId, 
+                chapterId, 
+                messages: [],
+                metadata: {
+                    totalQuestions: 0,
+                    lastActive: new Date()
+                }
+            });
+        }
+
+        if (!Array.isArray(chatAsk.messages)) {
+            chatAsk.messages = [];
+        }
+
+        // Search vector store for answer
+        //console.log(`Searching vector store ${chapter.vectorStoreId} for question: "${message}"`);
+        const searchResult = await searchVectorStoreForAnswer(chapter.vectorStoreId, message);
+        
+        // Extract answer from search result
+        let answerText = searchResult.answer;
+        
+        // Parse the answer if it's in JSON array format
+        if (answerText.startsWith('[') && answerText.endsWith(']')) {
+            try {
+                const parsedAnswer = JSON.parse(answerText);
+                if (Array.isArray(parsedAnswer) && parsedAnswer.length >= 1) {
+                    // Use the first element as the answer text
+                    answerText = parsedAnswer[0];
+                }
+            } catch (parseError) {
+                // If parsing fails, use the answer as-is
+                //console.log("Answer is not in JSON array format, using as-is");
+            }
+        }
+
+        // Save both user and assistant messages
+        chatAsk.messages.push({ 
+            role: "user", 
+            content: message,
+            timestamp: new Date()
+        });
+        chatAsk.messages.push({ 
+            role: "assistant", 
+            content: answerText,
+            timestamp: new Date()
+        });
+
+        // Update metadata
+        chatAsk.metadata.totalQuestions = chatAsk.messages.filter(m => m.role === "user").length;
+        chatAsk.metadata.lastActive = new Date();
+
+        await chatAsk.save();
+
+        res.json({ 
+            response: answerText,
+            sources: searchResult.sources || [],
+            totalResults: searchResult.totalResults || 0
+        });
+
+    } catch (error) {
+        //console.error("Error in chat_ask API:", error);
+        res.status(500).json({ 
+            message: "Error getting response from vector store", 
+            error: error.message 
+        });
+    }
+});
+
 // Fetch General Chat History for Logged-in User
 router.get("/history/:userId", async (req, res) => {
     try {
@@ -357,6 +452,47 @@ router.get("/chapter-history/:chapterId", async (req, res) => {
         //console.error("Error fetching chapter chat history:", error);
         res.status(500).json({ error: "Failed to fetch chapter chat history" });
   }
+});
+
+// Fetch Chat Ask History for a specific chapter
+router.get("/chat_ask-history/:chapterId", async (req, res) => {
+    try {
+        const { chapterId } = req.params;
+        
+        // Extract token from Authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Authorization token required" });
+        }
+        
+        const token = authHeader.split(' ')[1];
+        
+        // Extract userId from token
+        let userId;
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            userId = decoded.userId || decoded.id || decoded._id;
+        } catch (err) {
+            //console.error("Error decoding token:", err);
+            return res.status(401).json({ error: "Invalid token" });
+        }
+        
+        //console.log(`Looking for chat_ask with userId: ${userId}, chapterId: ${chapterId}`);
+        
+        const chatAsk = await ChatAsk.findOne({ userId, chapterId });
+        
+        if (!chatAsk || !Array.isArray(chatAsk.messages)) {
+            //console.log("No chat_ask found or messages is not an array");
+            return res.json([]);
+        }
+        
+        //console.log(`Found chat_ask with ${chatAsk.messages.length} messages`);
+        res.json(chatAsk.messages);
+        
+    } catch (error) {
+        //console.error("Error fetching chat_ask history:", error);
+        res.status(500).json({ error: "Failed to fetch chat_ask history" });
+    }
 });
 
 // Process raw text through OpenAI with text splitting (batched processing)
