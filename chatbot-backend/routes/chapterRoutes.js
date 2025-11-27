@@ -1485,36 +1485,18 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             const chapterTitle = context.chapterTitle || "this chapter";
             const subject = context.subject || "the subject";
             
-            // Build teacher-like system prompt based on grade level
-            let systemPrompt = `You are a helpful, patient, and encouraging teacher who explains concepts clearly and at an appropriate level for ${grade} grade students. `;
+            // Build system prompt with strict document-based answering
+            let systemPrompt = `Only answer using information from the retrieved documents. If the answer is not in the provided documents, reply: 'No information available in knowledge base.'`;
             
-            // Adjust tone and complexity based on grade
-            if (grade.includes("1") || grade.includes("2") || grade.includes("3") || grade.includes("4") || grade.includes("5")) {
-                systemPrompt += `Use simple language, short sentences, and friendly explanations. Use examples that students can relate to. Be warm and encouraging. `;
-            } else if (grade.includes("6") || grade.includes("7") || grade.includes("8")) {
-                systemPrompt += `Use clear, age-appropriate language. Explain concepts step-by-step with relevant examples. Be supportive and engaging. `;
-            } else if (grade.includes("9") || grade.includes("10") || grade.includes("11") || grade.includes("12")) {
-                systemPrompt += `Use appropriate academic language while remaining accessible. Provide detailed explanations with examples. Be professional yet approachable. `;
-            } else {
-                systemPrompt += `Use clear and accessible language. Explain concepts thoroughly with examples. Be professional and helpful. `;
-            }
-            
-            // Add language instruction to system prompt
+            // Add language instruction to maintain language matching
             systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION: 
 The student's question is written in a specific language. You MUST detect the language of the question and respond in the EXACT SAME LANGUAGE. 
 If the question is in French, respond in French. If it's in Spanish, respond in Spanish. 
 If it's in Hindi, respond in Hindi. If it's in Bengali, respond in Bengali. If it's in Arabic, respond in Arabic.
 Match the language of your response to the language of the question. 
-All explanations, examples, and text in your response must be in the same language as the question.`;
-            
-            systemPrompt += `\n\nIMPORTANT: When a question is out of scope from the chapter, you should:
-1. First, politely acknowledge that this question is not covered in "${chapterTitle}" (the current chapter)
-2. Then, still provide a helpful answer from your general knowledge to satisfy the student's curiosity
-3. Maintain a teacher-like, encouraging tone
-4. Use appropriate terminology for ${grade} grade level
-5. Respond in the same language as the student's question`;
-            
-            // Generate response from general knowledge
+When replying "No information available in knowledge base", translate this message to the same language as the student's question.`;
+
+            // Synthesize response using GPT-4 with strict document-based prompt
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o",
                 temperature: 0.7,
@@ -1525,7 +1507,7 @@ All explanations, examples, and text in your response must be in the same langua
                     },
                     {
                         role: "user",
-                        content: `The student asked: "${userQuestion}"\n\nThis question is not covered in the chapter "${chapterTitle}" (${subject}). However, the student is curious and wants to know the answer.\n\nPlease:\n1. First acknowledge that this topic is not part of "${chapterTitle}"\n2. Then provide a helpful, teacher-like explanation from your general knowledge\n3. Make sure your answer is appropriate for ${grade} grade level\n4. Respond in the same language as the student's question\n\nStructure your response to be friendly and educational, as if you're a teacher helping a curious student.`
+                        content: `Based on the following information from "${chapterTitle}", please answer the student's question.\n\nIMPORTANT: Respond in the same language that the student used in their question.\n\nSources:\n${textSources}\n\nStudent's Question: ${userQuestion}\n\nPlease provide an answer using only the information from the sources above. If the answer is not in the sources, reply: 'No information available in knowledge base.' (Translate this message to match the student's question language).`
                     }
                 ],
                 max_tokens: 800
@@ -1562,43 +1544,21 @@ All explanations, examples, and text in your response must be in the same langua
         const chapterTitle = context.chapterTitle || "this chapter";
         const subject = context.subject || "the subject";
         
-        // Build teacher-like system prompt based on grade level
-        let systemPrompt = `You are a helpful, patient, and encouraging teacher who explains concepts clearly and at an appropriate level for ${grade} grade students. `;
+        // Build system prompt - strict document-based answering only
+        let systemPrompt = `Only answer using information from the retrieved documents. If the answer is not in the provided documents, reply: 'No information available in knowledge base.'`;
         
-        // Adjust tone and complexity based on grade
-        if (grade.includes("1") || grade.includes("2") || grade.includes("3") || grade.includes("4") || grade.includes("5")) {
-            systemPrompt += `Use simple language, short sentences, and friendly explanations. Use examples that students can relate to. Be warm and encouraging. `;
-        } else if (grade.includes("6") || grade.includes("7") || grade.includes("8")) {
-            systemPrompt += `Use clear, age-appropriate language. Explain concepts step-by-step with relevant examples. Be supportive and engaging. `;
-        } else if (grade.includes("9") || grade.includes("10") || grade.includes("11") || grade.includes("12")) {
-            systemPrompt += `Use appropriate academic language while remaining accessible. Provide detailed explanations with examples. Be professional yet approachable. `;
-        } else {
-            systemPrompt += `Use clear and accessible language. Explain concepts thoroughly with examples. Be professional and helpful. `;
-        }
-        
-        // Add language instruction to system prompt
+        // Add language instruction to maintain language matching
         systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION: 
 The student's question is written in a specific language. You MUST detect the language of the question and respond in the EXACT SAME LANGUAGE. 
 If the question is in French, respond in French. If it's in Spanish, respond in Spanish. 
 If it's in Hindi, respond in Hindi. If it's in Bengali, respond in Bengali. If it's in Arabic, respond in Arabic.
 Match the language of your response to the language of the question. 
-All explanations, examples, and text in your response must be in the same language as the question.`;
-        
-        systemPrompt += `\n\nWhen answering questions about "${chapterTitle}" in ${subject}:\n`;
-        systemPrompt += `- Provide clear, well-structured explanations\n`;
-        systemPrompt += `- Use appropriate terminology for ${grade} grade level\n`;
-        systemPrompt += `- Break down complex concepts into understandable parts\n`;
-        systemPrompt += `- Include relevant examples when helpful\n`;
-        systemPrompt += `- Format your answer in a friendly, conversational tone\n`;
-        systemPrompt += `- If the question cannot be answered from the provided sources, politely say so\n`;
-        systemPrompt += `- Keep your answer comprehensive but not overwhelming\n`;
-        systemPrompt += `- RESPOND IN THE SAME LANGUAGE AS THE STUDENT'S QUESTION - all text, explanations, and examples must match the question's language\n\n`;
-        systemPrompt += `Answer the student's question directly and helpfully in the same language they used, as if you're having a one-on-one conversation with them.`;
+When replying "No information available in knowledge base", translate this message to the same language as the student's question.`;
 
-        // Synthesize response using GPT-4 with teacher-like prompt
+        // Synthesize response using GPT-4 with strict document-based prompt
         const completion = await openai.chat.completions.create({
             model: "gpt-4o",
-            temperature: 0.7, // Slightly higher for more natural, conversational responses
+            temperature: 0.7,
             messages: [
                 {
                     role: "system",
@@ -1606,10 +1566,10 @@ All explanations, examples, and text in your response must be in the same langua
                 },
                 {
                     role: "user",
-                    content: `Based on the following information from "${chapterTitle}", please answer the student's question.\n\nIMPORTANT: Respond in the same language that the student used in their question.\n\nSources:\n${textSources}\n\nStudent's Question: ${userQuestion}\n\nPlease provide a helpful, teacher-like explanation that matches the ${grade} grade level, using the same language as the student's question.`
+                    content: `Based on the following information from "${chapterTitle}", please answer the student's question.\n\nIMPORTANT: Respond in the same language that the student used in their question.\n\nSources:\n${textSources}\n\nStudent's Question: ${userQuestion}\n\nPlease provide an answer using only the information from the sources above. If the answer is not in the sources, reply: 'No information available in knowledge base.' (Translate this message to match the student's question language).`
                 }
             ],
-            max_tokens: 800 // Increased for more detailed teacher-like responses
+            max_tokens: 800
         });
         
         const answerText = completion.choices[0].message.content;
