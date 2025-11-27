@@ -1489,7 +1489,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             let systemPrompt = `Only answer using information from the retrieved documents. If the answer is not in the provided documents, reply: 'No information available in knowledge base.'`;
             
             // Add language instruction to maintain language matching
-            systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION: 
+            systemPrompt += `\n\nIMPORTANT LANGUAGE INSTRUCTION:- 
 The student's question is written in a specific language. You MUST detect the language of the question and respond in the EXACT SAME LANGUAGE. 
 If the question is in French, respond in French. If it's in Spanish, respond in Spanish. 
 If it's in Hindi, respond in Hindi. If it's in Bengali, respond in Bengali. If it's in Arabic, respond in Arabic.
