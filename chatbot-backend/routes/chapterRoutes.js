@@ -1493,7 +1493,7 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
 2. Then, still provide a helpful, friendly teacher-like answer from your general knowledge to satisfy the student's curiosity
 3. Maintain a warm, encouraging, and educational tone throughout your response
 4. Use appropriate language complexity for ${grade} grade level
-5. Most Important: response in the same language user asked in the very last message`;
+5. Most Important: response in the same language user asked question in the very last message, for example if user asked the last question in bengali then reply this response entirely in bengali`;
 
             // Synthesize response using GPT-4 with strict document-based prompt
             const completion = await openai.chat.completions.create({
