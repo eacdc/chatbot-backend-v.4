@@ -1492,7 +1492,8 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
 1. First, politely acknowledge that this question is not covered in "${chapterTitle}" (the current chapter) - it's outside the scope of this chapter
 2. Then, still provide a helpful, friendly teacher-like answer from your general knowledge to satisfy the student's curiosity
 3. Maintain a warm, encouraging, and educational tone throughout your response
-4. Use appropriate language complexity for ${grade} grade level`;
+4. Use appropriate language complexity for ${grade} grade level
+5. Most Important: response in the same language user asked in the very last message`;
 
             // Synthesize response using GPT-4 with strict document-based prompt
             const completion = await openai.chat.completions.create({
