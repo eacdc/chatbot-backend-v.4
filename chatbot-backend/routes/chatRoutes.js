@@ -336,7 +336,6 @@ router.post("/send", authenticateUser, async (req, res) => {
         const userChapterKey = `${userId}-${chapterId}`;
         if (previousQuestionsMap.has(userChapterKey)) {
             previousQuestion = previousQuestionsMap.get(userChapterKey);
-            console.log(`Found previous question for ${userChapterKey}: ${previousQuestion.question ? previousQuestion.question.substring(0, 30) + '...' : 'No question text'}`);
         }
         
             chat = await Chat.findOne({ userId, chapterId });
@@ -433,26 +432,22 @@ Rules:
             // Add the current user message
             intentAnalysisMessages.push({ role: "user", content: message });
 
-            // Call OpenAI to get the agent classification
-            try {
-                const intentAnalysis = await openaiSelector.chat.completions.create({
-                    model: "gpt-4.1",
-                    messages: intentAnalysisMessages,
-                    temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
-                });
+                // Call OpenAI to get the agent classification
+                try {
+                    const intentAnalysis = await openaiSelector.chat.completions.create({
+                        model: "gpt-4.1",
+                        messages: intentAnalysisMessages,
+                        temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
+                    });
 
-                // Extract the classification
-               const responseContent = intentAnalysis.choices[0].message.content.trim();
-  const result = JSON.parse(responseContent);
-  classification = result.agent;
-                
-                // Log the selected agent
-                console.log(`Selected agent: "${classification}"`);
-            } catch (selectorError) {
-                console.error("ERROR in agent selection:", selectorError);
-                // Using the default classification set above
-                console.log(`FALLBACK: Using default agent "${classification}"`);
-            }
+                    // Extract the classification
+                    const responseContent = intentAnalysis.choices[0].message.content.trim();
+                    const result = JSON.parse(responseContent);
+                    classification = result.agent;
+                } catch (selectorError) {
+                    console.error("ERROR in agent selection:", selectorError);
+                    // Using the default classification set above
+                }
 
             // Early question detection - check if user is asking a question BEFORE question selection
             // This allows us to skip question selection when questionAsked=true
@@ -510,7 +505,10 @@ Rules:
                         if (toolCall.function.name === "detect_question") {
                             const toolArguments = JSON.parse(toolCall.function.arguments);
                             questionAsked = toolArguments.questionAsked || false;
-                            console.log(`🔍 Early Question Detection: questionAsked = ${questionAsked}`);
+                            // Log the associated question only when user is asking about it
+                            if (questionAsked && previousQuestion && previousQuestion.question) {
+                                console.log(`QUESTION_LOG: ${previousQuestion.question}`);
+                            }
                         }
                     }
                 } catch (earlyDetectionError) {
@@ -565,7 +563,6 @@ Rules:
                     
                     // Get all unique subtopics from chapter questions
                     const allSubtopics = [...new Set(chapter.questionPrompt.map(q => q.subtopic).filter(s => s))]
-                    console.log(`Available subtopics: ${allSubtopics.join(', ')}`);
 
                     // Track when ALL questions for this chapter have been answered
                     let allQuestionsAnswered = false;
@@ -573,7 +570,6 @@ Rules:
                     // Function to select question based on progression rules
                     function selectQuestionByProgression() {
                         const currentDifficulty = progressionTracker.currentDifficulty;
-                        console.log(`Current difficulty level: ${currentDifficulty}`);
                         
                         // Initialize lastSubtopic in progressionTracker if it doesn't exist
                         if (!progressionTracker.lastSubtopic) {
@@ -587,7 +583,6 @@ Rules:
                         );
                         
                         if (questionsAtCurrentDifficulty.length === 0) {
-                            console.log(`No unanswered questions at ${currentDifficulty} difficulty`);
                             return null;
                         }
                         
@@ -596,10 +591,6 @@ Rules:
                         const remainingSubtopics = allSubtopics.filter(subtopic => 
                             !completedSubtopics.includes(subtopic)
                         );
-                        
-                        console.log(`Completed subtopics at ${currentDifficulty}: ${completedSubtopics.join(', ')}`);
-                        console.log(`Remaining subtopics at ${currentDifficulty}: ${remainingSubtopics.join(', ')}`);
-                        console.log(`Last subtopic used: ${progressionTracker.lastSubtopic || 'None'}`);
                         
                         let selectedQuestion = null;
                         
@@ -615,9 +606,6 @@ Rules:
                             // Select a random subtopic from available ones (that's not the same as last time)
                             const randomSubtopicIndex = Math.floor(Math.random() * subtopicsToUse.length);
                             const targetSubtopic = subtopicsToUse[randomSubtopicIndex];
-                            
-                            console.log(`Last subtopic: ${progressionTracker.lastSubtopic}`);
-                            console.log(`Selected new subtopic: ${targetSubtopic}`);
                             
                             // Update the lastSubtopic in the tracker
                             progressionTracker.lastSubtopic = targetSubtopic;
@@ -650,13 +638,11 @@ Rules:
                                 progressionTracker.currentDifficulty = "Medium";
                                 // Reset the lastSubtopic when changing difficulty
                                 progressionTracker.lastSubtopic = "";
-                                console.log(`Advanced to Medium difficulty`);
                                 return selectQuestionByProgression(); // Recursive call with new difficulty
                             } else if (currentDifficulty === "Medium") {
                                 progressionTracker.currentDifficulty = "Hard";
                                 // Reset the lastSubtopic when changing difficulty
                                 progressionTracker.lastSubtopic = "";
-                                console.log(`Advanced to Hard difficulty`);
                                 return selectQuestionByProgression(); // Recursive call with new difficulty
                             } else {
                                 // All difficulties completed; check if any unanswered questions remain at all
@@ -681,11 +667,8 @@ Rules:
                                     if (selectedQuestion && selectedQuestion.subtopic) {
                                         progressionTracker.lastSubtopic = selectedQuestion.subtopic;
                                     }
-                                    
-                                    console.log(`All progression completed, selected random remaining question from subtopic: ${selectedQuestion.subtopic || 'Unknown'}`);
                                 } else {
                                     // No unanswered questions remain for this chapter
-                                    console.log(`✅ All questions for this chapter have been answered - no more questions to select`);
                                     allQuestionsAnswered = true;
                                 }
                             }
@@ -707,10 +690,8 @@ Rules:
                         if (unansweredQuestions.length > 0) {
                             const randomIndex = Math.floor(Math.random() * unansweredQuestions.length);
                             questionPrompt = unansweredQuestions[randomIndex];
-                            console.log(`Fallback: Selected random unanswered question`);
                         } else {
                             // All questions are answered for this chapter
-                            console.log(`✅ All questions answered for this chapter. Switching to closureChat_ai and not asking further questions.`);
                             allQuestionsAnswered = true;
                         }
                     }
@@ -720,23 +701,11 @@ Rules:
                         currentQuestion = questionPrompt;
                         currentScore = questionPrompt.question_marks || 1;
                         
-                        console.log(`Selected question: ID=${questionPrompt.questionId}`);
-                        console.log(`Question: "${questionPrompt.question ? questionPrompt.question.substring(0, 50) + '...' : 'No question text'}"`);
-                        console.log(`Subtopic: ${questionPrompt.subtopic || 'No subtopic'}`);
-                        console.log(`Difficulty: ${questionPrompt.difficultyLevel || 'No difficulty'}`);
-                        console.log(`Marks: ${questionPrompt.question_marks || 1}`);
-                        
                         // Save progression tracker back to chat metadata
                         chat.metadata.progressionTracker = progressionTracker;
                         
-                        // Log the question marks that will be used
-                        console.log(`📊 Question marks for ${classification}: ${currentQuestion.question_marks || 1}`);
-                        if (previousQuestion) {
-                            console.log(`📊 Previous question marks: ${previousQuestion.question_marks || 1}`);
-                        }
                     } else if (allQuestionsAnswered) {
                         // No more questions left; change agent to closureChat_ai so user gets summary/closure
-                        console.log(`🎯 No remaining unanswered questions. Forcing agent to "closureChat_ai".`);
                         classification = "closureChat_ai";
                         // Clear currentQuestion/currentScore so frontend doesn't think another question is pending
                         currentQuestion = null;
@@ -775,43 +744,7 @@ Rules:
                     .replace(/\{\{difficulty_level\}\}/g, currentQuestion ? (currentQuestion.difficultyLevel || "Not specified") : "Not specified")
                     .replace(/\{\{question_type\}\}/g, currentQuestion ? (currentQuestion.question_type || "General") : "General");
                 
-                // Log the marks values used in the prompt
-                console.log(`📊 oldchat_ai prompt replacement - QUESTION_MARKS: ${currentQuestion ? currentQuestion.question_marks || 1 : 1}`);
-                console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_QUESTION_MARKS: ${previousQuestion ? previousQuestion.question_marks || 1 : 1}`);
-                console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_QUESTION: ${previousQuestion ? previousQuestion.question?.substring(0, 50) + '...' : 'No previous question'}`);
-                console.log(`📊 oldchat_ai prompt replacement - USER_ANSWER: ${message?.substring(0, 50) + '...' || 'No answer provided'}`);
-                console.log(`📊 oldchat_ai prompt replacement - TENTATIVE_ANSWER: ${previousQuestion ? (previousQuestion.tentativeAnswer?.substring(0, 50) + '...' || 'Not provided') : 'Not provided'}`);
-                console.log(`📊 oldchat_ai prompt replacement - PREVIOUS_DIFFICULTY: ${previousQuestion ? (previousQuestion.difficultyLevel || 'Not specified') : 'Not specified'}`);
-                console.log(`📊 oldchat_ai prompt replacement - CURRENT_SUBTOPIC: ${currentQuestion ? (currentQuestion.subtopic || 'General') : 'General'}`);
-                console.log(`📊 oldchat_ai prompt replacement - CURRENT_DIFFICULTY: ${currentQuestion ? (currentQuestion.difficultyLevel || 'Not specified') : 'Not specified'}`);
-                console.log(`📊 oldchat_ai prompt replacement - CURRENT_QUESTION_TYPE: ${currentQuestion ? (currentQuestion.question_type || 'General') : 'General'}`);
-                
-                // Enhanced debugging - log complete question objects and their key properties
-                console.log(`🔍 PLACEHOLDER DEBUG - Previous Question Object:`, {
-                    questionId: previousQuestion?.questionId,
-                    tentativeAnswer: previousQuestion?.tentativeAnswer,
-                    difficultyLevel: previousQuestion?.difficultyLevel,
-                    subtopic: previousQuestion?.subtopic,
-                    question_type: previousQuestion?.question_type,
-                    hasObject: !!previousQuestion
-                });
-                
-                console.log(`🔍 PLACEHOLDER DEBUG - Current Question Object:`, {
-                    questionId: currentQuestion?.questionId,
-                    tentativeAnswer: currentQuestion?.tentativeAnswer,
-                    difficultyLevel: currentQuestion?.difficultyLevel,
-                    subtopic: currentQuestion?.subtopic,
-                    question_type: currentQuestion?.question_type,
-                    hasObject: !!currentQuestion
-                });
-                
-                // Log each placeholder value as it's being used
-                console.log(`🔧 PLACEHOLDER VALUES BEING USED:`);
-                console.log(`  - {{tentative_answer}}: "${previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided"}"`);
-                console.log(`  - {{previous_question_difficulty_level}}: "${previousQuestion ? (previousQuestion.difficultyLevel || "Not specified") : "Not specified"}"`);
-                console.log(`  - {{subtopic}}: "${currentQuestion ? (currentQuestion.subtopic || "General") : "General"}"`);
-                console.log(`  - {{difficulty_level}}: "${currentQuestion ? (currentQuestion.difficultyLevel || "Not specified") : "Not specified"}"`);
-                console.log(`  - {{question_type}}: "${currentQuestion ? (currentQuestion.question_type || "General") : "General"}"`);
+                // (extensive debug logging removed)
                 
             } else if (classification === "newchat_ai") {
                 // Get the newchat_ai prompt template
@@ -825,9 +758,6 @@ Rules:
                     .replace(/\{\{QUESTION\}\}/g, currentQuestion ? currentQuestion.question : "review questions")
                     .replace(/\{\{QUESTION_ID\}\}/g, currentQuestion ? currentQuestion.questionId : "Q1")
                     .replace(/\{\{QUESTION_MARKS\}\}/g, currentQuestion ? currentQuestion.question_marks || 1 : 1);
-                
-                // Log the marks values used in the prompt
-                console.log(`📊 newchat_ai prompt replacement - QUESTION_MARKS: ${currentQuestion ? currentQuestion.question_marks || 1 : 1}`);
                 
             } else if (classification === "closureChat_ai") {
                 // Get the closurechat_ai prompt template
@@ -994,7 +924,6 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
 The subject is "{{SUBJECT}}". If the subject is English or English language, communicate in English. For all other subjects, all communication should be done in Bengali, even the headings like Score,Marks,Explanation,Question,Next Question, etc. Please respond to all questions and interactions in the appropriate language based on this rule.`.replace("{{SUBJECT}}", bookSubject || "general");
                 }
             }
-             console.log(`System Prompt ${systemPrompt}`);
             // Prepare the messages to send to OpenAI
             let messagesForOpenAI = [];
             if (!Array.isArray(messagesForOpenAI)) {
@@ -1041,8 +970,6 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             const makeOpenAIRequest = async (retryCount = 0, maxRetries = 2) => {
                 try {
                     // Attempt the request
-                    console.log(`📊 messagesForOpenAI: ${JSON.stringify(messagesForOpenAI)}`);
-                    
                     const requestOptions = {
                         model: "gpt-4.1", // For DeepSeek API we use this model
                         messages: messagesForOpenAI,
@@ -1139,10 +1066,6 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
 
             // Extract the bot message
             const botMessage = openaiResponse.choices[0].message.content;
-            console.log(`🤖 Bot reply (first 100 chars): ${botMessage.substring(0, 100)}...`);
-            console.log(`📏 Bot reply full length: ${botMessage.length} characters`);
-            console.log(`📄 Bot reply full content:\n${botMessage}`);
-            console.log(`📄 Bot reply JSON stringify: ${JSON.stringify(botMessage)}`);
 
             // Parse array response format for oldchat_ai
             let finalBotMessage = botMessage;
@@ -1223,16 +1146,11 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // If in question mode and classification is oldchat_ai, process scores and update questions
             // BUT skip saving to QnA collection if questionAsked is true (user is asking about the question)
             if (classification === "oldchat_ai") {
-                console.log(`🔍 DEBUG: Starting score processing - Classification: ${classification}`);
-                
                 // Check if user is asking a question - if so, skip QnA collection saving
                 if (shouldUseToolCall && questionAsked === true) {
-                    console.log(`🔄 Question Asked = true: Skipping QnA collection save (user is asking about the question, not answering)`);
                 } else {
                     // Check if we have a valid previous question to record the answer for
                     if (previousQuestion) {
-                        console.log(`🔍 DEBUG: Previous question found - ID: ${previousQuestion.questionId}, Text: ${previousQuestion.question?.substring(0, 30)}...`);
-                        
                         // Use extracted scores from array or fallback to 0
                         let marksAwarded = 0;
                         let maxScore = previousQuestion.question_marks || 1;
@@ -1240,44 +1158,26 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                         if (extractedScore !== null && extractedMaxScore !== null) {
                             marksAwarded = extractedScore;
                             maxScore = extractedMaxScore;
-                            console.log(`✅ Using scores from array response: ${marksAwarded}/${maxScore}`);
                         } else {
-                            console.log(`⚠️ No valid scores in array response, using default: ${marksAwarded}/${maxScore}`);
+                            // No valid scores in array response, using default
                         }
                         
                         // Verify the extracted score is valid
                         if (isNaN(marksAwarded) || marksAwarded < 0) {
-                            console.log(`❌ Invalid score detected: ${marksAwarded}. Resetting to 0.`);
-                                    marksAwarded = 0;
-                            console.log(`🔍 ZERO SCORE DEBUG: Setting marksAwarded to exactly 0 after validation`);
+                            marksAwarded = 0;
                         }
                         
                         // Ensure maxScore is positive
                         if (isNaN(maxScore) || maxScore <= 0) {
-                            console.log(`❌ Invalid maxScore detected: ${maxScore}. Using question's marks: ${previousQuestion.question_marks || 1}`);
                             maxScore = previousQuestion.question_marks || 1;
                         }
                         
                         // Final score validation - make sure score doesn't exceed max
                         if (marksAwarded > maxScore) {
-                            console.log(`⚠️ Score exceeds maximum: ${marksAwarded}/${maxScore}. Capping at ${maxScore}.`);
                             marksAwarded = maxScore;
                         }
                         
-                        console.log(`📊 FINAL SCORE DETERMINATION: ${marksAwarded}/${maxScore}`);
-                        console.log(`🔍 ZERO SCORE DEBUG: Final marksAwarded value: ${marksAwarded}, type: ${typeof marksAwarded}, isZero: ${marksAwarded === 0}, toString(): "${marksAwarded.toString()}"`);
-                    
-                    try {
-                            console.log(`🔍 DEBUG: About to call markQuestionAsAnswered with score ${marksAwarded}/${maxScore}`);
-                            console.log(`🔍 DEBUG: Parameters for markQuestionAsAnswered:`);
-                            console.log(`  - userId: ${userId}`);
-                            console.log(`  - chapterId: ${chapterId}`);
-                            console.log(`  - questionId: ${previousQuestion.questionId}`);
-                            console.log(`  - marksAwarded: ${marksAwarded} (type: ${typeof marksAwarded}, isZero: ${marksAwarded === 0})`);
-                            console.log(`  - maxScore: ${maxScore} (type: ${typeof maxScore})`);
-                            console.log(`  - questionText length: ${(previousQuestion.question || "").length}`);
-                            console.log(`  - answerText length: ${message.length}`);
-                            
+                        try {
                             // Record the answer for the PREVIOUS question with the user's current message as the answer
                             await markQuestionAsAnswered(
                                 userId, 
@@ -1289,7 +1189,6 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 message // Current message is the answer to the previous question
                             );
                             
-                            console.log(`✅ Successfully recorded answer for previous question: ${previousQuestion.questionId} with score ${marksAwarded}/${maxScore}`);
                     } catch (markError) {
                         console.error(`❌ ERROR marking question as answered:`, markError);
                         console.error(`❌ Error details - Question ID: ${previousQuestion.questionId}, Score: ${marksAwarded}/${maxScore}`);
@@ -1299,7 +1198,6 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     }
                 }
             } else {
-                console.log(`🔍 DEBUG: Classification ${classification} not eligible for score recording`);
             }
             
             // Store current question as the previous question for next time, for both oldchat_ai and newchat_ai
@@ -1324,17 +1222,10 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             
             // Beautify the response for oldchat_ai using GPT-4.1 (with improved emoji/formatting preservation)
             if (classification === "oldchat_ai") {
-                if (shouldUseToolCall && questionAsked === true) {
-                    console.log(`🎨 Beautifying oldchat_ai response (questionAsked=true - filtering scoring and explanations)...`);
-                } else {
-                    console.log(`🎨 Beautifying oldchat_ai response (preserving emojis and formatting)...`);
-                }
                 try {
                     const originalMessage = finalBotMessage;
                     // Pass questionAsked and currentQuestion to beautifyBotResponse
                     finalBotMessage = await beautifyBotResponse(finalBotMessage, shouldUseToolCall ? questionAsked : false, currentQuestion);
-                    console.log(`✅ Response beautified successfully`);
-                    console.log(`📝 Original length: ${originalMessage.length}, Beautified length: ${finalBotMessage.length}`);
                 } catch (beautifyError) {
                     console.error(`❌ Error beautifying response:`, beautifyError);
                     // Continue with original message if beautification fails
@@ -1351,17 +1242,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             
             await chat.save();
             
-            console.log(`💾 Saved beautified assistant message to DB (length: ${finalBotMessage.length})`);
-            console.log(`💾 Last saved message content: ${chat.messages[chat.messages.length - 1].content.substring(0, 100)}...`);
-            
             // Prepare the response object
-            // Special debugging for zero scores before creating response object
-            if (marksAwarded === 0 && previousQuestion && classification === "oldchat_ai") {
-                console.log(`🔍 ZERO SCORE DEBUG [Response]: Zero score should be included in response object`);
-                console.log(`🔍 ZERO SCORE DEBUG [Response]: marksAwarded=${marksAwarded}, type=${typeof marksAwarded}`);
-                console.log(`🔍 ZERO SCORE DEBUG [Response]: classification=${classification}, previousQuestion exists: ${!!previousQuestion}`);
-            }
-            
             const responseObject = {
                 message: finalBotMessage,
                 // When in closureChat_ai mode, do not send a question back to the frontend
@@ -1380,24 +1261,6 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     previousQuestion: previousQuestion ? previousQuestion.question : null
                 }
             };
-            
-            // Debug logging specifically for the score property in the response object
-            console.log(`🔍 RESPONSE OBJECT DEBUG: Score in response:`, {
-                marksAwarded: responseObject.score.marksAwarded, 
-                marksAwardedType: typeof responseObject.score.marksAwarded,
-                isZero: responseObject.score.marksAwarded === 0,
-                maxMarks: responseObject.score.maxMarks,
-                classification: classification,
-                isPreviousQuestion: !!previousQuestion
-            });
-            
-            console.log(`🚀 Response being sent to frontend:`);
-            console.log(`🚀 Message length: ${responseObject.message.length}`);
-            console.log(`🚀 Message content (first 200 chars): ${responseObject.message.substring(0, 200)}...`);
-            if (shouldUseToolCall) {
-                console.log(`🚀 Question Asked: ${responseObject.questionAsked}`);
-            }
-            console.log(`🚀 Full response object:`, JSON.stringify(responseObject, null, 2));
             
             // Return the response
             return res.json(responseObject);
