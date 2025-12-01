@@ -42,6 +42,7 @@ const authenticateUser = require("../middleware/authMiddleware");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 const Book = require("../models/Book");
 const Prompt = require("../models/Prompt");
+const Session = require("../models/Session");
 const fs = require('fs');
 const path = require('path');
 
@@ -1620,5 +1621,147 @@ function formatSearchResults(results) {
         }\n`;
     }).join('\n');
 }
+
+// Helper function to get current time in IST (UTC+5:30)
+// Returns a Date object that represents the current moment in time
+// MongoDB stores dates in UTC, which is correct
+// When retrieved, the date can be formatted to display in IST timezone
+function getISTDateTime() {
+    // Simply return current time - Date objects represent moments in time
+    // which are timezone-independent. MongoDB will store it correctly in UTC.
+    // When displaying, format it as IST (UTC+5:30)
+    return new Date();
+}
+
+// Session Management API - Handle session start and close
+router.post("/session", authenticateUser, async (req, res) => {
+    try {
+        const { status, chapterId, userId: bodyUserId, bookId, sessionType } = req.body;
+        
+        // Use authenticated user's ID from token (more secure)
+        // Fallback to body userId if not available (for backward compatibility)
+        const userId = req.user?.userId || bodyUserId;
+
+        // Validate required fields
+        if (!status) {
+            return res.status(400).json({ error: "Status parameter is required" });
+        }
+
+        if (status !== "started" && status !== "closed") {
+            return res.status(400).json({ 
+                error: "Invalid status. Status must be either 'started' or 'closed'" 
+            });
+        }
+
+        // Handle "started" status
+        if (status === "started") {
+            // Validate required fields for started status
+            if (!chapterId || !userId || !bookId || !sessionType) {
+                return res.status(400).json({ 
+                    error: "Missing required fields for 'started' status",
+                    required: ["chapterId", "bookId", "sessionType"],
+                    note: "userId is automatically taken from authentication token"
+                });
+            }
+
+            // Validate sessionType
+            if (sessionType !== "Quiz" && sessionType !== "Learning") {
+                return res.status(400).json({ 
+                    error: "Invalid sessionType. Must be either 'Quiz' or 'Learning'" 
+                });
+            }
+
+            // Get IST datetime
+            const startedAt = getISTDateTime();
+
+            // Create new session
+            const newSession = new Session({
+                userId,
+                chapterId,
+                bookId,
+                sessionType,
+                startedAt,
+                status: "started"
+            });
+
+            const savedSession = await newSession.save();
+
+            return res.status(201).json({
+                success: true,
+                message: "Session started successfully",
+                session: {
+                    sessionId: savedSession._id,
+                    userId: savedSession.userId,
+                    chapterId: savedSession.chapterId,
+                    bookId: savedSession.bookId,
+                    sessionType: savedSession.sessionType,
+                    startedAt: savedSession.startedAt,
+                    status: savedSession.status
+                }
+            });
+        }
+
+        // Handle "closed" status
+        if (status === "closed") {
+            // Validate required fields for closed status
+            if (!chapterId || !userId) {
+                return res.status(400).json({ 
+                    error: "Missing required fields for 'closed' status",
+                    required: ["chapterId"],
+                    note: "userId is automatically taken from authentication token"
+                });
+            }
+
+            // Find the most recent active session for this user and chapter
+            const activeSession = await Session.findOne({
+                userId,
+                chapterId,
+                status: "started"
+            }).sort({ createdAt: -1 });
+
+            if (!activeSession) {
+                return res.status(404).json({ 
+                    error: "No active session found to close" 
+                });
+            }
+
+            // Get IST datetime for end time
+            const endAt = getISTDateTime();
+
+            // Calculate time taken in minutes
+            const timeTaken = Math.round((endAt - activeSession.startedAt) / (1000 * 60));
+
+            // Update session
+            activeSession.endAt = endAt;
+            activeSession.timeTaken = timeTaken;
+            activeSession.status = "closed";
+
+            const updatedSession = await activeSession.save();
+
+            return res.status(200).json({
+                success: true,
+                message: "Session closed successfully",
+                session: {
+                    sessionId: updatedSession._id,
+                    userId: updatedSession.userId,
+                    chapterId: updatedSession.chapterId,
+                    bookId: updatedSession.bookId,
+                    sessionType: updatedSession.sessionType,
+                    startedAt: updatedSession.startedAt,
+                    endAt: updatedSession.endAt,
+                    timeTaken: updatedSession.timeTaken,
+                    status: updatedSession.status
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error("Error in session API:", error);
+        res.status(500).json({ 
+            error: "Failed to process session request",
+            details: error.message 
+        });
+    }
+});
 
 module.exports = router;
