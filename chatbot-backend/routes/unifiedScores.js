@@ -6,6 +6,7 @@ const Chat = require("../models/Chat");
 const Chapter = require("../models/Chapter");
 const Book = require("../models/Book");
 const User = require("../models/User");
+const Session = require("../models/Session");
 
 console.log("📊 Unified Scores API: Single comprehensive scoring and progress system loaded");
 
@@ -147,6 +148,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 totalMarksEarned: 0,
                 totalMarksAvailable: 0,
                 totalTimeSpentMinutes: 0,
+                quizTimeSpentMinutes: 0,
+                learningTimeSpentMinutes: 0,
                 overallScore: 0
             };
 
@@ -192,32 +195,31 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 }
             }
 
-            // Calculate time spent from chat sessions based on first and last message timestamps
-            if (userChats) {
-                userChats.forEach(chat => {
-                    // First try to use existing metadata if available
-                    if (chat.metadata && chat.metadata.timeSpentMinutes) {
-                        basicStats.totalTimeSpentMinutes += chat.metadata.timeSpentMinutes;
-                    } 
-                    // Otherwise calculate time based on first and last message
-                    else if (chat.messages && chat.messages.length >= 2) {
-                        const messages = chat.messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                        const firstMsg = messages[0];
-                        const lastMsg = messages[messages.length - 1];
-                        
-                        if (firstMsg && lastMsg && firstMsg.timestamp && lastMsg.timestamp) {
-                            const startTime = new Date(firstMsg.timestamp);
-                            const endTime = new Date(lastMsg.timestamp);
-                            const diffMinutes = Math.round((endTime - startTime) / (1000 * 60));
-                            
-                            // Only count if the session was reasonable (between 1 min and 2 hours)
-                            if (diffMinutes >= 1 && diffMinutes <= 120) {
-                                basicStats.totalTimeSpentMinutes += diffMinutes;
-                            }
-                        }
+            // Calculate time spent from sessions collection
+            const userSessions = await Session.find({ 
+                userId: userId,
+                status: "closed",
+                timeTaken: { $ne: null }
+            });
+
+            let totalMinutes = 0;
+            let quizMinutes = 0;
+            let learningMinutes = 0;
+
+            userSessions.forEach(session => {
+                if (session.timeTaken) {
+                    totalMinutes += session.timeTaken;
+                    if (session.sessionType === "Quiz") {
+                        quizMinutes += session.timeTaken;
+                    } else if (session.sessionType === "Learning") {
+                        learningMinutes += session.timeTaken;
                     }
-                });
-            }
+                }
+            });
+
+            basicStats.totalTimeSpentMinutes = totalMinutes;
+            basicStats.quizTimeSpentMinutes = quizMinutes;
+            basicStats.learningTimeSpentMinutes = learningMinutes;
 
             // Calculate overall score
             basicStats.overallScore = basicStats.totalMarksAvailable > 0 
@@ -235,6 +237,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 overallScore: parseFloat(basicStats.overallScore.toFixed(2)),
                 totalTimeSpentMinutes: basicStats.totalTimeSpentMinutes,
                 totalTimeSpentHours: parseFloat((basicStats.totalTimeSpentMinutes / 60).toFixed(2)),
+                quizTimeSpentHours: parseFloat((basicStats.quizTimeSpentMinutes / 60).toFixed(2)),
+                learningTimeSpentHours: parseFloat((basicStats.learningTimeSpentMinutes / 60).toFixed(2)),
                 totalPointsEarned: Math.round(basicStats.totalMarksEarned * 10) // 10 points per mark
             };
         }
@@ -480,7 +484,6 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             const completedQuizzes = [];
             const quizzesInProgress = [];
             let totalPointsEarned = 0;
-            let totalMinutesSpent = 0;
 
             // Process quizzes for scoreboard - using for...of loop for async/await support
             for (const record of qnaRecords) {
@@ -538,32 +541,27 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 }
                         }
 
-            // Calculate time spent based on first and last message timestamps
-            if (userChats) {
-                userChats.forEach(chat => {
-                    // First try to use existing metadata if available
-                    if (chat.metadata && chat.metadata.timeSpentMinutes) {
-                        totalMinutesSpent += chat.metadata.timeSpentMinutes;
-                    } 
-                    // Otherwise calculate time based on first and last message
-                    else if (chat.messages && chat.messages.length >= 2) {
-                        const messages = chat.messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                        const firstMsg = messages[0];
-                        const lastMsg = messages[messages.length - 1];
-                        
-                        if (firstMsg && lastMsg && firstMsg.timestamp && lastMsg.timestamp) {
-                            const startTime = new Date(firstMsg.timestamp);
-                            const endTime = new Date(lastMsg.timestamp);
-                            const diffMinutes = Math.round((endTime - startTime) / (1000 * 60));
-                            
-                            // Only count if the session was reasonable (between 1 min and 2 hours)
-                            if (diffMinutes >= 1 && diffMinutes <= 120) {
-                                totalMinutesSpent += diffMinutes;
-                            }
-                        }
+            // Calculate time spent from sessions collection
+            const userSessions = await Session.find({ 
+                userId: userId,
+                status: "closed",
+                timeTaken: { $ne: null }
+            });
+
+            let totalMinutes = 0;
+            let quizMinutes = 0;
+            let learningMinutes = 0;
+
+            userSessions.forEach(session => {
+                if (session.timeTaken) {
+                    totalMinutes += session.timeTaken;
+                    if (session.sessionType === "Quiz") {
+                        quizMinutes += session.timeTaken;
+                    } else if (session.sessionType === "Learning") {
+                        learningMinutes += session.timeTaken;
                     }
-                });
-            }
+                }
+            });
 
             // Simple streak calculation
             const recentActivities = [...qnaRecords]
@@ -587,7 +585,9 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 completedQuizzes: completedQuizzes.slice(0, 20), // Limit to 20
                 quizzesInProgress: quizzesInProgress.slice(0, 20), // Limit to 20
                 totalPointsEarned,
-                totalHoursSpent: parseFloat((totalMinutesSpent / 60).toFixed(2)),
+                totalHoursSpent: parseFloat((totalMinutes / 60).toFixed(2)),
+                quizHoursSpent: parseFloat((quizMinutes / 60).toFixed(2)),
+                learningHoursSpent: parseFloat((learningMinutes / 60).toFixed(2)),
                 streakData: {
                     currentStreak,
                     longestStreak,

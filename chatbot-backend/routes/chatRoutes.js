@@ -566,6 +566,9 @@ Rules:
                     // Get all unique subtopics from chapter questions
                     const allSubtopics = [...new Set(chapter.questionPrompt.map(q => q.subtopic).filter(s => s))]
                     console.log(`Available subtopics: ${allSubtopics.join(', ')}`);
+
+                    // Track when ALL questions for this chapter have been answered
+                    let allQuestionsAnswered = false;
                     
                     // Function to select question based on progression rules
                     function selectQuestionByProgression() {
@@ -656,7 +659,7 @@ Rules:
                                 console.log(`Advanced to Hard difficulty`);
                                 return selectQuestionByProgression(); // Recursive call with new difficulty
                             } else {
-                                // All difficulties completed, select any remaining question
+                                // All difficulties completed; check if any unanswered questions remain at all
                                 const allUnansweredQuestions = chapter.questionPrompt.filter(q => 
                                     !answeredQuestionIds.includes(q.questionId)
                                 );
@@ -680,6 +683,10 @@ Rules:
                                     }
                                     
                                     console.log(`All progression completed, selected random remaining question from subtopic: ${selectedQuestion.subtopic || 'Unknown'}`);
+                                } else {
+                                    // No unanswered questions remain for this chapter
+                                    console.log(`✅ All questions for this chapter have been answered - no more questions to select`);
+                                    allQuestionsAnswered = true;
                                 }
                             }
                         }
@@ -690,7 +697,8 @@ Rules:
                     // Select question using progression logic
                     let questionPrompt = selectQuestionByProgression();
                     
-                    // Fallback: if no question selected by progression, select any unanswered question
+                    // Fallback: if no question selected by progression, select any unanswered question.
+                    // If there are truly no unanswered questions, switch to closureChat_ai instead of repeating questions.
                     if (!questionPrompt) {
                         const unansweredQuestions = chapter.questionPrompt.filter(q => 
                             !answeredQuestionIds.includes(q.questionId)
@@ -701,13 +709,13 @@ Rules:
                             questionPrompt = unansweredQuestions[randomIndex];
                             console.log(`Fallback: Selected random unanswered question`);
                         } else {
-                            // If all questions are answered, randomly select any question
-                            const randomIndex = Math.floor(Math.random() * chapter.questionPrompt.length);
-                            questionPrompt = chapter.questionPrompt[randomIndex];
-                            console.log(`All questions answered. Selected random question for review`);
+                            // All questions are answered for this chapter
+                            console.log(`✅ All questions answered for this chapter. Switching to closureChat_ai and not asking further questions.`);
+                            allQuestionsAnswered = true;
                         }
                     }
                     
+                    // If we still have a question to ask, set it as currentQuestion
                     if (questionPrompt) {
                         currentQuestion = questionPrompt;
                         currentScore = questionPrompt.question_marks || 1;
@@ -726,6 +734,10 @@ Rules:
                         if (previousQuestion) {
                             console.log(`📊 Previous question marks: ${previousQuestion.question_marks || 1}`);
                         }
+                    } else if (allQuestionsAnswered) {
+                        // No more questions left; change agent to closureChat_ai so user gets summary/closure
+                        console.log(`🎯 No remaining unanswered questions. Forcing agent to "closureChat_ai".`);
+                        classification = "closureChat_ai";
                     }
                     } // End of else block for normal question selection
                     

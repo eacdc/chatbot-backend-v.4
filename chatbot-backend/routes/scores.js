@@ -6,6 +6,7 @@ const Chat = require("../models/Chat");
 const Chapter = require("../models/Chapter");
 const Book = require("../models/Book");
 const User = require("../models/User");
+const Session = require("../models/Session");
 
 console.log("📊 Scores Routes: Comprehensive scoring and progress system loaded");
 
@@ -51,6 +52,8 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
             totalMarksEarned: 0,
             totalMarksAvailable: 0,
             totalTimeSpentMinutes: 0,
+            quizTimeSpentMinutes: 0,
+            learningTimeSpentMinutes: 0,
             subjects: new Map(),
             grades: new Map(),
             publishers: new Map()
@@ -218,12 +221,31 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
             }
         }
         
-        // Calculate time spent from chat sessions
-        userChats.forEach(chat => {
-            if (chat.metadata && chat.metadata.timeSpentMinutes) {
-                stats.totalTimeSpentMinutes += chat.metadata.timeSpentMinutes;
+        // Calculate time spent from sessions collection
+        const userSessions = await Session.find({ 
+            userId: userId,
+            status: "closed", // Only count completed sessions
+            timeTaken: { $ne: null } // Only sessions with recorded time
+        });
+
+        let totalMinutes = 0;
+        let quizMinutes = 0;
+        let learningMinutes = 0;
+
+        userSessions.forEach(session => {
+            if (session.timeTaken) {
+                totalMinutes += session.timeTaken;
+                if (session.sessionType === "Quiz") {
+                    quizMinutes += session.timeTaken;
+                } else if (session.sessionType === "Learning") {
+                    learningMinutes += session.timeTaken;
+                }
             }
         });
+
+        stats.totalTimeSpentMinutes = totalMinutes;
+        stats.quizTimeSpentMinutes = quizMinutes;
+        stats.learningTimeSpentMinutes = learningMinutes;
 
         // Calculate overall score
         const overallScore = stats.totalMarksAvailable > 0 
@@ -259,6 +281,8 @@ router.get("/progress-details/:userId", authenticateUser, async (req, res) => {
                 totalMarksAvailable: parseFloat(stats.totalMarksAvailable.toFixed(2)),
                 totalTimeSpentMinutes: stats.totalTimeSpentMinutes,
                 totalTimeSpentHours: parseFloat((stats.totalTimeSpentMinutes / 60).toFixed(2)),
+                quizTimeSpentHours: parseFloat((stats.quizTimeSpentMinutes / 60).toFixed(2)),
+                learningTimeSpentHours: parseFloat((stats.learningTimeSpentMinutes / 60).toFixed(2)),
                 chapterDetails: {
                     completed: completedChapters.map(chapter => ({
                         id: chapter._id,
@@ -792,6 +816,8 @@ router.get("/scoreboard/:userId", authenticateUser, async (req, res) => {
             quizzesInProgress: [],
             completedQuizzes: [],
             totalHoursSpent: 0,
+            quizHoursSpent: 0,
+            learningHoursSpent: 0,
             totalPointsEarned: 0,
             streakData: {
                 currentStreak: 0,
@@ -805,8 +831,6 @@ router.get("/scoreboard/:userId", authenticateUser, async (req, res) => {
                 overallRank: null
             }
         };
-
-        let totalMinutesSpent = 0;
 
         // Process each quiz record
         qnaRecords.forEach(record => {
@@ -846,20 +870,31 @@ router.get("/scoreboard/:userId", authenticateUser, async (req, res) => {
             }
         });
 
-        // Calculate time spent from chat sessions
-        userChats.forEach(chat => {
-            if (chat.metadata && chat.metadata.timeSpentMinutes) {
-                totalMinutesSpent += chat.metadata.timeSpentMinutes;
-            }
-            // Also check for session-based time tracking
-            if (chat.messages && chat.messages.length > 0) {
-                // Estimate time based on message frequency (rough calculation)
-                const sessionMinutes = Math.max(1, Math.min(30, chat.messages.length * 2));
-                totalMinutesSpent += sessionMinutes;
+        // Calculate time spent from sessions collection
+        const userSessions = await Session.find({ 
+            userId: userId,
+            status: "closed",
+            timeTaken: { $ne: null }
+        });
+
+        let totalMinutes = 0;
+        let quizMinutes = 0;
+        let learningMinutes = 0;
+
+        userSessions.forEach(session => {
+            if (session.timeTaken) {
+                totalMinutes += session.timeTaken;
+                if (session.sessionType === "Quiz") {
+                    quizMinutes += session.timeTaken;
+                } else if (session.sessionType === "Learning") {
+                    learningMinutes += session.timeTaken;
+                }
             }
         });
 
-        scoreboardData.totalHoursSpent = parseFloat((totalMinutesSpent / 60).toFixed(2));
+        scoreboardData.totalHoursSpent = parseFloat((totalMinutes / 60).toFixed(2));
+        scoreboardData.quizHoursSpent = parseFloat((quizMinutes / 60).toFixed(2));
+        scoreboardData.learningHoursSpent = parseFloat((learningMinutes / 60).toFixed(2));
 
         // Calculate streak data (simplified - you might want to implement more sophisticated logic)
         const recentActivities = [...qnaRecords]
