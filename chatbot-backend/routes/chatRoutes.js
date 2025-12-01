@@ -1022,7 +1022,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     try {
                         const toolArguments = JSON.parse(toolCall.function.arguments);
                         questionAsked = toolArguments.questionAsked || false;
-                        console.log(`🔍 Question Detection: questionAsked = ${questionAsked}`);
+                        // Note: question text logging already handled in early detection block
                     } catch (parseError) {
                         console.error("Error parsing tool call arguments:", parseError);
                     }
@@ -1567,50 +1567,18 @@ router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
         const { chapterId } = req.params;
         const userId = req.user.userId;
         
-        console.log(`📊 Fetching chapter stats for chapter ${chapterId} and user ${userId}`);
-        
-        // First check Chat metadata for debugging
-        const chat = await Chat.findOne({ userId, chapterId });
-        if (chat && chat.metadata) {
-            console.log(`📊 Chat metadata found:`, {
-                answeredQuestions: chat.metadata.answeredQuestions?.length || 0,
-                totalMarks: chat.metadata.totalMarks || 0,
-                earnedMarks: chat.metadata.earnedMarks || 0,
-                firstFewAnswered: chat.metadata.answeredQuestions?.slice(0, 3) || []
-            });
-        } else {
-            console.log(`📊 No chat metadata found for user ${userId} and chapter ${chapterId}`);
-        }
-        
-        // Also check QnALists records
-        const qnaRecord = await QnALists.findOne({ studentId: userId, chapterId });
-        if (qnaRecord && qnaRecord.qnaDetails) {
-            console.log(`📊 QnALists record found:`, {
-                totalQnaDetails: qnaRecord.qnaDetails.length,
-                answeredQnaDetails: qnaRecord.qnaDetails.filter(q => q.status === 1).length,
-                firstFewDetails: qnaRecord.qnaDetails.slice(0, 3).map(q => ({
-                    questionId: q.questionId,
-                    status: q.status,
-                    score: q.score,
-                    questionMarks: q.questionMarks
-                }))
-            });
-        } else {
-            console.log(`📊 No QnALists record found for user ${userId} and chapter ${chapterId}`);
-        }
+        // Find chat metadata (used only for internal computation, no logging)
+        await Chat.findOne({ userId, chapterId });
         
         // Get stats from QnALists
         const stats = await QnALists.getChapterStats(userId, chapterId);
-        console.log(`📊 QnALists.getChapterStats returned:`, stats);
         
         // Only return stats if there are answered questions
         if (stats.answeredQuestions === 0) {
-            console.log(`📊 No answered questions for chapter ${chapterId} and user ${userId}`);
             return res.json({ hasStats: false });
         }
         
         // Return the stats with a flag indicating there are stats
-        console.log(`📊 Returning stats for chapter ${chapterId}: ${stats.earnedMarks}/${stats.totalMarks} (${stats.percentage}%)`);
         return res.json({
             hasStats: true,
             earnedMarks: stats.earnedMarks,
@@ -1737,8 +1705,6 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
         const { chapterId } = req.params;
         const userId = req.user.userId;
         
-        console.log(`Resetting questions and progression for chapter ${chapterId} and user ${userId}`);
-        
         // Find the chapter to reset
         const chapter = await Chapter.findById(chapterId);
         if (!chapter) {
@@ -1792,26 +1758,21 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
             const userChapterKey = `${userId}-${chapterId}`;
             if (previousQuestionsMap.has(userChapterKey)) {
                 previousQuestionsMap.delete(userChapterKey);
-                console.log(`Cleared previous question mapping for ${userChapterKey}`);
             }
             
             // Delete all QnA records for this user and chapter
             try {
                 await QnALists.deleteMany({ studentId: userId, chapterId: chapterId });
-                console.log(`Deleted QnA records for user ${userId} and chapter ${chapterId}`);
             } catch (qnaError) {
                 console.error("Error deleting QnA records:", qnaError);
             }
             
-            console.log(`Reset progress: ${resetQuestions.length} questions, chat history, and progression tracker`);
             res.json({ 
                 success: true, 
                 message: `Progress reset for ${resetQuestions.length} questions`,
                 progressionReset: true
             });
         } else {
-            // No chat history found, nothing to reset
-            console.log(`No existing progress found for user ${userId} and chapter ${chapterId}`);
             res.json({ 
                 success: true, 
                 message: "No progress to reset",
@@ -1876,7 +1837,7 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
         
         // Add question to the answered list if not already there
         if (!chat.metadata.answeredQuestions.includes(questionId)) {
-            console.log(`🏆 Adding new question ${questionId} to answered list`);
+            // Add new answered question
             chat.metadata.answeredQuestions.push(questionId);
             
             // Update marks with extra validation
@@ -1884,41 +1845,18 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
             const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
             
-            console.log(`🏆 Using validated marks: awarded=${validMarksAwarded}, max=${validMaxMarks}`);
-            console.log(`🔍 ZERO SCORE DEBUG [markQuestionAsAnswered]: Original marksAwarded=${marksAwarded} (${typeof marksAwarded}), validMarksAwarded=${validMarksAwarded} (${typeof validMarksAwarded}), isZero: ${validMarksAwarded === 0}`);
-            
-            // Special debug for zero scores
-            if (marksAwarded === 0 || validMarksAwarded === 0) {
-                console.log(`🔍 ZERO SCORE DEBUG [markQuestionAsAnswered]: Zero score detected! Original=${marksAwarded}, Validated=${validMarksAwarded}`);
-            }
-            
             // Force convert to numbers with fallbacks to prevent NaN
             chat.metadata.totalMarks = parseFloat(chat.metadata.totalMarks || 0) + validMaxMarks;
             chat.metadata.earnedMarks = parseFloat(chat.metadata.earnedMarks || 0) + validMarksAwarded;
             
-            console.log(`🏆 After updating - answeredQuestions: ${chat.metadata.answeredQuestions.length}, totalMarks: ${chat.metadata.totalMarks}, earnedMarks: ${chat.metadata.earnedMarks}`);
-        
-        // Log the structure of the updated chat metadata
-        console.log(`🏆 Chat metadata structure:`, {
-            hasMetadata: !!chat.metadata,
-            metadataKeys: chat.metadata ? Object.keys(chat.metadata) : [],
-            answeredQuestionsArray: Array.isArray(chat.metadata?.answeredQuestions),
-            earnedMarksType: typeof chat.metadata?.earnedMarks,
-            totalMarksType: typeof chat.metadata?.totalMarks
-        });
-            
             // Also record in QnALists
             try {
-                console.log(`🏆 Recording answer for question ${questionId} in QnALists`);
-                
                 // Get the chapter to get the bookId and subject
                 const chapter = await Chapter.findById(chapterId);
                 const chapterBookId = chapter ? chapter.bookId : null;
                 
                 if (!chapterBookId) {
                     console.error(`🏆 Cannot find bookId for chapter ${chapterId}`);
-                } else {
-                    console.log(`🏆 Found bookId ${chapterBookId} for chapter ${chapterId}`);
                 }
                 
                 // Get book details to check subject (for language determination)
@@ -1927,7 +1865,6 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     const book = await Book.findById(chapterBookId);
                     if (book) {
                         bookSubject = book.subject || "general subject";
-                        console.log(`🏆 Found book subject: ${bookSubject}`);
                     }
                 }
                 
@@ -1945,65 +1882,7 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                     subject: bookSubject // Add subject for reference
                 };
                 
-                console.log(`🏆 Calling QnALists.recordAnswer with:`, {
-                    ...qnaData,
-                    answerText: qnaData.answerText.substring(0, 50) + '...',
-                    questionText: qnaData.questionText.substring(0, 50) + '...'
-                });
-                
-                // Track the actual recordAnswer operation in detail
-                console.log(`🏆 QnALists.recordAnswer - Operation starting with data:`, JSON.stringify({
-                    studentId: qnaData.studentId,
-                    chapterId: qnaData.chapterId,
-                    questionId: qnaData.questionId,
-                    score: qnaData.score,
-                    questionMarks: qnaData.questionMarks
-                }));
-                
-                // Extra debug for zero scores
-                if (qnaData.score === 0) {
-                    console.log(`🔍 ZERO SCORE DEBUG [QnALists.recordAnswer]: Zero score being saved to database! score=${qnaData.score}, type=${typeof qnaData.score}`);
-                    console.log(`🔍 ZERO SCORE DEBUG [QnALists.recordAnswer]: Full qnaData object:`);
-                    console.log(JSON.stringify(qnaData, null, 2));
-                }
-                
                 const recordResult = await QnALists.recordAnswer(qnaData);
-                console.log(`🏆 QnALists.recordAnswer - Operation result:`, {
-                    success: !!recordResult,
-                    resultId: recordResult?._id?.toString(),
-                    hasQnaDetails: !!recordResult?.qnaDetails,
-                    qnaDetailsCount: recordResult?.qnaDetails?.length || 0
-                });
-                
-                // Verify the record was actually saved by retrieving it
-                const verifyRecord = await QnALists.findOne({ 
-                    studentId: userId,
-                    chapterId: chapterId,
-                    "qnaDetails.questionId": questionId
-                });
-                
-                console.log(`🏆 Verification - Record found: ${!!verifyRecord}`);
-                if (verifyRecord) {
-                    const questionEntry = verifyRecord.qnaDetails.find(q => q.questionId === questionId);
-                    console.log(`🏆 Verification - Question entry found: ${!!questionEntry}`);
-                    if (questionEntry) {
-                        console.log(`🏆 Verification - Saved score: ${questionEntry.score}/${questionEntry.questionMarks}`);
-                        
-                        // Special verification for zero scores
-                        if (validMarksAwarded === 0) {
-                            console.log(`🔍 ZERO SCORE DEBUG [Verification]: Zero score verification check`);
-                            console.log(`🔍 ZERO SCORE DEBUG [Verification]: Expected score to be 0, actual saved score: ${questionEntry.score}`);
-                            console.log(`🔍 ZERO SCORE DEBUG [Verification]: Score type in DB: ${typeof questionEntry.score}`);
-                            console.log(`🔍 ZERO SCORE DEBUG [Verification]: Is score exactly 0? ${questionEntry.score === 0}`);
-                            console.log(`🔍 ZERO SCORE DEBUG [Verification]: Is score explicitly 0? ${questionEntry.score === 0}`);
-                            console.log(`🔍 ZERO SCORE DEBUG [Verification]: Score as string: "${questionEntry.score.toString()}"`);
-                            console.log(`🔍 ZERO SCORE DEBUG [Verification]: Score === "0"? ${questionEntry.score.toString() === "0"}`);
-                        }
-                    }
-                }
-                
-                console.log(`🏆 Successfully recorded answer in QnALists`);
-                
             } catch (qnaError) {
                 console.error("🏆 Error recording answer in QnALists:", qnaError);
             }
@@ -2011,9 +1890,7 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             console.log(`🏆 Question ${questionId} already in answered list, skipping`);
         }
         
-        console.log(`🏆 Saving chat document with updated metadata`);
         await chat.save();
-        console.log(`🏆 Successfully saved chat document`);
         
     } catch (error) {
         console.error("🏆 Error marking question as answered:", error);
