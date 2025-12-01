@@ -738,6 +738,9 @@ Rules:
                         // No more questions left; change agent to closureChat_ai so user gets summary/closure
                         console.log(`🎯 No remaining unanswered questions. Forcing agent to "closureChat_ai".`);
                         classification = "closureChat_ai";
+                        // Clear currentQuestion/currentScore so frontend doesn't think another question is pending
+                        currentQuestion = null;
+                        currentScore = null;
                     }
                     } // End of else block for normal question selection
                     
@@ -1361,8 +1364,13 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             
             const responseObject = {
                 message: finalBotMessage,
-                questionId: currentQuestion ? currentQuestion.questionId : null,
-                fullQuestion: currentQuestion,
+                // When in closureChat_ai mode, do not send a question back to the frontend
+                questionId: classification === "closureChat_ai"
+                    ? null
+                    : (currentQuestion ? currentQuestion.questionId : null),
+                fullQuestion: classification === "closureChat_ai"
+                    ? null
+                    : currentQuestion,
                 agentType: classification,
                 previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
                 questionAsked: shouldUseToolCall ? questionAsked : null, // Include questionAsked when tool call was used
