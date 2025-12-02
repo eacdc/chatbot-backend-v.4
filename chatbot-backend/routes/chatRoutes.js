@@ -520,6 +520,35 @@ Rules:
             // Initialize answeredQuestionIds at a broader scope so both selection and saving logic can access it
             const answeredQuestionIds = [];
             
+            // CRITICAL FIX: Save the previous question's answer BEFORE selecting the next question
+            // This ensures the DB is up-to-date and prevents question repetition
+            if (questionModeEnabled && (classification === "oldchat_ai" || classification === "newchat_ai")) {
+                if (previousQuestion && !(shouldUseToolCall && questionAsked === true)) {
+                    // User is answering (not asking about) the previous question
+                    // Mark it as answered immediately with a placeholder score
+                    // (The actual score will be updated after LLM evaluation)
+                    try {
+                        // Use a placeholder score - will be updated after LLM response
+                        const placeholderScore = 0;
+                        const maxScore = previousQuestion.question_marks || 1;
+                        
+                        await markQuestionAsAnswered(
+                            userId,
+                            chapterId,
+                            previousQuestion.questionId,
+                            placeholderScore,
+                            maxScore,
+                            previousQuestion.question || "",
+                            message
+                        );
+                        
+                        console.log(`✅ Pre-saved answer for ${previousQuestion.questionId} before selection`);
+                    } catch (preMarkError) {
+                        console.error(`❌ ERROR pre-saving answer:`, preMarkError);
+                    }
+                }
+            }
+            
             // Handle questions differently based on context
             if (chapter.questionPrompt && chapter.questionPrompt.length > 0) {
                 
@@ -1145,13 +1174,14 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // Save the message to chat history - BUT WAIT FOR BEAUTIFICATION FIRST
             // We'll save after beautification to ensure DB and user get the same content
             
-            // If in question mode and classification is oldchat_ai, process scores and update questions
-            // BUT skip saving to QnA collection if questionAsked is true (user is asking about the question)
+            // If in question mode and classification is oldchat_ai, UPDATE the score that was pre-saved
+            // BUT skip if questionAsked is true (user is asking about the question)
             if (classification === "oldchat_ai") {
-                // Check if user is asking a question - if so, skip QnA collection saving
+                // Check if user is asking a question - if so, skip score update
                 if (shouldUseToolCall && questionAsked === true) {
+                    // User is asking about the question, no score to update
                 } else {
-                    // Check if we have a valid previous question to record the answer for
+                    // Check if we have a valid previous question to update the score for
                     if (previousQuestion) {
                         // Use extracted scores from array or fallback to 0
                         let marksAwarded = 0;
@@ -1180,7 +1210,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                         }
                         
                         try {
-                            // Record the answer for the PREVIOUS question with the user's current message as the answer
+                            // UPDATE the answer with the actual score (was pre-saved with placeholder)
+                            // markQuestionAsAnswered is idempotent - it will update if exists
                             await markQuestionAsAnswered(
                                 userId, 
                                 chapterId, 
@@ -1191,33 +1222,14 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 message // Current message is the answer to the previous question
                             );
                             
-                            // Add the just-answered questionId to the in-memory array so next question selection doesn't pick it again
-                            if (!answeredQuestionIds.includes(previousQuestion.questionId)) {
-                                answeredQuestionIds.push(previousQuestion.questionId);
-                            }
-                            
-                            // Check if currentQuestion was already answered (meaning we're trying to repeat it)
-                            // This happens when it's the last question and was just saved as previousQuestion
-                            if (currentQuestion && answeredQuestionIds.includes(currentQuestion.questionId)) {
-                                // The current question was just answered! Check if there are any truly unanswered questions left
-                                const remainingUnanswered = chapter.questionPrompt.filter(q => 
-                                    !answeredQuestionIds.includes(q.questionId)
-                                );
-                                
-                                if (remainingUnanswered.length === 0) {
-                                    // All questions have been answered! Switch to closure mode
-                                    classification = "closureChat_ai";
-                                    currentQuestion = null;
-                                    currentScore = null;
-                                }
-                            }
+                            console.log(`✅ Updated score for ${previousQuestion.questionId}: ${marksAwarded}/${maxScore}`);
                             
                     } catch (markError) {
-                        console.error(`❌ ERROR marking question as answered:`, markError);
+                        console.error(`❌ ERROR updating score:`, markError);
                         console.error(`❌ Error details - Question ID: ${previousQuestion.questionId}, Score: ${marksAwarded}/${maxScore}`);
                         }
                     } else {
-                        console.log(`⚠️ No previous question found to record score for`);
+                        console.log(`⚠️ No previous question found to update score for`);
                     }
                 }
             } else {
