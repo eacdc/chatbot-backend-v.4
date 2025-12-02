@@ -1856,59 +1856,61 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
         
         console.log(`🏆 Before updating - answeredQuestions: ${chat.metadata.answeredQuestions.length}, totalMarks: ${chat.metadata.totalMarks}, earnedMarks: ${chat.metadata.earnedMarks}`);
         
+        // Validate marks first (needed for both Chat and QnALists)
+        const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
+        const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
+        
+        // Check if this is the first time answering this question
+        const isFirstTime = !chat.metadata.answeredQuestions.includes(questionId);
+        
         // Add question to the answered list if not already there
-        if (!chat.metadata.answeredQuestions.includes(questionId)) {
+        if (isFirstTime) {
             // Add new answered question
             chat.metadata.answeredQuestions.push(questionId);
             
-            // Update marks with extra validation
-            // Ensure marks are valid numbers
-            const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
-            const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
-            
-            // Force convert to numbers with fallbacks to prevent NaN
+            // Update marks only for first-time answers
             chat.metadata.totalMarks = parseFloat(chat.metadata.totalMarks || 0) + validMaxMarks;
             chat.metadata.earnedMarks = parseFloat(chat.metadata.earnedMarks || 0) + validMarksAwarded;
-            
-            // Also record in QnALists
-            try {
-                // Get the chapter to get the bookId and subject
-                const chapter = await Chapter.findById(chapterId);
-                const chapterBookId = chapter ? chapter.bookId : null;
-                
-                if (!chapterBookId) {
-                    console.error(`🏆 Cannot find bookId for chapter ${chapterId}`);
-                }
-                
-                // Get book details to check subject (for language determination)
-                let bookSubject = "general subject";
-                if (chapterBookId) {
-                    const book = await Book.findById(chapterBookId);
-                    if (book) {
-                        bookSubject = book.subject || "general subject";
-                    }
-                }
-                
-                // Make sure we use the validated score values
-                const qnaData = {
-                    studentId: userId,
-                    bookId: chapterBookId,
-                    chapterId: chapterId,
-                    questionId: questionId,
-                    questionMarks: validMaxMarks, // Use validated max marks
-                    score: validMarksAwarded,     // Use validated marks awarded
-                    answerText: answerText || "",
-                    questionText: questionText || "",
-                    agentType: "oldchat_ai", // Always oldchat_ai for answered questions
-                    subject: bookSubject // Add subject for reference
-                };
-                
-                const recordResult = await QnALists.recordAnswer(qnaData);
-            } catch (qnaError) {
-                console.error("🏆 Error recording answer in QnALists:", qnaError);
-            }
         } else {
-            console.log(`🏆 Question ${questionId} already in answered list, skipping`);
+            console.log(`🏆 Question ${questionId} already in answered list, skipping Chat metadata update`);
+        }
+        
+        // ALWAYS record in QnALists (it's idempotent and ensures DB consistency)
+        try {
+            // Get the chapter to get the bookId and subject
+            const chapter = await Chapter.findById(chapterId);
+            const chapterBookId = chapter ? chapter.bookId : null;
+            
+            if (!chapterBookId) {
+                console.error(`🏆 Cannot find bookId for chapter ${chapterId}`);
+            }
+            
+            // Get book details to check subject (for language determination)
+            let bookSubject = "general subject";
+            if (chapterBookId) {
+                const book = await Book.findById(chapterBookId);
+                if (book) {
+                    bookSubject = book.subject || "general subject";
+                }
+            }
+            
+            // Make sure we use the validated score values
+            const qnaData = {
+                studentId: userId,
+                bookId: chapterBookId,
+                chapterId: chapterId,
+                questionId: questionId,
+                questionMarks: validMaxMarks, // Use validated max marks
+                score: validMarksAwarded,     // Use validated marks awarded
+                answerText: answerText || "",
+                questionText: questionText || "",
+                agentType: "oldchat_ai", // Always oldchat_ai for answered questions
+                subject: bookSubject // Add subject for reference
+            };
+            
+            await QnALists.recordAnswer(qnaData);
+        } catch (qnaError) {
+            console.error("🏆 Error recording answer in QnALists:", qnaError);
         }
         
         await chat.save();
