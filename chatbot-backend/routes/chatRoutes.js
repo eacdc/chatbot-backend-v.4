@@ -517,6 +517,9 @@ Rules:
                 }
             }
 
+            // Initialize answeredQuestionIds at a broader scope so both selection and saving logic can access it
+            const answeredQuestionIds = [];
+            
             // Handle questions differently based on context
             if (chapter.questionPrompt && chapter.questionPrompt.length > 0) {
                 
@@ -534,7 +537,6 @@ Rules:
                     
                     // For assessment mode, we want to select a specific question based on subtopic progression
                     // Check if the user has answered any questions yet for this chapter
-                    const answeredQuestionIds = [];
                     try {
                         // Get all questions the user has answered for this chapter
                         const answeredQuestions = await QnALists.getAnsweredQuestionsForChapter(userId, chapterId);
@@ -1188,6 +1190,11 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 previousQuestion.question || "", // Use previous question text
                                 message // Current message is the answer to the previous question
                             );
+                            
+                            // Add the just-answered questionId to the in-memory array so next question selection doesn't pick it again
+                            if (!answeredQuestionIds.includes(previousQuestion.questionId)) {
+                                answeredQuestionIds.push(previousQuestion.questionId);
+                            }
                             
                     } catch (markError) {
                         console.error(`❌ ERROR marking question as answered:`, markError);
