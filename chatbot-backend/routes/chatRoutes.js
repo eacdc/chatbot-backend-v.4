@@ -338,7 +338,20 @@ router.post("/send", authenticateUser, async (req, res) => {
             previousQuestion = previousQuestionsMap.get(userChapterKey);
         }
         
-            chat = await Chat.findOne({ userId, chapterId });
+            // Ensure consistent types for chat lookup
+            const chatQuery = { 
+                userId: String(userId), 
+                chapterId: String(chapterId) 
+            };
+            
+            chat = await Chat.findOne(chatQuery);
+            
+            // Debug logging for chat lookup issues
+            if (!chat) {
+                console.log(`🔍 No existing chat found for user ${userId}, chapter ${chapterId} - creating new`);
+            } else {
+                console.log(`✅ Found existing chat (ID: ${chat._id}) with ${chat.messages?.length || 0} messages`);
+            }
         
         // Get previous messages for context
         if (chat && chat.messages && chat.messages.length > 0) {
@@ -355,8 +368,8 @@ router.post("/send", authenticateUser, async (req, res) => {
         
         if (!chat) {
             chat = new Chat({ 
-                userId, 
-                chapterId, 
+                userId: String(userId), 
+                chapterId: String(chapterId), 
                 messages: [],
                 metadata: {}
             });
@@ -522,7 +535,8 @@ Rules:
             
             // CRITICAL FIX: Save the previous question's answer BEFORE selecting the next question
             // This ensures the DB is up-to-date and prevents question repetition
-            if (questionModeEnabled && (classification === "oldchat_ai" || classification === "newchat_ai")) {
+            // Only run for oldchat_ai (actual answers), NOT for newchat_ai (greetings/initialization)
+            if (questionModeEnabled && classification === "oldchat_ai") {
                 if (previousQuestion && !(shouldUseToolCall && questionAsked === true)) {
                     // User is answering (not asking about) the previous question
                     // Mark it as answered immediately with a placeholder score
