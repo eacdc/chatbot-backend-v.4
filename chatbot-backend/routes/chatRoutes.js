@@ -816,6 +816,10 @@ Rules:
                     .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
                     .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
                     .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
+                    .replace(/\{\{PREVIOUS_QUESTION\}\}/g, previousQuestion ? previousQuestion.question : "No previous question")
+                    .replace(/\{\{PREVIOUS_QUESTION_MARKS\}\}/g, previousQuestion ? previousQuestion.question_marks || 1 : 1)
+                    .replace(/\{\{user answer\}\}/g, message || "No answer provided")
+                    .replace(/\{\{tentative_answer\}\}/g, previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided")
                     .replace(/\{\{TOTAL_QUESTIONS\}\}/g, statsForClosure.totalQuestions)
                     .replace(/\{\{ANSWERED_QUESTIONS\}\}/g, statsForClosure.answeredQuestions)
                     .replace(/\{\{TOTAL_MARKS\}\}/g, statsForClosure.totalMarks)
@@ -1112,12 +1116,12 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // Extract the bot message
             const botMessage = openaiResponse.choices[0].message.content;
 
-            // Parse array response format for oldchat_ai
+            // Parse array response format for oldchat_ai and closureChat_ai
             let finalBotMessage = botMessage;
             let extractedScore = null;
             let extractedMaxScore = null;
             
-            if (classification === "oldchat_ai" && previousQuestion) {
+            if ((classification === "oldchat_ai" || classification === "closureChat_ai") && previousQuestion) {
                 try {
                     // Check if the response contains array format with brackets
                     if (botMessage.trim().startsWith('[') && botMessage.trim().endsWith(']')) {
@@ -1188,9 +1192,9 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // Save the message to chat history - BUT WAIT FOR BEAUTIFICATION FIRST
             // We'll save after beautification to ensure DB and user get the same content
             
-            // If in question mode and classification is oldchat_ai, UPDATE the score that was pre-saved
+            // If in question mode and classification is oldchat_ai OR closureChat_ai, UPDATE the score that was pre-saved
             // BUT skip if questionAsked is true (user is asking about the question)
-            if (classification === "oldchat_ai") {
+            if (classification === "oldchat_ai" || classification === "closureChat_ai") {
                 // Check if user is asking a question - if so, skip score update
                 if (shouldUseToolCall && questionAsked === true) {
                     // User is asking about the question, no score to update
@@ -1305,8 +1309,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                 previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
                 questionAsked: shouldUseToolCall ? questionAsked : null, // Include questionAsked when tool call was used
                 score: {
-                    marksAwarded: (previousQuestion && classification === "oldchat_ai" && typeof marksAwarded !== 'undefined') ? marksAwarded : null,
-                    maxMarks: (previousQuestion && classification === "oldchat_ai" && typeof maxScore !== 'undefined') ? maxScore : null,
+                    marksAwarded: (previousQuestion && (classification === "oldchat_ai" || classification === "closureChat_ai") && typeof marksAwarded !== 'undefined') ? marksAwarded : null,
+                    maxMarks: (previousQuestion && (classification === "oldchat_ai" || classification === "closureChat_ai") && typeof maxScore !== 'undefined') ? maxScore : null,
                     previousQuestion: previousQuestion ? previousQuestion.question : null
                 }
             };
