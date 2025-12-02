@@ -807,24 +807,6 @@ Rules:
             } else if (classification === "closureChat_ai") {
                 console.log(`🎯 [CLOSURE] Starting closureChat_ai flow`);
                 
-                // Get the closurechat_ai prompt template
-                const closureChatPrompt = await Prompt.getPromptByType("closurechat_ai");
-                console.log(`🎯 [CLOSURE] Prompt template loaded, length: ${closureChatPrompt?.length || 0} chars`);
-                
-                // Get stats for the user on this chapter
-                const statsForClosure = await QnALists.getChapterStatsForClosure(userId, chapterId);
-                console.log(`🎯 [CLOSURE] Chapter stats:`, {
-                    totalQuestions: statsForClosure.totalQuestions,
-                    answeredQuestions: statsForClosure.answeredQuestions,
-                    totalMarks: statsForClosure.totalMarks,
-                    earnedMarks: statsForClosure.earnedMarks,
-                    percentage: statsForClosure.percentage,
-                    correctAnswers: statsForClosure.correctAnswers,
-                    partialAnswers: statsForClosure.partialAnswers,
-                    incorrectAnswers: statsForClosure.incorrectAnswers,
-                    timeSpentMinutes: statsForClosure.timeSpentMinutes
-                });
-                
                 // Log previous question details
                 if (previousQuestion) {
                     console.log(`🎯 [CLOSURE] Previous question (last answered):`, {
@@ -838,27 +820,51 @@ Rules:
                     console.log(`🎯 [CLOSURE] ⚠️ No previous question found`);
                 }
                 
-                // Replace placeholders with actual values
-                systemPrompt = closureChatPrompt
-                    .replace(/\{\{SUBJECT\}\}/g, bookSubject || "general subject")
-                    .replace(/\{\{GRADE\}\}/g, bookGrade || "appropriate grade")
-                    .replace(/\{\{CHAPTER_TITLE\}\}/g, chapterTitle || "this chapter")
-                    .replace(/\{\{PREVIOUS_QUESTION\}\}/g, previousQuestion ? previousQuestion.question : "No previous question")
-                    .replace(/\{\{PREVIOUS_QUESTION_MARKS\}\}/g, previousQuestion ? previousQuestion.question_marks || 1 : 1)
-                    .replace(/\{\{user answer\}\}/g, message || "No answer provided")
-                    .replace(/\{\{tentative_answer\}\}/g, previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided")
-                    .replace(/\{\{TOTAL_QUESTIONS\}\}/g, statsForClosure.totalQuestions)
-                    .replace(/\{\{ANSWERED_QUESTIONS\}\}/g, statsForClosure.answeredQuestions)
-                    .replace(/\{\{TOTAL_MARKS\}\}/g, statsForClosure.totalMarks)
-                    .replace(/\{\{EARNED_MARKS\}\}/g, statsForClosure.earnedMarks)
-                    .replace(/\{\{PERCENTAGE\}\}/g, Math.round(statsForClosure.percentage))
-                    .replace(/\{\{CORRECT_ANSWERS\}\}/g, statsForClosure.correctAnswers)
-                    .replace(/\{\{PARTIAL_ANSWERS\}\}/g, statsForClosure.partialAnswers)
-                    .replace(/\{\{INCORRECT_ANSWERS\}\}/g, statsForClosure.incorrectAnswers)
-                    .replace(/\{\{TIME_SPENT\}\}/g, statsForClosure.timeSpentMinutes);
+                // For closureChat_ai, we use a simplified prompt that ONLY asks for scoring
+                // The stats summary will be appended by the backend AFTER the score is saved
+                // This ensures accurate stats that include the last answer's score
+                const closureScorePrompt = `You are a friendly educational assistant. The user just answered their LAST question in a quiz.
+
+Context:
+- Subject: ${bookSubject || "general subject"}
+- Grade: ${bookGrade || "appropriate grade"}
+- Chapter: ${chapterTitle || "this chapter"}
+
+LAST QUESTION DETAILS:
+- Question: ${previousQuestion ? previousQuestion.question : "No previous question"}
+- User's Answer: ${message || "No answer provided"}
+- Expected/Correct Answer: ${previousQuestion ? (previousQuestion.tentativeAnswer || "Not provided") : "Not provided"}
+- Maximum Marks: ${previousQuestion ? previousQuestion.question_marks || 1 : 1}
+
+YOUR JOB: Evaluate and score the user's answer. DO NOT include any quiz summary or statistics - that will be added separately.
+
+SCORING RULES:
+- Award FULL marks (${previousQuestion ? previousQuestion.question_marks || 1 : 1}) if the answer is correct or substantially correct
+- Award PARTIAL marks (e.g., 0.5) if the answer is partially correct
+- Award 0 marks if the answer is wrong, irrelevant, or "I don't know"
+
+RESPONSE FORMAT - Return ONLY this JSON array:
+[
+  {
+    "bot_answer": "**Score for Last Question:** X/${previousQuestion ? previousQuestion.question_marks || 1 : 1}\\n\\n**Explanation:** [Brief explanation of why the answer received this score - what was correct/incorrect]\\n\\n**Great job completing the quiz!** 🎉"
+  },
+  {
+    "score": "X"
+  },
+  {
+    "question_marks": "${previousQuestion ? previousQuestion.question_marks || 1 : 1}"
+  }
+]
+
+CRITICAL:
+1. Replace X with the actual score (0 to ${previousQuestion ? previousQuestion.question_marks || 1 : 1})
+2. The "score" field MUST be a STRING containing a number
+3. DO NOT include any quiz summary, statistics, or performance data
+4. Return ONLY the JSON array, nothing else`;
                 
-                console.log(`🎯 [CLOSURE] System prompt prepared, length: ${systemPrompt.length} chars`);
-                console.log(`🎯 [CLOSURE] System prompt preview: "${systemPrompt.substring(0, 200)}..."`);
+                systemPrompt = closureScorePrompt;
+                
+                console.log(`🎯 [CLOSURE] System prompt prepared (score-only), length: ${systemPrompt.length} chars`);
                 
             } else if (classification === "explanation_ai") {
                 // Get the explanation_ai prompt template
