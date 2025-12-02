@@ -1199,11 +1199,13 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             // Check if all questions are now answered after saving this answer
                             if (chapter.questionPrompt && chapter.questionPrompt.length > 0) {
                                 const remainingUnanswered = chapter.questionPrompt.filter(q => 
-                                    !answeredQuestionIds.includes(q.questionId)
+                                    !answeredQuestionIds.includes(q.questionId) &&
+                                    // Don't count the currentQuestion since it's already selected to be asked next
+                                    (currentQuestion ? q.questionId !== currentQuestion.questionId : true)
                                 );
                                 
                                 if (remainingUnanswered.length === 0) {
-                                    // All questions have been answered! Switch to closure mode
+                                    // All questions have been answered (excluding the one we're about to ask)! Switch to closure mode
                                     classification = "closureChat_ai";
                                     currentQuestion = null;
                                     currentScore = null;
