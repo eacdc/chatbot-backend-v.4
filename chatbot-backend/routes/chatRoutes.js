@@ -1376,6 +1376,38 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             
                             if (classification === "closureChat_ai") {
                                 console.log(`🎯 [CLOSURE] ✅ Score update successful!`);
+                                
+                                // NOW fetch fresh stats AFTER the score is saved
+                                console.log(`🎯 [CLOSURE] Fetching fresh stats after score update...`);
+                                try {
+                                    const freshStats = await QnALists.getChapterStatsForClosure(userId, chapterId);
+                                    console.log(`🎯 [CLOSURE] Fresh stats after score update:`, {
+                                        totalQuestions: freshStats.totalQuestions,
+                                        answeredQuestions: freshStats.answeredQuestions,
+                                        totalMarks: freshStats.totalMarks,
+                                        earnedMarks: freshStats.earnedMarks,
+                                        percentage: freshStats.percentage,
+                                        correctAnswers: freshStats.correctAnswers,
+                                        partialAnswers: freshStats.partialAnswers,
+                                        incorrectAnswers: freshStats.incorrectAnswers
+                                    });
+                                    
+                                    // Build the stats summary to append to the message
+                                    const statsSummary = `\n\n---\n\n**📊 Final Quiz Summary for ${chapterTitle}**\n\n` +
+                                        `- **Total Score:** ${freshStats.earnedMarks}/${freshStats.totalMarks} (${Math.round(freshStats.percentage)}%)\n` +
+                                        `- **Questions Answered:** ${freshStats.answeredQuestions}/${freshStats.totalQuestions}\n` +
+                                        `- **Correct:** ${freshStats.correctAnswers} | **Partial:** ${freshStats.partialAnswers} | **Incorrect:** ${freshStats.incorrectAnswers}\n` +
+                                        `- **Time Spent:** ${freshStats.timeSpentMinutes} minutes\n\n` +
+                                        `*This completes your quiz for this chapter. Great effort! 📚*`;
+                                    
+                                    // Append the stats summary to the final message
+                                    finalBotMessage = finalBotMessage + statsSummary;
+                                    console.log(`🎯 [CLOSURE] ✅ Stats summary appended to message`);
+                                    
+                                } catch (statsError) {
+                                    console.error(`🎯 [CLOSURE] ❌ Error fetching fresh stats:`, statsError);
+                                    // Continue without stats if there's an error
+                                }
                             }
                             
                     } catch (markError) {
