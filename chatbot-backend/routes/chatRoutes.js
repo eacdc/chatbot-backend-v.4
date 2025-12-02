@@ -805,11 +805,38 @@ Rules:
                     .replace(/\{\{QUESTION_MARKS\}\}/g, currentQuestion ? currentQuestion.question_marks || 1 : 1);
                 
             } else if (classification === "closureChat_ai") {
+                console.log(`🎯 [CLOSURE] Starting closureChat_ai flow`);
+                
                 // Get the closurechat_ai prompt template
                 const closureChatPrompt = await Prompt.getPromptByType("closurechat_ai");
+                console.log(`🎯 [CLOSURE] Prompt template loaded, length: ${closureChatPrompt?.length || 0} chars`);
                 
                 // Get stats for the user on this chapter
                 const statsForClosure = await QnALists.getChapterStatsForClosure(userId, chapterId);
+                console.log(`🎯 [CLOSURE] Chapter stats:`, {
+                    totalQuestions: statsForClosure.totalQuestions,
+                    answeredQuestions: statsForClosure.answeredQuestions,
+                    totalMarks: statsForClosure.totalMarks,
+                    earnedMarks: statsForClosure.earnedMarks,
+                    percentage: statsForClosure.percentage,
+                    correctAnswers: statsForClosure.correctAnswers,
+                    partialAnswers: statsForClosure.partialAnswers,
+                    incorrectAnswers: statsForClosure.incorrectAnswers,
+                    timeSpentMinutes: statsForClosure.timeSpentMinutes
+                });
+                
+                // Log previous question details
+                if (previousQuestion) {
+                    console.log(`🎯 [CLOSURE] Previous question (last answered):`, {
+                        questionId: previousQuestion.questionId,
+                        question: previousQuestion.question?.substring(0, 80) + '...',
+                        tentativeAnswer: previousQuestion.tentativeAnswer?.substring(0, 50) || 'N/A',
+                        marks: previousQuestion.question_marks || 1
+                    });
+                    console.log(`🎯 [CLOSURE] User's answer: "${message?.substring(0, 100)}${message?.length > 100 ? '...' : ''}"`);
+                } else {
+                    console.log(`🎯 [CLOSURE] ⚠️ No previous question found`);
+                }
                 
                 // Replace placeholders with actual values
                 systemPrompt = closureChatPrompt
@@ -829,6 +856,9 @@ Rules:
                     .replace(/\{\{PARTIAL_ANSWERS\}\}/g, statsForClosure.partialAnswers)
                     .replace(/\{\{INCORRECT_ANSWERS\}\}/g, statsForClosure.incorrectAnswers)
                     .replace(/\{\{TIME_SPENT\}\}/g, statsForClosure.timeSpentMinutes);
+                
+                console.log(`🎯 [CLOSURE] System prompt prepared, length: ${systemPrompt.length} chars`);
+                console.log(`🎯 [CLOSURE] System prompt preview: "${systemPrompt.substring(0, 200)}..."`);
                 
             } else if (classification === "explanation_ai") {
                 // Get the explanation_ai prompt template
@@ -1122,17 +1152,43 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             let extractedMaxScore = null;
             
             if ((classification === "oldchat_ai" || classification === "closureChat_ai") && previousQuestion) {
+                if (classification === "closureChat_ai") {
+                    console.log(`🎯 [CLOSURE] Starting score extraction from LLM response`);
+                    console.log(`🎯 [CLOSURE] Raw bot message length: ${botMessage?.length || 0} chars`);
+                    console.log(`🎯 [CLOSURE] Raw bot message preview: "${botMessage?.substring(0, 150)}..."`);
+                }
+                
                 try {
                     // Check if the response contains array format with brackets
                     if (botMessage.trim().startsWith('[') && botMessage.trim().endsWith(']')) {
+                        if (classification === "closureChat_ai") {
+                            console.log(`🎯 [CLOSURE] ✅ Response is in array format (starts with [ and ends with ])`);
+                        }
+                        
                         // Try to parse the response as an array
                         const responseArray = JSON.parse(botMessage);
+                        
+                        if (classification === "closureChat_ai") {
+                            console.log(`🎯 [CLOSURE] ✅ JSON parsed successfully, array length: ${responseArray.length}`);
+                        }
                         
                         if (Array.isArray(responseArray) && responseArray.length >= 3) {
                             // Check if it's the new object-based format
                             if (typeof responseArray[0] === 'object' && responseArray[0].bot_answer &&
                                 typeof responseArray[1] === 'object' && responseArray[1].score &&
                                 typeof responseArray[2] === 'object' && responseArray[2].question_marks) {
+                                
+                                if (classification === "closureChat_ai") {
+                                    console.log(`🎯 [CLOSURE] ✅ Detected object-based array format`);
+                                    console.log(`🎯 [CLOSURE] Array structure:`, {
+                                        element0: typeof responseArray[0],
+                                        element1: typeof responseArray[1],
+                                        element2: typeof responseArray[2],
+                                        hasBot_answer: !!responseArray[0].bot_answer,
+                                        hasScore: !!responseArray[1].score,
+                                        hasQuestion_marks: !!responseArray[2].question_marks
+                                    });
+                                }
                                 
                                 // New object-based format: [{"bot_answer": "..."}, {"score": "0"}, {"question_marks": "1"}]
                                 finalBotMessage = responseArray[0].bot_answer; // Bot answer content
@@ -1144,7 +1200,19 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 console.log(`📊 Score: ${extractedScore}/${extractedMaxScore}`);
                                 console.log(`🔍 ZERO SCORE DEBUG [Object Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
                                 
+                                if (classification === "closureChat_ai") {
+                                    console.log(`🎯 [CLOSURE] ✅ Score extraction successful:`, {
+                                        extractedScore,
+                                        extractedMaxScore,
+                                        messageLength: finalBotMessage.length
+                                    });
+                                }
+                                
                             } else if (typeof responseArray[0] === 'string' || typeof responseArray[0] === 'number') {
+                                if (classification === "closureChat_ai") {
+                                    console.log(`🎯 [CLOSURE] ✅ Detected simple array format`);
+                                }
+                                
                                 // Old simple array format: ["message", 0, 2]
                                 finalBotMessage = responseArray[0]; // Message content
                                 extractedScore = parseFloat(responseArray[1]); // Score for previous question
@@ -1154,15 +1222,39 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 console.log(`📝 Message: ${finalBotMessage.substring(0, 100)}...`);
                                 console.log(`📊 Score: ${extractedScore}/${extractedMaxScore}`);
                                 console.log(`🔍 ZERO SCORE DEBUG [Simple Array Parse]: extractedScore=${extractedScore}, type=${typeof extractedScore}, isZero=${extractedScore === 0}`);
+                                
+                                if (classification === "closureChat_ai") {
+                                    console.log(`🎯 [CLOSURE] ✅ Score extraction successful:`, {
+                                        extractedScore,
+                                        extractedMaxScore,
+                                        messageLength: finalBotMessage.length
+                                    });
+                                }
                             } else {
                                 console.log(`⚠️ Unknown JSON array format, falling back to original message`);
+                                if (classification === "closureChat_ai") {
+                                    console.log(`🎯 [CLOSURE] ❌ Array format not recognized:`, {
+                                        element0Type: typeof responseArray[0],
+                                        element1Type: typeof responseArray[1],
+                                        element2Type: typeof responseArray[2]
+                                    });
+                                }
                                 finalBotMessage = botMessage;
                             }
                         } else {
                             console.log(`⚠️ JSON array format invalid (length < 3), falling back to original message`);
+                            if (classification === "closureChat_ai") {
+                                console.log(`🎯 [CLOSURE] ❌ Array length invalid:`, {
+                                    isArray: Array.isArray(responseArray),
+                                    length: responseArray?.length || 0
+                                });
+                            }
                             finalBotMessage = botMessage;
                         }
                     } else if (botMessage.includes(',') && botMessage.trim().startsWith('[')) {
+                        if (classification === "closureChat_ai") {
+                            console.log(`🎯 [CLOSURE] ⚠️ Response starts with [ but doesn't end with ], trying non-JSON array format`);
+                        }
                         // Handle non-JSON array format like: [ content, 0, 2 ]
                         const arrayMatch = botMessage.match(/^\s*\[\s*(.*?)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\]\s*$/s);
                         
@@ -1195,12 +1287,28 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // If in question mode and classification is oldchat_ai OR closureChat_ai, UPDATE the score that was pre-saved
             // BUT skip if questionAsked is true (user is asking about the question)
             if (classification === "oldchat_ai" || classification === "closureChat_ai") {
+                if (classification === "closureChat_ai") {
+                    console.log(`🎯 [CLOSURE] Starting score update process`);
+                }
+                
                 // Check if user is asking a question - if so, skip score update
                 if (shouldUseToolCall && questionAsked === true) {
                     // User is asking about the question, no score to update
+                    if (classification === "closureChat_ai") {
+                        console.log(`🎯 [CLOSURE] ⚠️ Skipping score update - user is asking a question`);
+                    }
                 } else {
                     // Check if we have a valid previous question to update the score for
                     if (previousQuestion) {
+                        if (classification === "closureChat_ai") {
+                            console.log(`🎯 [CLOSURE] Previous question found, preparing score update`);
+                            console.log(`🎯 [CLOSURE] Extracted from LLM:`, {
+                                extractedScore,
+                                extractedMaxScore,
+                                bothNotNull: extractedScore !== null && extractedMaxScore !== null
+                            });
+                        }
+                        
                         // Use extracted scores from array or fallback to 0
                         let marksAwarded = 0;
                         let maxScore = previousQuestion.question_marks || 1;
@@ -1208,26 +1316,50 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                         if (extractedScore !== null && extractedMaxScore !== null) {
                             marksAwarded = extractedScore;
                             maxScore = extractedMaxScore;
+                            if (classification === "closureChat_ai") {
+                                console.log(`🎯 [CLOSURE] Using extracted scores: ${marksAwarded}/${maxScore}`);
+                            }
                         } else {
                             // No valid scores in array response, using default
+                            if (classification === "closureChat_ai") {
+                                console.log(`🎯 [CLOSURE] ⚠️ No extracted scores, using defaults: ${marksAwarded}/${maxScore}`);
+                            }
                         }
                         
                         // Verify the extracted score is valid
                         if (isNaN(marksAwarded) || marksAwarded < 0) {
+                            if (classification === "closureChat_ai") {
+                                console.log(`🎯 [CLOSURE] ⚠️ Invalid marksAwarded (${marksAwarded}), setting to 0`);
+                            }
                             marksAwarded = 0;
                         }
                         
                         // Ensure maxScore is positive
                         if (isNaN(maxScore) || maxScore <= 0) {
+                            const oldMax = maxScore;
                             maxScore = previousQuestion.question_marks || 1;
+                            if (classification === "closureChat_ai") {
+                                console.log(`🎯 [CLOSURE] ⚠️ Invalid maxScore (${oldMax}), using question marks: ${maxScore}`);
+                            }
                         }
                         
                         // Final score validation - make sure score doesn't exceed max
                         if (marksAwarded > maxScore) {
+                            if (classification === "closureChat_ai") {
+                                console.log(`🎯 [CLOSURE] ⚠️ marksAwarded (${marksAwarded}) > maxScore (${maxScore}), capping to max`);
+                            }
                             marksAwarded = maxScore;
                         }
                         
+                        if (classification === "closureChat_ai") {
+                            console.log(`🎯 [CLOSURE] Final validated scores: ${marksAwarded}/${maxScore}`);
+                        }
+                        
                         try {
+                            if (classification === "closureChat_ai") {
+                                console.log(`🎯 [CLOSURE] Calling markQuestionAsAnswered for ${previousQuestion.questionId}`);
+                            }
+                            
                             // UPDATE the answer with the actual score (was pre-saved with placeholder)
                             // markQuestionAsAnswered is idempotent - it will update if exists
                             await markQuestionAsAnswered(
@@ -1242,12 +1374,22 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             
                             console.log(`✅ Updated score for ${previousQuestion.questionId}: ${marksAwarded}/${maxScore}`);
                             
+                            if (classification === "closureChat_ai") {
+                                console.log(`🎯 [CLOSURE] ✅ Score update successful!`);
+                            }
+                            
                     } catch (markError) {
                         console.error(`❌ ERROR updating score:`, markError);
                         console.error(`❌ Error details - Question ID: ${previousQuestion.questionId}, Score: ${marksAwarded}/${maxScore}`);
+                        if (classification === "closureChat_ai") {
+                            console.log(`🎯 [CLOSURE] ❌ Score update failed:`, markError.message);
+                        }
                         }
                     } else {
                         console.log(`⚠️ No previous question found to update score for`);
+                        if (classification === "closureChat_ai") {
+                            console.log(`🎯 [CLOSURE] ⚠️ No previous question available for score update`);
+                        }
                     }
                 }
             } else {
@@ -1314,6 +1456,19 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     previousQuestion: previousQuestion ? previousQuestion.question : null
                 }
             };
+            
+            if (classification === "closureChat_ai") {
+                console.log(`🎯 [CLOSURE] Response object prepared:`, {
+                    messageLength: responseObject.message?.length || 0,
+                    messagePreview: responseObject.message?.substring(0, 100) + '...',
+                    questionId: responseObject.questionId,
+                    fullQuestion: responseObject.fullQuestion,
+                    agentType: responseObject.agentType,
+                    previousQuestionId: responseObject.previousQuestionId,
+                    score: responseObject.score
+                });
+                console.log(`🎯 [CLOSURE] ✅ Closure flow complete - sending response to frontend`);
+            }
             
             // Return the response
             return res.json(responseObject);
