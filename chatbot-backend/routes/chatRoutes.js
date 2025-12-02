@@ -1196,6 +1196,20 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 answeredQuestionIds.push(previousQuestion.questionId);
                             }
                             
+                            // Check if all questions are now answered after saving this answer
+                            if (chapter.questionPrompt && chapter.questionPrompt.length > 0) {
+                                const remainingUnanswered = chapter.questionPrompt.filter(q => 
+                                    !answeredQuestionIds.includes(q.questionId)
+                                );
+                                
+                                if (remainingUnanswered.length === 0) {
+                                    // All questions have been answered! Switch to closure mode
+                                    classification = "closureChat_ai";
+                                    currentQuestion = null;
+                                    currentScore = null;
+                                }
+                            }
+                            
                     } catch (markError) {
                         console.error(`❌ ERROR marking question as answered:`, markError);
                         console.error(`❌ Error details - Question ID: ${previousQuestion.questionId}, Score: ${marksAwarded}/${maxScore}`);
