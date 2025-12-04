@@ -445,22 +445,22 @@ Rules:
             // Add the current user message
             intentAnalysisMessages.push({ role: "user", content: message });
 
-                // Call OpenAI to get the agent classification
-                try {
-                    const intentAnalysis = await openaiSelector.chat.completions.create({
-                        model: "gpt-4.1",
-                        messages: intentAnalysisMessages,
-                        temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
-                    });
+            // Call OpenAI to get the agent classification
+            try {
+                const intentAnalysis = await openaiSelector.chat.completions.create({
+                    model: "gpt-4.1",
+                    messages: intentAnalysisMessages,
+                    temperature: 0,  // Using temperature 0 for consistent, deterministic outputs
+                });
 
-                    // Extract the classification
-                    const responseContent = intentAnalysis.choices[0].message.content.trim();
-                    const result = JSON.parse(responseContent);
-                    classification = result.agent;
-                } catch (selectorError) {
-                    console.error("ERROR in agent selection:", selectorError);
-                    // Using the default classification set above
-                }
+                // Extract the classification
+               const responseContent = intentAnalysis.choices[0].message.content.trim();
+  const result = JSON.parse(responseContent);
+  classification = result.agent;
+            } catch (selectorError) {
+                console.error("ERROR in agent selection:", selectorError);
+                // Using the default classification set above
+            }
 
             // Early question detection - check if user is asking a question BEFORE question selection
             // This allows us to skip question selection when questionAsked=true
@@ -553,16 +553,17 @@ Rules:
                             placeholderScore,
                             maxScore,
                             previousQuestion.question || "",
-                            message
+                            message,
+                            classification // Pass the classification as agentType
                         );
                         
-                        console.log(`✅ Pre-saved answer for ${previousQuestion.questionId} before selection`);
+                        console.log(`✅ Pre-saved answer for ${previousQuestion.questionId} before selection (agent: ${classification})`);
                     } catch (preMarkError) {
                         console.error(`❌ ERROR pre-saving answer:`, preMarkError);
                     }
                 }
             }
-            
+
             // Handle questions differently based on context
             if (chapter.questionPrompt && chapter.questionPrompt.length > 0) {
                 
@@ -1337,7 +1338,7 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                             if (classification === "closureChat_ai") {
                                 console.log(`🎯 [CLOSURE] ⚠️ Invalid marksAwarded (${marksAwarded}), setting to 0`);
                             }
-                            marksAwarded = 0;
+                                    marksAwarded = 0;
                         }
                         
                         // Ensure maxScore is positive
@@ -1360,8 +1361,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                         if (classification === "closureChat_ai") {
                             console.log(`🎯 [CLOSURE] Final validated scores: ${marksAwarded}/${maxScore}`);
                         }
-                        
-                        try {
+                    
+                    try {
                             if (classification === "closureChat_ai") {
                                 console.log(`🎯 [CLOSURE] Calling markQuestionAsAnswered for ${previousQuestion.questionId}`);
                             }
@@ -1375,10 +1376,11 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 marksAwarded, 
                                 maxScore,
                                 previousQuestion.question || "", // Use previous question text
-                                message // Current message is the answer to the previous question
+                                message, // Current message is the answer to the previous question
+                                classification // Pass the classification as agentType
                             );
                             
-                            console.log(`✅ Updated score for ${previousQuestion.questionId}: ${marksAwarded}/${maxScore}`);
+                            console.log(`✅ Updated score for ${previousQuestion.questionId}: ${marksAwarded}/${maxScore} (agent: ${classification})`);
                             
                             if (classification === "closureChat_ai") {
                                 console.log(`🎯 [CLOSURE] ✅ Score update successful!`);
@@ -1473,6 +1475,13 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             // Update the lastActive timestamp
             chat.lastActive = Date.now();
             
+            // Update agentName when closureChat_ai is selected
+            // agentName stays null until closureChat_ai is triggered
+            if (classification === "closureChat_ai") {
+                chat.agentName = "closureChat_ai";
+                console.log(`🎯 [CLOSURE] Chat agentName updated to: closureChat_ai`);
+            }
+            
             await chat.save();
             
             // Prepare the response object
@@ -1486,6 +1495,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     ? null
                     : currentQuestion,
                 agentType: classification,
+                // agentName is null until closureChat_ai is selected, then it stays "closureChat_ai"
+                agentName: classification === "closureChat_ai" ? "closureChat_ai" : (chat.agentName || null),
                 previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
                 questionAsked: shouldUseToolCall ? questionAsked : null, // Include questionAsked when tool call was used
                 score: {
@@ -1794,12 +1805,15 @@ router.get("/chapter-history/:chapterId", authenticateUser, async (req, res) => 
         
         if (!chat || !Array.isArray(chat.messages)) {
             console.log(`No chat history found for chapter ${chapterId} and user ${userId}`);
-            return res.json([]);
+            return res.json({ messages: [], agentName: null });
         }
         
-        // Return all messages without filtering
-        console.log(`Returning ${chat.messages.length} messages for chapter ${chapterId}`);
-        res.json(chat.messages);
+        // Return all messages with agentName
+        console.log(`Returning ${chat.messages.length} messages for chapter ${chapterId}, agentName: ${chat.agentName || null}`);
+        res.json({
+            messages: chat.messages,
+            agentName: chat.agentName || null
+        });
         
     } catch (error) {
         console.error("Error fetching chapter chat history:", error);
@@ -1813,15 +1827,15 @@ router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
         const { chapterId } = req.params;
         const userId = req.user.userId;
         
-        // Find chat metadata (used only for internal computation, no logging)
-        await Chat.findOne({ userId, chapterId });
+        // Find chat metadata to get agentName
+        const chat = await Chat.findOne({ userId, chapterId });
         
         // Get stats from QnALists
         const stats = await QnALists.getChapterStats(userId, chapterId);
         
         // Only return stats if there are answered questions
         if (stats.answeredQuestions === 0) {
-            return res.json({ hasStats: false });
+            return res.json({ hasStats: false, agentName: chat?.agentName || null });
         }
         
         // Return the stats with a flag indicating there are stats
@@ -1831,7 +1845,8 @@ router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
             totalMarks: stats.totalMarks,
             percentage: stats.percentage,
             answeredQuestions: stats.answeredQuestions,
-            totalQuestions: stats.totalQuestions
+            totalQuestions: stats.totalQuestions,
+            agentName: chat?.agentName || null
         });
         
     } catch (error) {
@@ -2033,7 +2048,7 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
 
 // Store answered question in the chat document
 // Add this function to track which questions a user has answered
-async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks, questionText, answerText) {
+async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks, questionText, answerText, agentType = "oldchat_ai") {
     try {
         console.log(`🏆 markQuestionAsAnswered called with:`, {
             userId,
@@ -2042,7 +2057,8 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             marksAwarded,
             maxMarks,
             questionText: questionText?.substring(0, 50) + '...',
-            answerText: answerText?.substring(0, 50) + '...'
+            answerText: answerText?.substring(0, 50) + '...',
+            agentType
         });
         
         // Find or create the chat document
@@ -2082,12 +2098,12 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
         console.log(`🏆 Before updating - answeredQuestions: ${chat.metadata.answeredQuestions.length}, totalMarks: ${chat.metadata.totalMarks}, earnedMarks: ${chat.metadata.earnedMarks}`);
         
         // Validate marks first (needed for both Chat and QnALists)
-        const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
-        const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
-        
+            const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
+            const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
+            
         // Check if this is the first time answering this question
         const isFirstTime = !chat.metadata.answeredQuestions.includes(questionId);
-        
+            
         // Add question to the answered list if not already there
         if (isFirstTime) {
             // Add new answered question
@@ -2102,40 +2118,40 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
         
         // ALWAYS record in QnALists (it's idempotent and ensures DB consistency)
         try {
-            // Get the chapter to get the bookId and subject
-            const chapter = await Chapter.findById(chapterId);
-            const chapterBookId = chapter ? chapter.bookId : null;
-            
-            if (!chapterBookId) {
-                console.error(`🏆 Cannot find bookId for chapter ${chapterId}`);
-            }
-            
-            // Get book details to check subject (for language determination)
-            let bookSubject = "general subject";
-            if (chapterBookId) {
-                const book = await Book.findById(chapterBookId);
-                if (book) {
-                    bookSubject = book.subject || "general subject";
+                // Get the chapter to get the bookId and subject
+                const chapter = await Chapter.findById(chapterId);
+                const chapterBookId = chapter ? chapter.bookId : null;
+                
+                if (!chapterBookId) {
+                    console.error(`🏆 Cannot find bookId for chapter ${chapterId}`);
                 }
-            }
-            
-            // Make sure we use the validated score values
-            const qnaData = {
-                studentId: userId,
-                bookId: chapterBookId,
-                chapterId: chapterId,
-                questionId: questionId,
-                questionMarks: validMaxMarks, // Use validated max marks
-                score: validMarksAwarded,     // Use validated marks awarded
-                answerText: answerText || "",
-                questionText: questionText || "",
-                agentType: "oldchat_ai", // Always oldchat_ai for answered questions
-                subject: bookSubject // Add subject for reference
-            };
-            
+                
+                // Get book details to check subject (for language determination)
+                let bookSubject = "general subject";
+                if (chapterBookId) {
+                    const book = await Book.findById(chapterBookId);
+                    if (book) {
+                        bookSubject = book.subject || "general subject";
+                    }
+                }
+                
+                // Make sure we use the validated score values
+                const qnaData = {
+                    studentId: userId,
+                    bookId: chapterBookId,
+                    chapterId: chapterId,
+                    questionId: questionId,
+                    questionMarks: validMaxMarks, // Use validated max marks
+                    score: validMarksAwarded,     // Use validated marks awarded
+                    answerText: answerText || "",
+                    questionText: questionText || "",
+                    agentType: agentType || "oldchat_ai", // Use passed agentType
+                    subject: bookSubject // Add subject for reference
+                };
+                
             await QnALists.recordAnswer(qnaData);
-        } catch (qnaError) {
-            console.error("🏆 Error recording answer in QnALists:", qnaError);
+            } catch (qnaError) {
+                console.error("🏆 Error recording answer in QnALists:", qnaError);
         }
         
         await chat.save();

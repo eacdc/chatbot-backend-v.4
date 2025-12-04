@@ -13,6 +13,11 @@ const chatSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     chapterId: { type: mongoose.Schema.Types.ObjectId, ref: "Chapter", default: null },
     messages: [messageSchema],
+    agentName: { 
+        type: String, 
+        enum: ["oldchat_ai", "newchat_ai", "closureChat_ai", "explanation_ai", null],
+        default: null 
+    },
     metadata: {
         answeredQuestions: [String],
         totalMarks: { type: Number, default: 0 },
