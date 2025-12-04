@@ -164,6 +164,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 booksStarted: new Set(),
                 chaptersCompleted: new Set(),
                 chaptersInProgress: new Set(),
+                chaptersNotStarted: 0,  // Will be calculated from total chapters
                 quizzesTaken: 0,
                 totalQuestionsAnswered: 0,
                 totalMarksEarned: 0,
@@ -171,6 +172,9 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 totalTimeSpentMinutes: 0,
                 overallScore: 0
             };
+            
+            // Track all chapters for "not started" calculation
+            const allChaptersAttempted = new Set();
 
             // Process QnA records for basic stats - using LAST SESSION only
             for (const record of qnaRecords) {
@@ -180,6 +184,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
                 if (record.chapterId) {
                     const chapterIdStr = record.chapterId._id.toString();
+                    allChaptersAttempted.add(chapterIdStr);
                     
                     // Get last session data
                     const { qnaDetails, session } = getLastSessionData(record);
@@ -222,10 +227,27 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 ? (basicStats.totalMarksEarned / basicStats.totalMarksAvailable) * 100 
                 : 0;
 
+            // Get total chapters count for "not started" calculation
+            let totalChaptersInBooks = 0;
+            try {
+                // Get all books that user has started
+                const bookIds = Array.from(basicStats.booksStarted);
+                if (bookIds.length > 0) {
+                    const chapters = await Chapter.find({ bookId: { $in: bookIds } }).select('_id');
+                    totalChaptersInBooks = chapters.length;
+                }
+            } catch (err) {
+                console.error("Error getting total chapters:", err);
+            }
+            
+            const chaptersNotStarted = Math.max(0, totalChaptersInBooks - allChaptersAttempted.size);
+
             response.data.basic = {
                 booksStarted: basicStats.booksStarted.size,
                 chaptersCompleted: basicStats.chaptersCompleted.size,
                 chaptersInProgress: basicStats.chaptersInProgress.size - basicStats.chaptersCompleted.size,
+                chaptersNotStarted: chaptersNotStarted,
+                totalChaptersInBooks: totalChaptersInBooks,
                 quizzesTaken: basicStats.quizzesTaken,
                 totalQuestionsAnswered: basicStats.totalQuestionsAnswered,
                 totalMarksEarned: parseFloat(basicStats.totalMarksEarned.toFixed(2)),
@@ -233,7 +255,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 overallScore: parseFloat(basicStats.overallScore.toFixed(2)),
                 totalTimeSpentMinutes: basicStats.totalTimeSpentMinutes,
                 totalTimeSpentHours: parseFloat((basicStats.totalTimeSpentMinutes / 60).toFixed(2)),
-                totalPointsEarned: Math.round(basicStats.totalMarksEarned * 10)
+                totalPointsEarned: parseFloat(basicStats.totalMarksEarned.toFixed(2))  // Same as earned marks (no multiplication)
             };
         }
 
@@ -437,7 +459,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                             sessionId: session ? session.sessionId : null,
                             sessionStatus: session ? session.sessionStatus : null,
                             timestamp: record.updatedAt,
-                            pointsEarned: Math.round(marksEarned * 10)
+                            pointsEarned: parseFloat(marksEarned.toFixed(2))  // Same as earned marks
                         });
                     }
                 }
@@ -501,7 +523,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 const quizMarksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
                 const quizPercentage = quizMarksAvailable > 0 ? (quizMarksEarned / quizMarksAvailable) * 100 : 0;
                 
-                const pointsEarned = Math.round(quizMarksEarned * 10);
+                const pointsEarned = parseFloat(quizMarksEarned.toFixed(2));  // Same as earned marks
                 totalPointsEarned += pointsEarned;
                 
                 // Add time from session
