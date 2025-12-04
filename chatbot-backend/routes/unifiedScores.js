@@ -6,9 +6,29 @@ const Chat = require("../models/Chat");
 const Chapter = require("../models/Chapter");
 const Book = require("../models/Book");
 const User = require("../models/User");
-const Session = require("../models/Session");
 
-console.log("📊 Unified Scores API: Single comprehensive scoring and progress system loaded");
+console.log("📊 Unified Scores API: Session-based scoring system loaded");
+
+// Helper function to get the last session's qnaDetails from a QnALists record
+function getLastSessionData(record) {
+    if (!record || !record.sessions || record.sessions.length === 0) {
+        return { qnaDetails: [], session: null };
+    }
+    // Get the last session (most recent)
+    const lastSession = record.sessions[record.sessions.length - 1];
+    return {
+        qnaDetails: lastSession.qnaDetails || [],
+        session: lastSession
+    };
+}
+
+// Helper function to get the last session from a Chat record
+function getChatLastSession(chat) {
+    if (!chat || !chat.sessions || chat.sessions.length === 0) {
+        return null;
+    }
+    return chat.sessions[chat.sessions.length - 1];
+}
 
 // ================================================================
 // UNIFIED SCORES AND PROGRESS API
@@ -116,7 +136,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
         if (includeRecent || includeBasic || includeDetailed) {
             var userChats = await Chat.find(chatQuery)
                 .populate('chapterId', 'title')
-                .sort({ lastActive: -1 });
+                .sort({ updatedAt: -1 });
         }
 
         // Get user info if needed
@@ -137,6 +157,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
         // ================================================================
         // BASIC STATISTICS (Always included or when requested)
+        // Uses LAST SESSION data only
         // ================================================================
         if (includeBasic) {
             const basicStats = {
@@ -148,24 +169,25 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 totalMarksEarned: 0,
                 totalMarksAvailable: 0,
                 totalTimeSpentMinutes: 0,
-                quizTimeSpentMinutes: 0,
-                learningTimeSpentMinutes: 0,
                 overallScore: 0
             };
 
-            // Process QnA records for basic stats
+            // Process QnA records for basic stats - using LAST SESSION only
             for (const record of qnaRecords) {
                 if (record.bookId) {
                     basicStats.booksStarted.add(record.bookId._id.toString());
                 }
 
                 if (record.chapterId) {
-                    const chapterId = record.chapterId._id.toString();
-                    const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
+                    const chapterIdStr = record.chapterId._id.toString();
+                    
+                    // Get last session data
+                    const { qnaDetails, session } = getLastSessionData(record);
+                    const answeredQuestions = qnaDetails.filter(q => q.status === 1);
                     
                     if (answeredQuestions.length > 0) {
                         basicStats.quizzesTaken++;
-                        basicStats.chaptersInProgress.add(chapterId);
+                        basicStats.chaptersInProgress.add(chapterIdStr);
                         
                         const chapterMarksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
                         const chapterMarksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
@@ -174,52 +196,26 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                         basicStats.totalMarksEarned += chapterMarksEarned;
                         basicStats.totalMarksAvailable += chapterMarksAvailable;
                         
-                        // Check if chapter is completed (all questions answered from total available)
+                        // Add time from session if available
+                        if (session && session.totalTime) {
+                            basicStats.totalTimeSpentMinutes += Math.round(session.totalTime / 60000);
+                        }
+                        
+                        // Check if chapter is completed
                         try {
-                            const chapter = await Chapter.findById(chapterId);
-                            let totalQuestions = 0;
-                            
-                            // Always use the chapter's question count as the source of truth
+                            const chapter = await Chapter.findById(chapterIdStr);
                             if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt)) {
-                                totalQuestions = chapter.questionPrompt.length;
-                                
-                                // Check if ALL questions have been answered
+                                const totalQuestions = chapter.questionPrompt.length;
                                 if (answeredQuestions.length >= totalQuestions) {
-                                    basicStats.chaptersCompleted.add(chapterId);
+                                    basicStats.chaptersCompleted.add(chapterIdStr);
                                 }
                             }
                         } catch (err) {
-                            console.error(`Error checking chapter completion for ${chapterId}:`, err);
+                            console.error(`Error checking chapter completion for ${chapterIdStr}:`, err);
                         }
                     }
                 }
             }
-
-            // Calculate time spent from sessions collection
-            const userSessions = await Session.find({ 
-                userId: userId,
-                status: "closed",
-                timeTaken: { $ne: null }
-            });
-
-            let totalMinutes = 0;
-            let quizMinutes = 0;
-            let learningMinutes = 0;
-
-            userSessions.forEach(session => {
-                if (session.timeTaken) {
-                    totalMinutes += session.timeTaken;
-                    if (session.sessionType === "Quiz") {
-                        quizMinutes += session.timeTaken;
-                    } else if (session.sessionType === "Learning") {
-                        learningMinutes += session.timeTaken;
-                    }
-                }
-            });
-
-            basicStats.totalTimeSpentMinutes = totalMinutes;
-            basicStats.quizTimeSpentMinutes = quizMinutes;
-            basicStats.learningTimeSpentMinutes = learningMinutes;
 
             // Calculate overall score
             basicStats.overallScore = basicStats.totalMarksAvailable > 0 
@@ -237,14 +233,12 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 overallScore: parseFloat(basicStats.overallScore.toFixed(2)),
                 totalTimeSpentMinutes: basicStats.totalTimeSpentMinutes,
                 totalTimeSpentHours: parseFloat((basicStats.totalTimeSpentMinutes / 60).toFixed(2)),
-                quizTimeSpentHours: parseFloat((basicStats.quizTimeSpentMinutes / 60).toFixed(2)),
-                learningTimeSpentHours: parseFloat((basicStats.learningTimeSpentMinutes / 60).toFixed(2)),
-                totalPointsEarned: Math.round(basicStats.totalMarksEarned * 10) // 10 points per mark
+                totalPointsEarned: Math.round(basicStats.totalMarksEarned * 10)
             };
         }
 
         // ================================================================
-        // DETAILED BREAKDOWN
+        // DETAILED BREAKDOWN - Uses LAST SESSION data only
         // ================================================================
         if (includeDetailed) {
             const subjects = new Map();
@@ -255,7 +249,9 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
             // Process records for detailed breakdown
             for (const record of qnaRecords) {
-                const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
+                // Get last session data
+                const { qnaDetails, session } = getLastSessionData(record);
+                const answeredQuestions = qnaDetails.filter(q => q.status === 1);
                 
                 if (answeredQuestions.length > 0) {
                     const chapterMarksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
@@ -263,16 +259,16 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
                     // Track by subject
                     if (record.bookId && record.bookId.subject) {
-                        const subject = record.bookId.subject;
-                        if (!subjects.has(subject)) {
-                            subjects.set(subject, {
+                        const subjectName = record.bookId.subject;
+                        if (!subjects.has(subjectName)) {
+                            subjects.set(subjectName, {
                                 questionsAnswered: 0,
                                 marksEarned: 0,
                                 marksAvailable: 0,
                                 chaptersAttempted: new Set()
                             });
                         }
-                        const subjectStats = subjects.get(subject);
+                        const subjectStats = subjects.get(subjectName);
                         subjectStats.questionsAnswered += answeredQuestions.length;
                         subjectStats.marksEarned += chapterMarksEarned;
                         subjectStats.marksAvailable += chapterMarksAvailable;
@@ -317,8 +313,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
                     // Check chapter completion for detailed list
                     if (record.chapterId) {
-                        // Get the actual total questions from the chapter
-                        let totalQuestions = record.qnaDetails.length;
+                        let totalQuestions = qnaDetails.length;
                         let isCompleted = false;
                         
                         try {
@@ -331,7 +326,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                             console.error(`Error getting chapter data for ${record.chapterId._id}:`, err);
                         }
                         
-                        const completionPercentage = (answeredQuestions.length / totalQuestions) * 100;
+                        const completionPercentage = totalQuestions > 0 ? (answeredQuestions.length / totalQuestions) * 100 : 0;
                         const chapterData = {
                             id: record.chapterId._id,
                             title: record.chapterId.title,
@@ -339,14 +334,17 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                             bookTitle: record.bookId.title,
                             subject: record.bookId.subject,
                             questionsAnswered: answeredQuestions.length,
-                            totalQuestions: record.qnaDetails.length,
+                            totalQuestions: totalQuestions,
                             completionPercentage: parseFloat(completionPercentage.toFixed(1)),
                             marksEarned: parseFloat(chapterMarksEarned.toFixed(2)),
                             marksAvailable: parseFloat(chapterMarksAvailable.toFixed(2)),
+                            scorePercentage: session ? session.scorePercentage : 0,
+                            sessionStatus: session ? session.sessionStatus : null,
+                            sessionId: session ? session.sessionId : null,
                             lastAttempted: record.updatedAt
                         };
 
-                        if (isCompleted || answeredQuestions.length >= totalQuestions) {
+                        if (isCompleted) {
                             completedChapters.push(chapterData);
                         } else {
                             inProgressChapters.push(chapterData);
@@ -367,8 +365,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     inProgress: inProgressChapters
                 },
                 breakdown: {
-                    bySubject: Array.from(subjects.entries()).map(([subject, data]) => ({
-                        subject,
+                    bySubject: Array.from(subjects.entries()).map(([subjectName, data]) => ({
+                        subject: subjectName,
                         questionsAnswered: data.questionsAnswered,
                         marksEarned: parseFloat(data.marksEarned.toFixed(2)),
                         marksAvailable: parseFloat(data.marksAvailable.toFixed(2)),
@@ -396,7 +394,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
         }
 
         // ================================================================
-        // RECENT ACTIVITIES
+        // RECENT ACTIVITIES - Uses LAST SESSION data only
         // ================================================================
         if (includeRecent) {
             const recentStartDate = new Date();
@@ -407,7 +405,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             ).slice(0, parseInt(recentLimit));
 
             const recentChats = userChats ? userChats.filter(chat => 
-                new Date(chat.lastActive) >= recentStartDate
+                new Date(chat.updatedAt) >= recentStartDate
             ).slice(0, parseInt(recentLimit)) : [];
 
             const recentActivities = [];
@@ -415,7 +413,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
             // Process QnA activities
             recentQnaRecords.forEach(record => {
-                const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
+                const { qnaDetails, session } = getLastSessionData(record);
+                const answeredQuestions = qnaDetails.filter(q => q.status === 1);
                 
                 if (answeredQuestions.length > 0) {
                     const activityKey = `${record.chapterId?._id}-${record.updatedAt.toDateString()}`;
@@ -431,10 +430,12 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                             bookTitle: record.bookId?.title || 'Unknown Book',
                             subject: record.bookId?.subject || 'Unknown',
                             questionsAnswered: answeredQuestions.length,
-                            totalQuestions: record.qnaDetails.length,
+                            totalQuestions: qnaDetails.length,
                             marksEarned: parseFloat(marksEarned.toFixed(2)),
                             marksAvailable: parseFloat(marksAvailable.toFixed(2)),
-                            scorePercentage: marksAvailable > 0 ? parseFloat(((marksEarned / marksAvailable) * 100).toFixed(1)) : 0,
+                            scorePercentage: session ? session.scorePercentage : (marksAvailable > 0 ? parseFloat(((marksEarned / marksAvailable) * 100).toFixed(1)) : 0),
+                            sessionId: session ? session.sessionId : null,
+                            sessionStatus: session ? session.sessionStatus : null,
                             timestamp: record.updatedAt,
                             pointsEarned: Math.round(marksEarned * 10)
                         });
@@ -445,15 +446,18 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             // Process chat activities
             recentChats.forEach(chat => {
                 if (chat.chapterId) {
-                    const activityKey = `chat-${chat.chapterId._id}-${chat.lastActive.toDateString()}`;
+                    const lastSession = getChatLastSession(chat);
+                    const activityKey = `chat-${chat.chapterId._id}-${chat.updatedAt.toDateString()}`;
                     
                     if (!activityMap.has(activityKey)) {
                         activityMap.set(activityKey, {
                             type: 'chapter_visited',
                             chapterId: chat.chapterId._id,
                             chapterTitle: chat.chapterId.title || 'Unknown Chapter',
-                            messageCount: chat.messages ? chat.messages.length : 0,
-                            timestamp: chat.lastActive
+                            messageCount: lastSession ? lastSession.messages.length : 0,
+                            sessionId: lastSession ? lastSession.sessionId : null,
+                            sessionStatus: lastSession ? lastSession.sessionStatus : null,
+                            timestamp: chat.updatedAt
                         });
                     }
                 }
@@ -478,18 +482,20 @@ router.get("/:userId", authenticateUser, async (req, res) => {
         }
 
         // ================================================================
-        // SCOREBOARD DATA
+        // SCOREBOARD DATA - Uses LAST SESSION data only
         // ================================================================
         if (includeScoreboard) {
             const completedQuizzes = [];
             const quizzesInProgress = [];
             let totalPointsEarned = 0;
+            let totalTimeMinutes = 0;
 
-            // Process quizzes for scoreboard - using for...of loop for async/await support
+            // Process quizzes for scoreboard
             for (const record of qnaRecords) {
-                const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
-                const totalQuestions = record.qnaDetails.length;
-                const completionPercentage = totalQuestions > 0 ? (answeredQuestions.length / totalQuestions) * 100 : 0;
+                const { qnaDetails, session } = getLastSessionData(record);
+                const answeredQuestions = qnaDetails.filter(q => q.status === 1);
+                
+                if (answeredQuestions.length === 0) continue;
                 
                 const quizMarksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
                 const quizMarksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
@@ -497,12 +503,15 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 
                 const pointsEarned = Math.round(quizMarksEarned * 10);
                 totalPointsEarned += pointsEarned;
+                
+                // Add time from session
+                if (session && session.totalTime) {
+                    totalTimeMinutes += Math.round(session.totalTime / 60000);
+                }
 
-                // Initialize quiz data with record values
-                let actualTotalQuestions = totalQuestions;
+                let actualTotalQuestions = qnaDetails.length;
                 let isCompleted = false;
                 
-                // First get the actual total questions from the chapter
                 try {
                     const chapter = await Chapter.findById(record.chapterId?._id);
                     if (chapter && chapter.questionPrompt && Array.isArray(chapter.questionPrompt)) {
@@ -513,7 +522,6 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     console.error(`Error getting chapter data for quiz ${record.chapterId?._id}:`, err);
                 }
                 
-                // Calculate the real completion percentage based on actual total questions
                 const actualCompletionPercentage = actualTotalQuestions > 0 ? 
                     (answeredQuestions.length / actualTotalQuestions) * 100 : 0;
                 
@@ -527,41 +535,21 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     completionPercentage: parseFloat(actualCompletionPercentage.toFixed(1)),
                     marksEarned: parseFloat(quizMarksEarned.toFixed(2)),
                     marksAvailable: parseFloat(quizMarksAvailable.toFixed(2)),
-                    scorePercentage: parseFloat(quizPercentage.toFixed(1)),
+                    scorePercentage: session ? session.scorePercentage : parseFloat(quizPercentage.toFixed(1)),
                     pointsEarned,
+                    sessionId: session ? session.sessionId : null,
+                    sessionStatus: session ? session.sessionStatus : null,
+                    startSessionAfter: session ? session.startSessionAfter : null,
                     lastAttempted: record.updatedAt,
                     status: isCompleted ? 'completed' : 'in_progress'
                 };
 
-                // We already determined completion status when creating quizData
-                if (isCompleted) {
+                if (isCompleted || (session && session.sessionStatus === 'closed')) {
                     completedQuizzes.push(quizData);
                 } else {
                     quizzesInProgress.push(quizData);
                 }
-                        }
-
-            // Calculate time spent from sessions collection
-            const userSessions = await Session.find({ 
-                userId: userId,
-                status: "closed",
-                timeTaken: { $ne: null }
-            });
-
-            let totalMinutes = 0;
-            let quizMinutes = 0;
-            let learningMinutes = 0;
-
-            userSessions.forEach(session => {
-                if (session.timeTaken) {
-                    totalMinutes += session.timeTaken;
-                    if (session.sessionType === "Quiz") {
-                        quizMinutes += session.timeTaken;
-                    } else if (session.sessionType === "Learning") {
-                        learningMinutes += session.timeTaken;
-                    }
-                }
-            });
+            }
 
             // Simple streak calculation
             const recentActivities = [...qnaRecords]
@@ -575,19 +563,16 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     new Date(activity.updatedAt).toDateString()
                 );
                 const uniqueDates = [...new Set(activityDates)];
-                
-                // Simple consecutive day calculation
-                currentStreak = Math.min(uniqueDates.length, 7); // Cap at 7 days
-                longestStreak = Math.min(uniqueDates.length, 30); // Cap at 30 days
+                currentStreak = Math.min(uniqueDates.length, 7);
+                longestStreak = Math.min(uniqueDates.length, 30);
             }
 
             response.data.scoreboard = {
-                completedQuizzes: completedQuizzes.slice(0, 20), // Limit to 20
-                quizzesInProgress: quizzesInProgress.slice(0, 20), // Limit to 20
+                completedQuizzes: completedQuizzes.slice(0, 20),
+                quizzesInProgress: quizzesInProgress.slice(0, 20),
                 totalPointsEarned,
-                totalHoursSpent: parseFloat((totalMinutes / 60).toFixed(2)),
-                quizHoursSpent: parseFloat((quizMinutes / 60).toFixed(2)),
-                learningHoursSpent: parseFloat((learningMinutes / 60).toFixed(2)),
+                totalTimeSpentMinutes: totalTimeMinutes,
+                totalHoursSpent: parseFloat((totalTimeMinutes / 60).toFixed(2)),
                 streakData: {
                     currentStreak,
                     longestStreak,
@@ -605,7 +590,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
         }
 
         // ================================================================
-        // ASSESSMENT ANALYSIS
+        // ASSESSMENT ANALYSIS - Uses LAST SESSION data only
         // ================================================================
         if (includeAssessment) {
             let totalQuestions = 0;
@@ -620,7 +605,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             };
 
             qnaRecords.forEach(record => {
-                const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
+                const { qnaDetails } = getLastSessionData(record);
+                const answeredQuestions = qnaDetails.filter(q => q.status === 1);
                 
                 answeredQuestions.forEach(qna => {
                     totalQuestions++;
@@ -634,21 +620,21 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     if (scorePercentage >= 80) correctAnswers++;
 
                     // Track by subject/topic
-                    const subject = record.bookId?.subject || 'Unknown';
-                    if (!topicPerformance[subject]) {
-                        topicPerformance[subject] = {
+                    const subjectName = record.bookId?.subject || 'Unknown';
+                    if (!topicPerformance[subjectName]) {
+                        topicPerformance[subjectName] = {
                             attempted: 0,
                             correct: 0,
                             totalScore: 0,
                             maxScore: 0
                         };
                     }
-                    topicPerformance[subject].attempted++;
-                    topicPerformance[subject].totalScore += qna.score || 0;
-                    topicPerformance[subject].maxScore += qna.questionMarks || 0;
-                    if (scorePercentage >= 80) topicPerformance[subject].correct++;
+                    topicPerformance[subjectName].attempted++;
+                    topicPerformance[subjectName].totalScore += qna.score || 0;
+                    topicPerformance[subjectName].maxScore += qna.questionMarks || 0;
+                    if (scorePercentage >= 80) topicPerformance[subjectName].correct++;
 
-                    // Difficulty analysis (simplified)
+                    // Difficulty analysis
                     const difficulty = qna.difficultyLevel || 'medium';
                     if (difficultyAnalysis[difficulty]) {
                         difficultyAnalysis[difficulty].attempted++;
@@ -664,8 +650,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             });
 
             // Find strengths and weaknesses
-            const subjectAnalysis = Object.entries(topicPerformance).map(([subject, data]) => ({
-                subject,
+            const subjectAnalysis = Object.entries(topicPerformance).map(([subjectName, data]) => ({
+                subject: subjectName,
                 attempted: data.attempted,
                 accuracy: data.attempted > 0 ? (data.correct / data.attempted) * 100 : 0,
                 avgScore: data.maxScore > 0 ? (data.totalScore / data.maxScore) * 100 : 0
@@ -680,7 +666,10 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     totalQuestions,
                     avgScore: totalMaxScore > 0 ? parseFloat(((totalScore / totalMaxScore) * 100).toFixed(2)) : 0,
                     accuracyRate: totalQuestions > 0 ? parseFloat(((correctAnswers / totalQuestions) * 100).toFixed(2)) : 0,
-                    completionRate: qnaRecords.length > 0 ? parseFloat(((qnaRecords.filter(r => r.qnaDetails.filter(q => q.status === 1).length > 0).length / qnaRecords.length) * 100).toFixed(2)) : 0
+                    completionRate: qnaRecords.length > 0 ? parseFloat(((qnaRecords.filter(r => {
+                        const { qnaDetails } = getLastSessionData(r);
+                        return qnaDetails.filter(q => q.status === 1).length > 0;
+                    }).length / qnaRecords.length) * 100).toFixed(2)) : 0
                 },
                 difficultyAnalysis,
                 subjectAnalysis,
@@ -693,7 +682,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
         }
 
         // ================================================================
-        // PERFORMANCE TRENDS
+        // PERFORMANCE TRENDS - Uses LAST SESSION data only
         // ================================================================
         if (includeTrends) {
             const monthlyData = {};
@@ -701,7 +690,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             const dailyData = {};
 
             qnaRecords.forEach(record => {
-                const answeredQuestions = record.qnaDetails.filter(q => q.status === 1);
+                const { qnaDetails } = getLastSessionData(record);
+                const answeredQuestions = qnaDetails.filter(q => q.status === 1);
                 
                 if (answeredQuestions.length > 0) {
                     const date = new Date(record.updatedAt);
@@ -795,7 +785,8 @@ function getWeekNumber(date) {
 // Test endpoint
 router.get("/test", (req, res) => {
     res.json({ 
-        message: "Unified Scores API is working!",
+        message: "Unified Scores API is working! (Session-based)",
+        note: "Stats are now based on the LAST SESSION only",
         availableSections: [
             "basic - Basic statistics (default)",
             "detailed - Detailed breakdown by subject/grade/publisher with chapter lists", 
