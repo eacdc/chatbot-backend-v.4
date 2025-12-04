@@ -556,7 +556,8 @@ Rules:
                             maxScore,
                             previousQuestion.question || "",
                             message,
-                            classification // Pass the classification as agentType
+                            classification, // Pass the classification as agentType
+                            chat // Pass existing chat to avoid version conflict
                         );
                         
                         console.log(`✅ Pre-saved answer for ${previousQuestion.questionId} before selection (agent: ${classification})`);
@@ -1379,7 +1380,8 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                                 maxScore,
                                 previousQuestion.question || "", // Use previous question text
                                 message, // Current message is the answer to the previous question
-                                classification // Pass the classification as agentType
+                                classification, // Pass the classification as agentType
+                                chat // Pass existing chat to avoid version conflict
                             );
                             
                             console.log(`✅ Updated score for ${previousQuestion.questionId}: ${marksAwarded}/${maxScore} (agent: ${classification})`);
@@ -2184,7 +2186,8 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
 
 // Store answered question in the chat document
 // Add this function to track which questions a user has answered
-async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks, questionText, answerText, agentType = "oldchat_ai") {
+// NOW accepts existingChat parameter to avoid loading the same document twice
+async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks, questionText, answerText, agentType = "oldchat_ai", existingChat = null) {
     try {
         console.log(`🏆 markQuestionAsAnswered called with:`, {
             userId,
@@ -2194,23 +2197,31 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             maxMarks,
             questionText: questionText?.substring(0, 50) + '...',
             answerText: answerText?.substring(0, 50) + '...',
-            agentType
+            agentType,
+            hasExistingChat: !!existingChat
         });
         
         // Validate marks first (needed for both Chat and QnALists)
         const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
         const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
         
-        // Get or create chat document with session
-        const chatResult = await Chat.getOrCreateWithSession(userId, chapterId);
+        // Use existing chat if provided, otherwise load it
+        // This prevents version conflicts when called from /send endpoint
+        let chat = existingChat;
         
-        // Handle cooldown error (shouldn't happen in normal flow, but handle it)
-        if (chatResult && chatResult.error === "cooldown") {
-            console.log(`🏆 Session cooldown active, cannot mark question as answered`);
-            return { success: false, error: "cooldown", message: chatResult.message };
+        if (!chat) {
+            // Get or create chat document with session (only if not provided)
+            const chatResult = await Chat.getOrCreateWithSession(userId, chapterId);
+            
+            // Handle cooldown error (shouldn't happen in normal flow, but handle it)
+            if (chatResult && chatResult.error === "cooldown") {
+                console.log(`🏆 Session cooldown active, cannot mark question as answered`);
+                return { success: false, error: "cooldown", message: chatResult.message };
+            }
+            
+            chat = chatResult;
         }
         
-        const chat = chatResult;
         const currentSession = chat.getCurrentSession();
         
         if (!currentSession) {
@@ -2288,7 +2299,14 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
                 console.error("🏆 Error recording answer in QnALists:", qnaError);
         }
         
-        await chat.save();
+        // Only save if no existingChat was provided (standalone call)
+        // If existingChat was provided, the caller will handle saving to avoid version conflicts
+        if (!existingChat) {
+            await chat.save();
+            console.log(`🏆 Chat saved (standalone call)`);
+        } else {
+            console.log(`🏆 Chat NOT saved here - caller will save (existingChat provided)`);
+        }
         
     } catch (error) {
         console.error("🏆 Error marking question as answered:", error);
