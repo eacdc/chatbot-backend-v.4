@@ -338,41 +338,43 @@ router.post("/send", authenticateUser, async (req, res) => {
             previousQuestion = previousQuestionsMap.get(userChapterKey);
         }
         
-            // Ensure consistent types for chat lookup
-            const chatQuery = { 
-                userId: String(userId), 
-                chapterId: String(chapterId) 
-            };
+            // Get or create chat with session-based structure
+            const chatResult = await Chat.getOrCreateWithSession(String(userId), String(chapterId));
             
-            chat = await Chat.findOne(chatQuery);
+            // Check if cooldown is active
+            if (chatResult && chatResult.error === "cooldown") {
+                console.log(`⏰ Session cooldown active for user ${userId}, chapter ${chapterId}. Hours remaining: ${chatResult.hoursRemaining}`);
+                return res.status(403).json({
+                    error: "Session cooldown active",
+                    message: chatResult.message,
+                    hoursRemaining: chatResult.hoursRemaining,
+                    canStartNewSession: false
+                });
+            }
+            
+            chat = chatResult;
+            
+            // Get current session
+            const currentSession = chat.getCurrentSession();
             
             // Debug logging for chat lookup issues
-            if (!chat) {
-                console.log(`🔍 No existing chat found for user ${userId}, chapter ${chapterId} - creating new`);
+            if (!currentSession) {
+                console.log(`🔍 No active session found for user ${userId}, chapter ${chapterId}`);
             } else {
-                console.log(`✅ Found existing chat (ID: ${chat._id}) with ${chat.messages?.length || 0} messages`);
+                console.log(`✅ Found active session (ID: ${currentSession.sessionId}) with ${currentSession.messages?.length || 0} messages, status: ${currentSession.sessionStatus}`);
             }
         
-        // Get previous messages for context
-        if (chat && chat.messages && chat.messages.length > 0) {
+        // Get previous messages for context from current session
+        if (currentSession && currentSession.messages && currentSession.messages.length > 0) {
             if (classification === "explanation_ai") {
                 // For explanation agent, use more context - last 6 messages
-            previousMessages = chat.messages.slice(-6);
+                previousMessages = currentSession.messages.slice(-6);
             } else {
                 // For other agents, use only the last assistant message + current user message
-                const assistantMessages = chat.messages.filter(msg => msg.role === "assistant").slice(-1);
-                const userMessages = chat.messages.filter(msg => msg.role === "user").slice(-1);
+                const assistantMessages = currentSession.messages.filter(msg => msg.role === "assistant").slice(-1);
+                const userMessages = currentSession.messages.filter(msg => msg.role === "user").slice(-1);
                 previousMessages = [...assistantMessages, ...userMessages];
             }
-        }
-        
-        if (!chat) {
-            chat = new Chat({ 
-                userId: String(userId), 
-                chapterId: String(chapterId), 
-                messages: [],
-                metadata: {}
-            });
         }
             
             // Fetch chapter details
@@ -1469,20 +1471,37 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             
             // NOW save the message to chat history AFTER beautification
             // This ensures both database and user get the same beautified content
-            chat.messages.push({ role: "user", content: message });
-            chat.messages.push({ role: "assistant", content: finalBotMessage });
+            // Use session-based addMessage method
+            chat.addMessage("user", message);
+            chat.addMessage("assistant", finalBotMessage);
             
-            // Update the lastActive timestamp
-            chat.lastActive = Date.now();
+            // Get current session for updates
+            const sessionToUpdate = chat.getCurrentSession();
             
-            // Update agentName when closureChat_ai is selected
-            // agentName stays null until closureChat_ai is triggered
-            if (classification === "closureChat_ai") {
-                chat.agentName = "closureChat_ai";
-                console.log(`🎯 [CLOSURE] Chat agentName updated to: closureChat_ai`);
+            // Update agentName and close session when closureChat_ai is selected
+            if (classification === "closureChat_ai" && sessionToUpdate) {
+                // Calculate final score percentage
+                const totalMarks = sessionToUpdate.metadata?.totalMarks || 0;
+                const earnedMarks = sessionToUpdate.metadata?.earnedMarks || 0;
+                const scorePercentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
+                
+                // Close the session with scorePercentage (this sets startSessionAfter automatically)
+                chat.closeCurrentSession(scorePercentage);
+                console.log(`🎯 [CLOSURE] Chat session closed. Score: ${scorePercentage}%, startSessionAfter: ${scorePercentage < 80 ? 24 : 72} hours`);
+                
+                // Also close QnALists session
+                try {
+                    await QnALists.closeSession(userId, chapterId);
+                    console.log(`🎯 [CLOSURE] QnALists session closed for user ${userId}, chapter ${chapterId}`);
+                } catch (qnaCloseError) {
+                    console.error(`🎯 [CLOSURE] Error closing QnALists session:`, qnaCloseError);
+                }
             }
             
             await chat.save();
+            
+            // Get current session info for response
+            const responseSession = chat.getCurrentSession() || chat.getLatestSession();
             
             // Prepare the response object
             const responseObject = {
@@ -1496,13 +1515,20 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     : currentQuestion,
                 agentType: classification,
                 // agentName is null until closureChat_ai is selected, then it stays "closureChat_ai"
-                agentName: classification === "closureChat_ai" ? "closureChat_ai" : (chat.agentName || null),
+                agentName: classification === "closureChat_ai" ? "closureChat_ai" : (responseSession?.agentName || null),
                 previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
                 questionAsked: shouldUseToolCall ? questionAsked : null, // Include questionAsked when tool call was used
                 score: {
                     marksAwarded: (previousQuestion && (classification === "oldchat_ai" || classification === "closureChat_ai") && typeof marksAwarded !== 'undefined') ? marksAwarded : null,
                     maxMarks: (previousQuestion && (classification === "oldchat_ai" || classification === "closureChat_ai") && typeof maxScore !== 'undefined') ? maxScore : null,
                     previousQuestion: previousQuestion ? previousQuestion.question : null
+                },
+                // Session info
+                session: {
+                    sessionId: responseSession?.sessionId || null,
+                    sessionStatus: responseSession?.sessionStatus || null,
+                    scorePercentage: responseSession?.scorePercentage || 0,
+                    startSessionAfter: responseSession?.startSessionAfter || null
                 }
             };
             
@@ -1801,18 +1827,34 @@ router.get("/chapter-history/:chapterId", authenticateUser, async (req, res) => 
         
         console.log(`Fetching chat history for chapter ${chapterId} and user ${userId}`);
         
-        const chat = await Chat.findOne({ userId, chapterId });
+        // Get messages from current/last session
+        const sessionData = await Chat.getCurrentSessionMessages(userId, chapterId);
         
-        if (!chat || !Array.isArray(chat.messages)) {
+        if (!sessionData || sessionData.messages.length === 0) {
             console.log(`No chat history found for chapter ${chapterId} and user ${userId}`);
-            return res.json({ messages: [], agentName: null });
+            return res.json({ 
+                messages: [], 
+                agentName: null,
+                sessionId: sessionData?.sessionId || null,
+                sessionStatus: sessionData?.sessionStatus || null,
+                canStartNewSession: sessionData?.canStartNew !== false,
+                hoursUntilNextSession: sessionData?.hoursUntilNextSession || 0
+            });
         }
         
-        // Return all messages with agentName
-        console.log(`Returning ${chat.messages.length} messages for chapter ${chapterId}, agentName: ${chat.agentName || null}`);
+        // Return messages from current session with session info
+        console.log(`Returning ${sessionData.messages.length} messages for chapter ${chapterId}, session: ${sessionData.sessionId}, status: ${sessionData.sessionStatus}`);
         res.json({
-            messages: chat.messages,
-            agentName: chat.agentName || null
+            messages: sessionData.messages,
+            agentName: sessionData.agentName || null,
+            sessionId: sessionData.sessionId,
+            sessionStatus: sessionData.sessionStatus,
+            scorePercentage: sessionData.scorePercentage,
+            totalTime: sessionData.totalTime,
+            startTime: sessionData.startTime,
+            endTime: sessionData.endTime,
+            canStartNewSession: sessionData.canStartNew !== false,
+            hoursUntilNextSession: sessionData.hoursUntilNextSession || 0
         });
         
     } catch (error) {
@@ -1827,18 +1869,30 @@ router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
         const { chapterId } = req.params;
         const userId = req.user.userId;
         
-        // Find chat metadata to get agentName
-        const chat = await Chat.findOne({ userId, chapterId });
-        
-        // Get stats from QnALists
+        // Get stats from QnALists (current session)
         const stats = await QnALists.getChapterStats(userId, chapterId);
+        
+        // Get cooldown status
+        const cooldownStatus = await QnALists.getCooldownStatus(userId, chapterId);
+        
+        // Get chat session info
+        const chat = await Chat.findOne({ userId, chapterId });
+        const currentSession = chat ? chat.getCurrentSession() : null;
+        const latestSession = chat ? chat.getLatestSession() : null;
         
         // Only return stats if there are answered questions
         if (stats.answeredQuestions === 0) {
-            return res.json({ hasStats: false, agentName: chat?.agentName || null });
+            return res.json({ 
+                hasStats: false, 
+                agentName: currentSession?.agentName || latestSession?.agentName || null,
+                sessionId: stats.sessionId,
+                sessionStatus: stats.sessionStatus,
+                canStartNewSession: cooldownStatus.canStart,
+                hoursUntilNextSession: cooldownStatus.hoursRemaining
+            });
         }
         
-        // Return the stats with a flag indicating there are stats
+        // Return the stats with session info
         return res.json({
             hasStats: true,
             earnedMarks: stats.earnedMarks,
@@ -1846,7 +1900,13 @@ router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
             percentage: stats.percentage,
             answeredQuestions: stats.answeredQuestions,
             totalQuestions: stats.totalQuestions,
-            agentName: chat?.agentName || null
+            agentName: currentSession?.agentName || latestSession?.agentName || null,
+            sessionId: stats.sessionId,
+            sessionStatus: stats.sessionStatus,
+            canStartNewSession: cooldownStatus.canStart,
+            hoursUntilNextSession: cooldownStatus.hoursRemaining,
+            lastSessionScore: cooldownStatus.lastSessionScore,
+            totalSessions: cooldownStatus.totalSessions
         });
         
     } catch (error) {
@@ -1855,22 +1915,32 @@ router.get("/chapter-stats/:chapterId", authenticateUser, async (req, res) => {
     }
 });
 
-// Get General Chat History
+// Get General Chat History (for non-chapter chats - no session structure)
 router.get("/general-history", authenticateUser, async (req, res) => {
     try {
         const userId = req.user.userId;
         
-        // console.log removed;
-        
         const chat = await Chat.findOne({ userId, chapterId: null });
         
-        if (!chat || !Array.isArray(chat.messages)) {
-            // console.log removed;
-            return res.json([]);
+        if (!chat) {
+            return res.json({ messages: [], sessionId: null });
         }
         
-        // console.log removed;
-        res.json(chat.messages);
+        // For general chat (non-chapter), check if it uses sessions or old structure
+        if (chat.sessions && chat.sessions.length > 0) {
+            // New session-based structure
+            const currentSession = chat.getCurrentSession() || chat.getLatestSession();
+            return res.json({
+                messages: currentSession?.messages || [],
+                sessionId: currentSession?.sessionId || null,
+                sessionStatus: currentSession?.sessionStatus || null
+            });
+        } else if (chat.messages && Array.isArray(chat.messages)) {
+            // Old flat structure (backwards compatibility)
+            return res.json({ messages: chat.messages, sessionId: null });
+        }
+        
+        return res.json({ messages: [], sessionId: null });
         
     } catch (error) {
         console.error("Error fetching general chat history:", error);
@@ -1899,6 +1969,72 @@ router.get("/history/:userId", authenticateUser, async (req, res) => {
     } catch (error) {
         console.error("Error fetching user chat history:", error);
         res.status(500).json({ error: "Failed to fetch user chat history" });
+    }
+});
+
+// Get All Sessions for a Chapter
+router.get("/sessions/:chapterId", authenticateUser, async (req, res) => {
+    try {
+        const { chapterId } = req.params;
+        const userId = req.user.userId;
+        
+        console.log(`Fetching all sessions for chapter ${chapterId} and user ${userId}`);
+        
+        // Get all sessions from Chat collection
+        const chatSessions = await Chat.getAllSessions(userId, chapterId);
+        
+        // Get all sessions from QnALists collection
+        const qnaSessions = await QnALists.getAllSessions(userId, chapterId);
+        
+        // Get cooldown status
+        const cooldownStatus = await Chat.getCooldownStatus(userId, chapterId);
+        
+        res.json({
+            chatSessions,
+            qnaSessions,
+            cooldownStatus: {
+                canStartNewSession: cooldownStatus.canStart,
+                hoursUntilNextSession: cooldownStatus.hoursRemaining,
+                lastSessionScore: cooldownStatus.lastSessionScore,
+                lastSessionStatus: cooldownStatus.lastSessionStatus,
+                totalSessions: cooldownStatus.totalSessions
+            }
+        });
+        
+    } catch (error) {
+        console.error("Error fetching sessions:", error);
+        res.status(500).json({ error: "Failed to fetch sessions" });
+    }
+});
+
+// Get Cooldown Status for a Chapter
+router.get("/cooldown-status/:chapterId", authenticateUser, async (req, res) => {
+    try {
+        const { chapterId } = req.params;
+        const userId = req.user.userId;
+        
+        // Get cooldown status from both collections
+        const chatCooldown = await Chat.getCooldownStatus(userId, chapterId);
+        const qnaCooldown = await QnALists.getCooldownStatus(userId, chapterId);
+        
+        res.json({
+            canStartNewSession: chatCooldown.canStart && qnaCooldown.canStart,
+            hoursUntilNextSession: Math.max(chatCooldown.hoursRemaining, qnaCooldown.hoursRemaining),
+            chat: {
+                lastSessionScore: chatCooldown.lastSessionScore,
+                lastSessionStatus: chatCooldown.lastSessionStatus,
+                totalSessions: chatCooldown.totalSessions
+            },
+            qna: {
+                lastSessionScore: qnaCooldown.lastSessionScore,
+                lastSessionStatus: qnaCooldown.lastSessionStatus,
+                totalSessions: qnaCooldown.totalSessions
+            }
+        });
+        
+    } catch (error) {
+        console.error("Error fetching cooldown status:", error);
+        res.status(500).json({ error: "Failed to fetch cooldown status" });
     }
 });
 
@@ -2061,59 +2197,57 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             agentType
         });
         
-        // Find or create the chat document
-        let chat = await Chat.findOne({ userId, chapterId });
+        // Validate marks first (needed for both Chat and QnALists)
+        const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
+        const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
         
-        if (!chat) {
-            console.log(`🏆 Creating new chat document for user ${userId} and chapter ${chapterId}`);
-            chat = new Chat({
-                userId,
-                chapterId,
-                messages: [],
-                metadata: {
-                    answeredQuestions: [],
-                    totalMarks: 0,
-                    earnedMarks: 0
-                }
-            });
-        } else {
-            console.log(`🏆 Found existing chat document for user ${userId} and chapter ${chapterId}`);
+        // Get or create chat document with session
+        const chatResult = await Chat.getOrCreateWithSession(userId, chapterId);
+        
+        // Handle cooldown error (shouldn't happen in normal flow, but handle it)
+        if (chatResult && chatResult.error === "cooldown") {
+            console.log(`🏆 Session cooldown active, cannot mark question as answered`);
+            return { success: false, error: "cooldown", message: chatResult.message };
         }
         
-        // Initialize metadata if it doesn't exist
-        if (!chat.metadata) {
-            console.log(`🏆 Initializing metadata for chat document`);
-            chat.metadata = {
+        const chat = chatResult;
+        const currentSession = chat.getCurrentSession();
+        
+        if (!currentSession) {
+            console.error(`🏆 No active session found for user ${userId}, chapter ${chapterId}`);
+            return { success: false, error: "no_session" };
+        }
+        
+        // Initialize session metadata if it doesn't exist
+        if (!currentSession.metadata) {
+            console.log(`🏆 Initializing metadata for current session`);
+            currentSession.metadata = {
                 answeredQuestions: [],
                 totalMarks: 0,
                 earnedMarks: 0
             };
         }
         
-        if (!Array.isArray(chat.metadata.answeredQuestions)) {
-            console.log(`🏆 Initializing answeredQuestions array`);
-            chat.metadata.answeredQuestions = [];
+        if (!Array.isArray(currentSession.metadata.answeredQuestions)) {
+            console.log(`🏆 Initializing answeredQuestions array in session`);
+            currentSession.metadata.answeredQuestions = [];
         }
         
-        console.log(`🏆 Before updating - answeredQuestions: ${chat.metadata.answeredQuestions.length}, totalMarks: ${chat.metadata.totalMarks}, earnedMarks: ${chat.metadata.earnedMarks}`);
+        console.log(`🏆 Session ${currentSession.sessionId} - Before updating: answeredQuestions: ${currentSession.metadata.answeredQuestions.length}, totalMarks: ${currentSession.metadata.totalMarks}, earnedMarks: ${currentSession.metadata.earnedMarks}`);
         
-        // Validate marks first (needed for both Chat and QnALists)
-            const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
-            const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
-            
-        // Check if this is the first time answering this question
-        const isFirstTime = !chat.metadata.answeredQuestions.includes(questionId);
+        // Check if this is the first time answering this question in this session
+        const isFirstTime = !currentSession.metadata.answeredQuestions.includes(questionId);
             
         // Add question to the answered list if not already there
         if (isFirstTime) {
             // Add new answered question
-            chat.metadata.answeredQuestions.push(questionId);
+            currentSession.metadata.answeredQuestions.push(questionId);
             
             // Update marks only for first-time answers
-            chat.metadata.totalMarks = parseFloat(chat.metadata.totalMarks || 0) + validMaxMarks;
-            chat.metadata.earnedMarks = parseFloat(chat.metadata.earnedMarks || 0) + validMarksAwarded;
+            currentSession.metadata.totalMarks = parseFloat(currentSession.metadata.totalMarks || 0) + validMaxMarks;
+            currentSession.metadata.earnedMarks = parseFloat(currentSession.metadata.earnedMarks || 0) + validMarksAwarded;
         } else {
-            console.log(`🏆 Question ${questionId} already in answered list, skipping Chat metadata update`);
+            console.log(`🏆 Question ${questionId} already in session answered list, skipping Chat metadata update`);
         }
         
         // ALWAYS record in QnALists (it's idempotent and ensures DB consistency)
