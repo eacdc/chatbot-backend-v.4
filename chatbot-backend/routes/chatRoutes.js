@@ -1495,8 +1495,6 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
                     ? null
                     : currentQuestion,
                 agentType: classification,
-                // agentName is null until closureChat_ai is selected, then it stays "closureChat_ai"
-                agentName: classification === "closureChat_ai" ? "closureChat_ai" : (chat.agentName || null),
                 previousQuestionId: previousQuestion ? previousQuestion.questionId : null,
                 questionAsked: shouldUseToolCall ? questionAsked : null, // Include questionAsked when tool call was used
                 score: {
