@@ -1482,22 +1482,23 @@ The subject is "{{SUBJECT}}". If the subject is English or English language, com
             
             // Update agentName and close session when closureChat_ai is selected
             if (classification === "closureChat_ai" && sessionToUpdate) {
-                // Calculate final score percentage
-                const totalMarks = sessionToUpdate.metadata?.totalMarks || 0;
-                const earnedMarks = sessionToUpdate.metadata?.earnedMarks || 0;
-                const scorePercentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
+                // Get score from QnALists (single source of truth)
+                const qnaStats = await QnALists.getChapterStats(userId, chapterId);
+                const scorePercentage = Math.round(qnaStats.percentage || 0);
                 
-                // Close the session with scorePercentage (this sets startSessionAfter automatically)
-                chat.closeCurrentSession(scorePercentage);
-                console.log(`🎯 [CLOSURE] Chat session closed. Score: ${scorePercentage}%, startSessionAfter: ${scorePercentage < 80 ? 24 : 72} hours`);
+                console.log(`🎯 [CLOSURE] Score from QnALists: ${qnaStats.earnedMarks}/${qnaStats.totalMarks} = ${scorePercentage}%`);
                 
-                // Also close QnALists session
+                // Close QnALists session FIRST (to ensure scores are finalized)
                 try {
                     await QnALists.closeSession(userId, chapterId);
                     console.log(`🎯 [CLOSURE] QnALists session closed for user ${userId}, chapter ${chapterId}`);
                 } catch (qnaCloseError) {
                     console.error(`🎯 [CLOSURE] Error closing QnALists session:`, qnaCloseError);
                 }
+                
+                // Close the Chat session with scorePercentage from QnALists
+                chat.closeCurrentSession(scorePercentage);
+                console.log(`🎯 [CLOSURE] Chat session closed. Score: ${scorePercentage}%, startSessionAfter: ${scorePercentage < 80 ? 24 : 72} hours`);
             }
             
             await chat.save();
@@ -2136,22 +2137,18 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
                 questionPrompt: resetQuestions
             });
             
-            // Reset chat messages and progression tracker
-            existingChat.messages = [];
-            existingChat.metadata = {
-                answeredQuestions: [],
-                totalMarks: 0,
-                earnedMarks: 0,
-                progressionTracker: {
-                    currentDifficulty: "Easy",
-                    subtopicsCompleted: {
-                        Easy: [],
-                        Medium: [],
-                        Hard: []
-                    }
-                }
-            };
+            // Reset chat - create a new session (scores are tracked in QnALists only)
+            // Create a fresh session for the reset
+            existingChat.createNewSession();
+            
+            // Get the new session and set progression tracker
+            const newSession = existingChat.getCurrentSession();
+            if (newSession && newSession.metadata) {
+                newSession.metadata.lastActive = new Date();
+            }
+            
             await existingChat.save();
+            console.log(`📝 Reset: Created new session for user ${userId}, chapter ${chapterId}`);
             
             // Clear any stored previous questions for this user-chapter combination
             const userChapterKey = `${userId}-${chapterId}`;
@@ -2184,9 +2181,8 @@ router.post("/reset-questions/:chapterId", authenticateUser, async (req, res) =>
     }
 });
 
-// Store answered question in the chat document
-// Add this function to track which questions a user has answered
-// NOW accepts existingChat parameter to avoid loading the same document twice
+// Record answered question - ONLY stores in QnALists (single source of truth for scores)
+// Chat collection is for messages only, score data is pulled from QnALists when needed
 async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarded, maxMarks, questionText, answerText, agentType = "oldchat_ai", existingChat = null) {
     try {
         console.log(`🏆 markQuestionAsAnswered called with:`, {
@@ -2197,115 +2193,52 @@ async function markQuestionAsAnswered(userId, chapterId, questionId, marksAwarde
             maxMarks,
             questionText: questionText?.substring(0, 50) + '...',
             answerText: answerText?.substring(0, 50) + '...',
-            agentType,
-            hasExistingChat: !!existingChat
+            agentType
         });
         
-        // Validate marks first (needed for both Chat and QnALists)
+        // Validate marks
         const validMaxMarks = (!isNaN(maxMarks) && maxMarks > 0) ? parseFloat(maxMarks) : 1;
         const validMarksAwarded = (!isNaN(marksAwarded)) ? Math.max(0, parseFloat(marksAwarded)) : 0;
         
-        // Use existing chat if provided, otherwise load it
-        // This prevents version conflicts when called from /send endpoint
-        let chat = existingChat;
-        
-        if (!chat) {
-            // Get or create chat document with session (only if not provided)
-            const chatResult = await Chat.getOrCreateWithSession(userId, chapterId);
+        // Record in QnALists ONLY (single source of truth for scores)
+        try {
+            // Get the chapter to get the bookId and subject
+            const chapter = await Chapter.findById(chapterId);
+            const chapterBookId = chapter ? chapter.bookId : null;
             
-            // Handle cooldown error (shouldn't happen in normal flow, but handle it)
-            if (chatResult && chatResult.error === "cooldown") {
-                console.log(`🏆 Session cooldown active, cannot mark question as answered`);
-                return { success: false, error: "cooldown", message: chatResult.message };
+            if (!chapterBookId) {
+                console.error(`🏆 Cannot find bookId for chapter ${chapterId}`);
             }
             
-            chat = chatResult;
-        }
-        
-        const currentSession = chat.getCurrentSession();
-        
-        if (!currentSession) {
-            console.error(`🏆 No active session found for user ${userId}, chapter ${chapterId}`);
-            return { success: false, error: "no_session" };
-        }
-        
-        // Initialize session metadata if it doesn't exist
-        if (!currentSession.metadata) {
-            console.log(`🏆 Initializing metadata for current session`);
-            currentSession.metadata = {
-                answeredQuestions: [],
-                totalMarks: 0,
-                earnedMarks: 0
+            // Get book details to check subject (for language determination)
+            let bookSubject = "general subject";
+            if (chapterBookId) {
+                const book = await Book.findById(chapterBookId);
+                if (book) {
+                    bookSubject = book.subject || "general subject";
+                }
+            }
+            
+            // Record answer in QnALists
+            const qnaData = {
+                studentId: userId,
+                bookId: chapterBookId,
+                chapterId: chapterId,
+                questionId: questionId,
+                questionMarks: validMaxMarks,
+                score: validMarksAwarded,
+                answerText: answerText || "",
+                questionText: questionText || "",
+                agentType: agentType || "oldchat_ai",
+                subject: bookSubject
             };
-        }
-        
-        if (!Array.isArray(currentSession.metadata.answeredQuestions)) {
-            console.log(`🏆 Initializing answeredQuestions array in session`);
-            currentSession.metadata.answeredQuestions = [];
-        }
-        
-        console.log(`🏆 Session ${currentSession.sessionId} - Before updating: answeredQuestions: ${currentSession.metadata.answeredQuestions.length}, totalMarks: ${currentSession.metadata.totalMarks}, earnedMarks: ${currentSession.metadata.earnedMarks}`);
-        
-        // Check if this is the first time answering this question in this session
-        const isFirstTime = !currentSession.metadata.answeredQuestions.includes(questionId);
             
-        // Add question to the answered list if not already there
-        if (isFirstTime) {
-            // Add new answered question
-            currentSession.metadata.answeredQuestions.push(questionId);
-            
-            // Update marks only for first-time answers
-            currentSession.metadata.totalMarks = parseFloat(currentSession.metadata.totalMarks || 0) + validMaxMarks;
-            currentSession.metadata.earnedMarks = parseFloat(currentSession.metadata.earnedMarks || 0) + validMarksAwarded;
-        } else {
-            console.log(`🏆 Question ${questionId} already in session answered list, skipping Chat metadata update`);
-        }
-        
-        // ALWAYS record in QnALists (it's idempotent and ensures DB consistency)
-        try {
-                // Get the chapter to get the bookId and subject
-                const chapter = await Chapter.findById(chapterId);
-                const chapterBookId = chapter ? chapter.bookId : null;
-                
-                if (!chapterBookId) {
-                    console.error(`🏆 Cannot find bookId for chapter ${chapterId}`);
-                }
-                
-                // Get book details to check subject (for language determination)
-                let bookSubject = "general subject";
-                if (chapterBookId) {
-                    const book = await Book.findById(chapterBookId);
-                    if (book) {
-                        bookSubject = book.subject || "general subject";
-                    }
-                }
-                
-                // Make sure we use the validated score values
-                const qnaData = {
-                    studentId: userId,
-                    bookId: chapterBookId,
-                    chapterId: chapterId,
-                    questionId: questionId,
-                    questionMarks: validMaxMarks, // Use validated max marks
-                    score: validMarksAwarded,     // Use validated marks awarded
-                    answerText: answerText || "",
-                    questionText: questionText || "",
-                    agentType: agentType || "oldchat_ai", // Use passed agentType
-                    subject: bookSubject // Add subject for reference
-                };
-                
             await QnALists.recordAnswer(qnaData);
-            } catch (qnaError) {
-                console.error("🏆 Error recording answer in QnALists:", qnaError);
-        }
-        
-        // Only save if no existingChat was provided (standalone call)
-        // If existingChat was provided, the caller will handle saving to avoid version conflicts
-        if (!existingChat) {
-            await chat.save();
-            console.log(`🏆 Chat saved (standalone call)`);
-        } else {
-            console.log(`🏆 Chat NOT saved here - caller will save (existingChat provided)`);
+            console.log(`🏆 Answer recorded in QnALists: ${questionId}, score: ${validMarksAwarded}/${validMaxMarks}`);
+            
+        } catch (qnaError) {
+            console.error("🏆 Error recording answer in QnALists:", qnaError);
+            throw qnaError;
         }
         
     } catch (error) {
@@ -2491,20 +2424,9 @@ router.get("/fix-zero-scores/:chapterId", authenticateUser, async (req, res) => 
         // Save the updated record
         if (updatedCount > 0) {
             await qnaRecord.save();
-            console.log(`🔧 FIX-SCORES: Saved ${updatedCount} updated scores`);
-            
-            // Also update the chat metadata
-        const chat = await Chat.findOne({ userId, chapterId });
-            if (chat && chat.metadata) {
-                // Recalculate earned marks from QnA data
-                const totalEarnedMarks = qnaRecord.qnaDetails.reduce((sum, q) => sum + q.score, 0);
-                
-                // Update the earned marks in chat metadata
-                chat.metadata.earnedMarks = totalEarnedMarks;
-                await chat.save();
-                
-                console.log(`🔧 FIX-SCORES: Updated chat metadata earnedMarks to ${totalEarnedMarks}`);
-            }
+            console.log(`🔧 FIX-SCORES: Saved ${updatedCount} updated scores in QnALists`);
+            // Note: Scores are only stored in QnALists (single source of truth)
+            // Chat collection is for messages only
         }
         
         return res.json({ 

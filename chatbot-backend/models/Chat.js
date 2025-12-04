@@ -48,13 +48,12 @@ const sessionSchema = new mongoose.Schema({
         default: null 
     },
     metadata: {
-        answeredQuestions: [String],
-        totalMarks: { type: Number, default: 0 },
-        earnedMarks: { type: Number, default: 0 },
         lastQuestionAsked: String,
         lastActive: { type: Date, default: Date.now }
     }
 }, { timestamps: true });
+// Note: Score data (answeredQuestions, totalMarks, earnedMarks) is tracked in QnALists collection
+// Pull from QnALists when needed to avoid data duplication
 
 // Main Chat schema with sessions
 const chatSchema = new mongoose.Schema({
@@ -142,9 +141,6 @@ chatSchema.methods.createNewSession = function() {
         messages: [],
         agentName: null,
         metadata: {
-            answeredQuestions: [],
-            totalMarks: 0,
-            earnedMarks: 0,
             lastQuestionAsked: null,
             lastActive: new Date()
         }
@@ -281,9 +277,6 @@ chatSchema.statics.getOrCreateWithSession = async function(userId, chapterId) {
                 messages: [],
                 agentName: null,
                 metadata: {
-                    answeredQuestions: [],
-                    totalMarks: 0,
-                    earnedMarks: 0,
                     lastQuestionAsked: null,
                     lastActive: new Date()
                 }
