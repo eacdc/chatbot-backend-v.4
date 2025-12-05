@@ -86,7 +86,18 @@ require('./config/passport');
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI)
-  .then(() => console.log("Connected to MongoDB"))
+  .then(() => {
+    console.log("Connected to MongoDB");
+    
+    // Initialize ranking scheduler after MongoDB connection
+    try {
+      const scheduleRankingRefresh = require("./schedulers/rankingScheduler");
+      scheduleRankingRefresh();
+    } catch (err) {
+      console.error("Error initializing ranking scheduler:", err);
+      // Don't exit - scheduler is optional
+    }
+  })
   .catch(err => {
     console.error("Error connecting to MongoDB:", err);
     process.exit(1);
@@ -107,6 +118,7 @@ const staticContentRoutes = require("./routes/staticContentRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const notificationTemplateRoutes = require("./routes/notificationTemplateRoutes");
 const socialAuthRoutes = require("./routes/socialAuthRoutes");
+const rankingRoutes = require("./routes/rankingRoutes");
 
 // Use routes
 app.use("/api/chat", chatRoutes);
@@ -123,6 +135,7 @@ app.use("/api/static", staticContentRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/notification-templates", notificationTemplateRoutes);
 app.use("/api/social-auth", socialAuthRoutes);
+app.use("/api/ranking", rankingRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
