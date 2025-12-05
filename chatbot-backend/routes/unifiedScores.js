@@ -6,6 +6,7 @@ const Chat = require("../models/Chat");
 const Chapter = require("../models/Chapter");
 const Book = require("../models/Book");
 const User = require("../models/User");
+const Session = require("../models/Session");
 
 console.log("📊 Unified Scores API: Session-based scoring system loaded");
 
@@ -201,11 +202,6 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                         basicStats.totalMarksEarned += chapterMarksEarned;
                         basicStats.totalMarksAvailable += chapterMarksAvailable;
                         
-                        // Add time from session if available
-                        if (session && session.totalTime) {
-                            basicStats.totalTimeSpentMinutes += Math.round(session.totalTime / 60000);
-                        }
-                        
                         // Check if chapter is completed
                         try {
                             const chapter = await Chapter.findById(chapterIdStr);
@@ -242,6 +238,37 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             
             const chaptersNotStarted = Math.max(0, totalChaptersInBooks - allChaptersAttempted.size);
 
+            // Calculate Quiz Time from Chat collection (last session totalTime)
+            let quizTimeMs = 0;
+            if (userChats) {
+                for (const chat of userChats) {
+                    const lastSession = getChatLastSession(chat);
+                    if (lastSession && lastSession.totalTime) {
+                        quizTimeMs += lastSession.totalTime;
+                    }
+                }
+            }
+            const quizTimeMinutes = Math.round(quizTimeMs / 60000);
+
+            // Calculate Learning Time from Session collection
+            let learningTimeMinutes = 0;
+            try {
+                const learningSessions = await Session.find({ 
+                    userId: userId,
+                    status: "closed",
+                    sessionType: "Learning",
+                    timeTaken: { $ne: null }
+                });
+                learningTimeMinutes = learningSessions.reduce((sum, session) => {
+                    return sum + (session.timeTaken || 0);
+                }, 0);
+            } catch (err) {
+                console.error("Error fetching learning sessions:", err);
+            }
+
+            // Total Time = Quiz + Learning
+            const totalTimeMinutes = quizTimeMinutes + learningTimeMinutes;
+
             response.data.basic = {
                 booksStarted: basicStats.booksStarted.size,
                 chaptersCompleted: basicStats.chaptersCompleted.size,
@@ -253,8 +280,12 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 totalMarksEarned: parseFloat(basicStats.totalMarksEarned.toFixed(2)),
                 totalMarksAvailable: parseFloat(basicStats.totalMarksAvailable.toFixed(2)),
                 overallScore: parseFloat(basicStats.overallScore.toFixed(2)),
-                totalTimeSpentMinutes: basicStats.totalTimeSpentMinutes,
-                totalTimeSpentHours: parseFloat((basicStats.totalTimeSpentMinutes / 60).toFixed(2)),
+                totalTimeSpentMinutes: totalTimeMinutes,
+                totalTimeSpentHours: parseFloat((totalTimeMinutes / 60).toFixed(2)),
+                quizTimeSpentMinutes: quizTimeMinutes,
+                quizTimeSpentHours: parseFloat((quizTimeMinutes / 60).toFixed(2)),
+                learningTimeSpentMinutes: learningTimeMinutes,
+                learningTimeSpentHours: parseFloat((learningTimeMinutes / 60).toFixed(2)),
                 totalPointsEarned: parseFloat(basicStats.totalMarksEarned.toFixed(2))  // Same as earned marks (no multiplication)
             };
         }
@@ -510,7 +541,6 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             const completedQuizzes = [];
             const quizzesInProgress = [];
             let totalPointsEarned = 0;
-            let totalTimeMinutes = 0;
 
             // Process quizzes for scoreboard
             for (const record of qnaRecords) {
@@ -525,11 +555,6 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 
                 const pointsEarned = parseFloat(quizMarksEarned.toFixed(2));  // Same as earned marks
                 totalPointsEarned += pointsEarned;
-                
-                // Add time from session
-                if (session && session.totalTime) {
-                    totalTimeMinutes += Math.round(session.totalTime / 60000);
-                }
 
                 let actualTotalQuestions = qnaDetails.length;
                 let isCompleted = false;
@@ -573,6 +598,37 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 }
             }
 
+            // Calculate Quiz Time from Chat collection (last session totalTime)
+            let quizTimeMs = 0;
+            if (userChats) {
+                for (const chat of userChats) {
+                    const lastSession = getChatLastSession(chat);
+                    if (lastSession && lastSession.totalTime) {
+                        quizTimeMs += lastSession.totalTime;
+                    }
+                }
+            }
+            const quizTimeMinutes = Math.round(quizTimeMs / 60000);
+
+            // Calculate Learning Time from Session collection
+            let learningTimeMinutes = 0;
+            try {
+                const learningSessions = await Session.find({ 
+                    userId: userId,
+                    status: "closed",
+                    sessionType: "Learning",
+                    timeTaken: { $ne: null }
+                });
+                learningTimeMinutes = learningSessions.reduce((sum, session) => {
+                    return sum + (session.timeTaken || 0);
+                }, 0);
+            } catch (err) {
+                console.error("Error fetching learning sessions for scoreboard:", err);
+            }
+
+            // Total Time = Quiz + Learning
+            const totalTimeMinutes = quizTimeMinutes + learningTimeMinutes;
+
             // Simple streak calculation
             const recentActivities = [...qnaRecords]
                 .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
@@ -595,6 +651,10 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 totalPointsEarned,
                 totalTimeSpentMinutes: totalTimeMinutes,
                 totalHoursSpent: parseFloat((totalTimeMinutes / 60).toFixed(2)),
+                quizTimeSpentMinutes: quizTimeMinutes,
+                quizTimeSpentHours: parseFloat((quizTimeMinutes / 60).toFixed(2)),
+                learningTimeSpentMinutes: learningTimeMinutes,
+                learningTimeSpentHours: parseFloat((learningTimeMinutes / 60).toFixed(2)),
                 streakData: {
                     currentStreak,
                     longestStreak,
