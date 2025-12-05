@@ -389,6 +389,19 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             // Total Time = Quiz + Learning
             const totalTimeMinutes = quizTimeMinutes + learningTimeMinutes;
 
+            // Calculate Points: (total score of all books / total quiz hour of all books) + (total learning hours of all books / 100)
+            const quizTimeHours = quizTimeMinutes / 60;
+            const learningTimeHours = learningTimeMinutes / 60;
+            
+            let points = 0;
+            if (quizTimeHours > 0) {
+                // Formula: (totalMarksEarned / quizTimeHours) + (learningTimeHours / 100)
+                points = (basicStats.totalMarksEarned / quizTimeHours) + (learningTimeHours / 100);
+            } else {
+                // If no quiz time, only use learning hours part
+                points = learningTimeHours / 100;
+            }
+
             response.data.basic = {
                 booksStarted: basicStats.booksStarted.size,
                 chaptersCompleted: basicStats.chaptersCompleted.size,
@@ -406,7 +419,8 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 quizTimeSpentHours: parseFloat((quizTimeMinutes / 60).toFixed(2)),
                 learningTimeSpentMinutes: learningTimeMinutes,
                 learningTimeSpentHours: parseFloat((learningTimeMinutes / 60).toFixed(2)),
-                totalPointsEarned: parseFloat(basicStats.totalMarksEarned.toFixed(2))  // Same as earned marks (no multiplication)
+                totalPointsEarned: parseFloat(basicStats.totalMarksEarned.toFixed(2)),  // Same as earned marks (no multiplication)
+                points: parseFloat(points.toFixed(2))  // (total score / total quiz hours) + (total learning hours / 100)
             };
         }
 
