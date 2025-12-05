@@ -853,10 +853,10 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             // Book-wise trends
             const bookTrends = {};
             
-            // Chapter-wise trends
-            const chapterTrends = {};
+            // Chapter-wise session trends (NEW: session-wise data per chapter)
+            const chapterSessionTrends = {};
 
-            // Process QnA records for subject/book/chapter trends
+            // Process QnA records for subject/book trends
             qnaRecords.forEach(record => {
                 const { qnaDetails, session } = getLastSessionData(record);
                 const answeredQuestions = qnaDetails.filter(q => q.status === 1);
@@ -908,31 +908,10 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 bookTrends[bookId].marksAvailable += marksAvailable;
                 bookTrends[bookId].questionsAnswered += answeredQuestions.length;
                 bookTrends[bookId].quizzes++;
-
-                // Chapter-wise aggregation
-                const chapterKey = `${chapterId}`;
-                if (!chapterTrends[chapterKey]) {
-                    chapterTrends[chapterKey] = {
-                        chapterId: chapterId,
-                        chapterTitle: chapterTitle,
-                        bookId: bookId,
-                        bookTitle: bookTitle,
-                        subject: subjectName,
-                        marksEarned: 0,
-                        marksAvailable: 0,
-                        questionsAnswered: 0,
-                        quizzes: 0,
-                        quizTimeMs: 0,
-                        learningTimeMs: 0
-                    };
-                }
-                chapterTrends[chapterKey].marksEarned += marksEarned;
-                chapterTrends[chapterKey].marksAvailable += marksAvailable;
-                chapterTrends[chapterKey].questionsAnswered += answeredQuestions.length;
-                chapterTrends[chapterKey].quizzes++;
             });
 
-            // Get quiz time from Chat sessions (grouped by chapter)
+            // Get quiz time from Chat collection's LAST SESSION totalTime field
+            // Group by chapter and aggregate
             if (userChats) {
                 for (const chat of userChats) {
                     if (!chat.chapterId) continue;
@@ -947,33 +926,109 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                         // Find the chapter's book and subject
                         let chapterBookId = null;
                         let chapterSubject = null;
+                        let chapterTitle = null;
                         for (const record of qnaRecords) {
                             if (record.chapterId && record.chapterId._id.toString() === chapterIdStr) {
                                 chapterBookId = record.bookId?._id.toString();
                                 chapterSubject = record.bookId?.subject;
+                                chapterTitle = record.chapterId?.title;
                                 break;
                             }
-                        }
-
-                        // Add to chapter trends
-                        if (chapterTrends[chapterIdStr]) {
-                            chapterTrends[chapterIdStr].quizTimeMs += lastSession.totalTime;
-                        }
-
-                        // Add to book trends
-                        if (chapterBookId && bookTrends[chapterBookId]) {
-                            bookTrends[chapterBookId].quizTimeMs += lastSession.totalTime;
                         }
 
                         // Add to subject trends
                         if (chapterSubject && subjectTrends[chapterSubject]) {
                             subjectTrends[chapterSubject].quizTimeMs += lastSession.totalTime;
                         }
+
+                        // Add to book trends
+                        if (chapterBookId && bookTrends[chapterBookId]) {
+                            bookTrends[chapterBookId].quizTimeMs += lastSession.totalTime;
+                        }
                     }
                 }
             }
 
-            // Get learning time from Session collection (grouped by subject/book/chapter if available)
+            // Process Chat sessions for chapter-wise session trends
+            // Get ALL sessions (not just last) for each chapter
+            if (userChats) {
+                for (const chat of userChats) {
+                    if (!chat.chapterId || !chat.sessions || chat.sessions.length === 0) continue;
+                    
+                    const chapterIdStr = chat.chapterId._id.toString();
+                    
+                    // Find chapter info
+                    let chapterBookId = null;
+                    let chapterSubject = null;
+                    let chapterTitle = null;
+                    for (const record of qnaRecords) {
+                        if (record.chapterId && record.chapterId._id.toString() === chapterIdStr) {
+                            chapterBookId = record.bookId?._id.toString();
+                            chapterSubject = record.bookId?.subject;
+                            chapterTitle = record.chapterId?.title;
+                            break;
+                        }
+                    }
+                    
+                    if (!chapterTitle) {
+                        chapterTitle = chat.chapterId.title || 'Unknown Chapter';
+                    }
+
+                    // Initialize chapter if not exists
+                    if (!chapterSessionTrends[chapterIdStr]) {
+                        chapterSessionTrends[chapterIdStr] = {
+                            chapterId: chapterIdStr,
+                            chapterTitle: chapterTitle,
+                            bookId: chapterBookId,
+                            subject: chapterSubject,
+                            sessions: []
+                        };
+                    }
+
+                    // Process each session in this chat
+                    for (const session of chat.sessions) {
+                        const sessionDate = session.endTime || session.updatedAt || session.createdAt;
+                        if (!isDateInRange(sessionDate, dateStart, dateEnd)) continue;
+
+                        // Get score from QnALists for this session
+                        let sessionScore = 0;
+                        let sessionMarksEarned = 0;
+                        let sessionMarksAvailable = 0;
+                        
+                        // Find matching QnALists record and session
+                        for (const qnaRecord of qnaRecords) {
+                            if (qnaRecord.chapterId && qnaRecord.chapterId._id.toString() === chapterIdStr) {
+                                const matchingSession = qnaRecord.sessions?.find(s => s.sessionId === session.sessionId);
+                                if (matchingSession) {
+                                    const answeredQuestions = matchingSession.qnaDetails?.filter(q => q.status === 1) || [];
+                                    sessionMarksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
+                                    sessionMarksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
+                                    sessionScore = sessionMarksAvailable > 0 ? (sessionMarksEarned / sessionMarksAvailable) * 100 : 0;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // If no matching QnALists session, use session's scorePercentage
+                        if (sessionMarksAvailable === 0 && session.scorePercentage) {
+                            sessionScore = session.scorePercentage;
+                        }
+
+                        chapterSessionTrends[chapterIdStr].sessions.push({
+                            sessionId: session.sessionId,
+                            sessionStatus: session.sessionStatus,
+                            score: parseFloat(sessionScore.toFixed(2)),
+                            totalHours: parseFloat((session.totalTime / (60 * 60 * 1000)).toFixed(2)),
+                            startTime: session.startTime,
+                            endTime: session.endTime,
+                            createdAt: session.createdAt,
+                            updatedAt: session.updatedAt
+                        });
+                    }
+                }
+            }
+
+            // Get learning time from Session collection
             try {
                 const learningQuery = { 
                     userId: userId,
@@ -990,14 +1045,10 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 
                 const learningSessions = await Session.find(learningQuery);
                 
-                // Distribute learning time (if session has subject/book/chapter info, use it; otherwise distribute evenly)
-                // For now, we'll add to all subjects/books/chapters proportionally
-                // If you have subject/book/chapter in Session model, use that instead
+                // Distribute learning time
                 learningSessions.forEach(session => {
                     const timeMs = (session.timeTaken || 0) * 60 * 1000; // Convert minutes to ms
                     
-                    // If session has subject info, add to that subject
-                    // Otherwise, distribute evenly across all subjects
                     if (session.subject && subjectTrends[session.subject]) {
                         subjectTrends[session.subject].learningTimeMs += timeMs;
                     } else {
@@ -1052,44 +1103,48 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 })).sort((a, b) => b.score - a.score);
             };
 
-            // Format chapter-wise trends (filterable by subject and book)
-            const formatChapterTrends = (filterSubject = null, filterBookId = null) => {
-                let chapters = Object.values(chapterTrends);
+            // Format chapter-wise trends (session-wise, filterable by chapterId only)
+            const formatChapterTrends = (filterChapterId = null) => {
+                let chapters = Object.values(chapterSessionTrends);
                 
-                // Filter by subject if provided
-                if (filterSubject) {
-                    chapters = chapters.filter(c => c.subject === filterSubject);
-                }
-                
-                // Filter by book if provided
-                if (filterBookId) {
-                    chapters = chapters.filter(c => c.bookId === filterBookId);
+                // Filter by chapterId if provided
+                if (filterChapterId) {
+                    chapters = chapters.filter(c => c.chapterId === filterChapterId);
                 }
                 
                 return chapters.map(data => ({
                     chapterId: data.chapterId,
                     chapterTitle: data.chapterTitle,
                     bookId: data.bookId,
-                    bookTitle: data.bookTitle,
                     subject: data.subject,
-                    score: data.marksAvailable > 0 ? parseFloat(((data.marksEarned / data.marksAvailable) * 100).toFixed(2)) : 0,
-                    totalQuizHours: parseFloat((data.quizTimeMs / (60 * 60 * 1000)).toFixed(2)),
-                    totalLearningHours: parseFloat((data.learningTimeMs / (60 * 60 * 1000)).toFixed(2)),
-                    marksEarned: parseFloat(data.marksEarned.toFixed(2)),
-                    marksAvailable: parseFloat(data.marksAvailable.toFixed(2)),
-                    questionsAnswered: data.questionsAnswered,
-                    quizzes: data.quizzes
-                })).sort((a, b) => b.score - a.score);
+                    sessions: data.sessions
+                        .sort((a, b) => new Date(b.createdAt || b.startTime) - new Date(a.createdAt || a.startTime))
+                        .map(session => ({
+                            sessionId: session.sessionId,
+                            sessionStatus: session.sessionStatus,
+                            score: session.score,
+                            totalHours: session.totalHours,
+                            startTime: session.startTime,
+                            endTime: session.endTime,
+                            createdAt: session.createdAt,
+                            updatedAt: session.updatedAt
+                        }))
+                })).sort((a, b) => {
+                    // Sort by latest session date
+                    const aLatest = a.sessions[0]?.createdAt || a.sessions[0]?.startTime;
+                    const bLatest = b.sessions[0]?.createdAt || b.sessions[0]?.startTime;
+                    return new Date(bLatest || 0) - new Date(aLatest || 0);
+                });
             };
 
             response.data.trends = {
                 subjectWise: formatSubjectTrends(),
                 bookWise: formatBookTrends(subject), // Filter by subject query param if provided
-                chapterWise: formatChapterTrends(subject, bookId), // Filter by subject and book query params if provided
+                chapterWise: formatChapterTrends(chapterId), // Filter by chapterId query param if provided
                 filters: {
                     appliedSubject: subject || null,
-                    appliedBook: bookId || null,
-                    note: "Book-wise trends can be filtered by subject. Chapter-wise trends can be filtered by subject and book."
+                    appliedChapter: chapterId || null,
+                    note: "Book-wise trends can be filtered by subject. Chapter-wise trends show session-wise data and can be filtered by chapterId only."
                 }
             };
         }
