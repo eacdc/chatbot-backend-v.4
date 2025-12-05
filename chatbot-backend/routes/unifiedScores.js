@@ -31,6 +31,50 @@ function getChatLastSession(chat) {
     return chat.sessions[chat.sessions.length - 1];
 }
 
+// Helper function to calculate date range from timeframe or custom dates
+function getDateRange(timeframe, startDate, endDate) {
+    let dateStart = null;
+    let dateEnd = null;
+    
+    if (timeframe) {
+        const now = new Date();
+        switch (timeframe) {
+            case 'week':
+                dateStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                break;
+            case 'month':
+                dateStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                break;
+            case 'quarter':
+                dateStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+                break;
+            case 'year':
+                dateStart = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+                break;
+        }
+        dateEnd = now;
+    }
+    
+    if (startDate) {
+        dateStart = new Date(startDate);
+    }
+    
+    if (endDate) {
+        dateEnd = new Date(endDate + 'T23:59:59.999Z');
+    }
+    
+    return { dateStart, dateEnd };
+}
+
+// Helper function to check if a date is within range
+function isDateInRange(date, dateStart, dateEnd) {
+    if (!date) return false;
+    const checkDate = new Date(date);
+    if (dateStart && checkDate < dateStart) return false;
+    if (dateEnd && checkDate > dateEnd) return false;
+    return true;
+}
+
 // ================================================================
 // UNIFIED SCORES AND PROGRESS API
 // ================================================================
@@ -84,39 +128,19 @@ router.get("/:userId", authenticateUser, async (req, res) => {
         const includeAssessment = includedSections.includes('assessment') || includedSections.includes('all');
         const includeTrends = includedSections.includes('trends') || includedSections.includes('all');
 
+        // Calculate date range for filtering
+        const { dateStart, dateEnd } = getDateRange(timeframe, startDate, endDate);
+
         // Build base query for QnA records
         const qnaQuery = { studentId: userId };
         if (bookId) qnaQuery.bookId = bookId;
         if (chapterId) qnaQuery.chapterId = chapterId;
 
-        // Add date filtering
-        if (timeframe || startDate || endDate) {
+        // Add date filtering to QnA query
+        if (dateStart || dateEnd) {
             qnaQuery.updatedAt = {};
-            
-            if (timeframe) {
-                const now = new Date();
-                let filterStartDate;
-                
-                switch (timeframe) {
-                    case 'week':
-                        filterStartDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                        break;
-                    case 'month':
-                        filterStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                        break;
-                    case 'quarter':
-                        filterStartDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-                        break;
-                    case 'year':
-                        filterStartDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-                        break;
-                }
-                
-                if (filterStartDate) qnaQuery.updatedAt.$gte = filterStartDate;
-            }
-            
-            if (startDate) qnaQuery.updatedAt.$gte = new Date(startDate);
-            if (endDate) qnaQuery.updatedAt.$lte = new Date(endDate + 'T23:59:59.999Z');
+            if (dateStart) qnaQuery.updatedAt.$gte = dateStart;
+            if (dateEnd) qnaQuery.updatedAt.$lte = dateEnd;
         }
 
         // Get QnA records
@@ -125,6 +149,15 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             .populate('chapterId', 'title')
             .sort({ updatedAt: -1 });
 
+        // Filter QnA records by date at session level (check last session's updatedAt)
+        if (dateStart || dateEnd) {
+            qnaRecords = qnaRecords.filter(record => {
+                if (!record.sessions || record.sessions.length === 0) return false;
+                const lastSession = record.sessions[record.sessions.length - 1];
+                return isDateInRange(lastSession.updatedAt || lastSession.createdAt, dateStart, dateEnd);
+            });
+        }
+
         // Filter by subject if specified
         if (subject) {
             qnaRecords = qnaRecords.filter(record => 
@@ -132,12 +165,22 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             );
         }
 
-        // Get chat data
+        // Get chat data with date filtering
         const chatQuery = { userId };
-        if (includeRecent || includeBasic || includeDetailed) {
+        if (includeRecent || includeBasic || includeDetailed || includeScoreboard) {
             var userChats = await Chat.find(chatQuery)
                 .populate('chapterId', 'title')
                 .sort({ updatedAt: -1 });
+            
+            // Filter chat sessions by date (check last session's endTime or updatedAt)
+            if (dateStart || dateEnd) {
+                userChats = userChats.filter(chat => {
+                    if (!chat.sessions || chat.sessions.length === 0) return false;
+                    const lastSession = chat.sessions[chat.sessions.length - 1];
+                    const sessionDate = lastSession.endTime || lastSession.updatedAt || lastSession.createdAt;
+                    return isDateInRange(sessionDate, dateStart, dateEnd);
+                });
+            }
         }
 
         // Get user info if needed
@@ -152,7 +195,18 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             data: {
                 userId,
                 timestamp: new Date(),
-                filters: { bookId, subject, chapterId, timeframe, startDate, endDate }
+                filters: { 
+                    bookId, 
+                    subject, 
+                    chapterId, 
+                    timeframe, 
+                    startDate, 
+                    endDate,
+                    dateRange: {
+                        start: dateStart || null,
+                        end: dateEnd || null
+                    }
+                }
             }
         };
 
@@ -238,27 +292,40 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             
             const chaptersNotStarted = Math.max(0, totalChaptersInBooks - allChaptersAttempted.size);
 
-            // Calculate Quiz Time from Chat collection (last session totalTime)
+            // Calculate Quiz Time from Chat collection (last session totalTime) - filtered by date
             let quizTimeMs = 0;
             if (userChats) {
                 for (const chat of userChats) {
                     const lastSession = getChatLastSession(chat);
                     if (lastSession && lastSession.totalTime) {
-                        quizTimeMs += lastSession.totalTime;
+                        // Check if session is within date range
+                        const sessionDate = lastSession.endTime || lastSession.updatedAt || lastSession.createdAt;
+                        if (isDateInRange(sessionDate, dateStart, dateEnd)) {
+                            quizTimeMs += lastSession.totalTime;
+                        }
                     }
                 }
             }
             const quizTimeMinutes = Math.round(quizTimeMs / 60000);
 
-            // Calculate Learning Time from Session collection
+            // Calculate Learning Time from Session collection - filtered by date
             let learningTimeMinutes = 0;
             try {
-                const learningSessions = await Session.find({ 
+                const learningQuery = { 
                     userId: userId,
                     status: "closed",
                     sessionType: "Learning",
                     timeTaken: { $ne: null }
-                });
+                };
+                
+                // Add date filtering to learning sessions
+                if (dateStart || dateEnd) {
+                    learningQuery.updatedAt = {};
+                    if (dateStart) learningQuery.updatedAt.$gte = dateStart;
+                    if (dateEnd) learningQuery.updatedAt.$lte = dateEnd;
+                }
+                
+                const learningSessions = await Session.find(learningQuery);
                 learningTimeMinutes = learningSessions.reduce((sum, session) => {
                     return sum + (session.timeTaken || 0);
                 }, 0);
@@ -598,27 +665,40 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 }
             }
 
-            // Calculate Quiz Time from Chat collection (last session totalTime)
+            // Calculate Quiz Time from Chat collection (last session totalTime) - filtered by date
             let quizTimeMs = 0;
             if (userChats) {
                 for (const chat of userChats) {
                     const lastSession = getChatLastSession(chat);
                     if (lastSession && lastSession.totalTime) {
-                        quizTimeMs += lastSession.totalTime;
+                        // Check if session is within date range
+                        const sessionDate = lastSession.endTime || lastSession.updatedAt || lastSession.createdAt;
+                        if (isDateInRange(sessionDate, dateStart, dateEnd)) {
+                            quizTimeMs += lastSession.totalTime;
+                        }
                     }
                 }
             }
             const quizTimeMinutes = Math.round(quizTimeMs / 60000);
 
-            // Calculate Learning Time from Session collection
+            // Calculate Learning Time from Session collection - filtered by date
             let learningTimeMinutes = 0;
             try {
-                const learningSessions = await Session.find({ 
+                const learningQuery = { 
                     userId: userId,
                     status: "closed",
                     sessionType: "Learning",
                     timeTaken: { $ne: null }
-                });
+                };
+                
+                // Add date filtering to learning sessions
+                if (dateStart || dateEnd) {
+                    learningQuery.updatedAt = {};
+                    if (dateStart) learningQuery.updatedAt.$gte = dateStart;
+                    if (dateEnd) learningQuery.updatedAt.$lte = dateEnd;
+                }
+                
+                const learningSessions = await Session.find(learningQuery);
                 learningTimeMinutes = learningSessions.reduce((sum, session) => {
                     return sum + (session.timeTaken || 0);
                 }, 0);
@@ -883,8 +963,17 @@ router.get("/test", (req, res) => {
             "GET /api/unified-scores/USER_ID?include=basic,recent - Basic stats + recent activities",
             "GET /api/unified-scores/USER_ID?include=all - Everything",
             "GET /api/unified-scores/USER_ID?include=basic&subject=Mathematics - Basic stats filtered by subject",
-            "GET /api/unified-scores/USER_ID?include=detailed&timeframe=month - Detailed stats for last month"
-        ]
+            "GET /api/unified-scores/USER_ID?include=detailed&timeframe=month - Detailed stats for last month",
+            "GET /api/unified-scores/USER_ID?include=basic&timeframe=week - Stats for last week",
+            "GET /api/unified-scores/USER_ID?include=basic&timeframe=year - Stats for last year",
+            "GET /api/unified-scores/USER_ID?include=all&startDate=2025-01-01&endDate=2025-12-31 - Custom date range",
+            "GET /api/unified-scores/USER_ID?include=scoreboard&timeframe=month - Scoreboard for last month"
+        ],
+        dateFilters: {
+            timeframe: "week, month, quarter, year",
+            customDates: "startDate (YYYY-MM-DD), endDate (YYYY-MM-DD)",
+            note: "Date filters apply to QnA records, Chat sessions, and Learning sessions"
+        }
     });
 });
 
