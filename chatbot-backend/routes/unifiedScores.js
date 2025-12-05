@@ -143,18 +143,43 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             if (dateEnd) qnaQuery.updatedAt.$lte = dateEnd;
         }
 
+        console.log(`📊 [TRENDS] QnALists query:`, JSON.stringify(qnaQuery, null, 2));
+
         // Get QnA records
         let qnaRecords = await QnALists.find(qnaQuery)
             .populate('bookId', 'title subject grade publisher bookCoverImgLink')
             .populate('chapterId', 'title')
             .sort({ updatedAt: -1 });
 
+        console.log(`📊 [TRENDS] Found ${qnaRecords?.length || 0} QnALists records before session-level date filtering`);
+
         // Filter QnA records by date at session level (check last session's updatedAt)
         if (dateStart || dateEnd) {
             qnaRecords = qnaRecords.filter(record => {
-                if (!record.sessions || record.sessions.length === 0) return false;
+                if (!record.sessions || record.sessions.length === 0) {
+                    console.log(`📊 [TRENDS] ⏭️ Filtering out QnALists record - no sessions`);
+                    return false;
+                }
                 const lastSession = record.sessions[record.sessions.length - 1];
-                return isDateInRange(lastSession.updatedAt || lastSession.createdAt, dateStart, dateEnd);
+                const sessionDate = lastSession.updatedAt || lastSession.createdAt;
+                const inRange = isDateInRange(sessionDate, dateStart, dateEnd);
+                if (!inRange) {
+                    console.log(`📊 [TRENDS] ⏭️ Filtering out QnALists record - session date ${sessionDate} outside range`);
+                }
+                return inRange;
+            });
+            console.log(`📊 [TRENDS] Found ${qnaRecords?.length || 0} QnALists records after session-level date filtering`);
+        }
+        
+        // Log all QnALists records found
+        if (qnaRecords && qnaRecords.length > 0) {
+            console.log(`📊 [TRENDS] QnALists records found:`);
+            qnaRecords.forEach((record, idx) => {
+                const recordUserId = record.studentId?.toString() || 'NO_USER_ID';
+                const recordChapterId = record.chapterId?._id?.toString() || 'NO_CHAPTER_ID';
+                const sessionsCount = record.sessions?.length || 0;
+                const sessionIds = record.sessions?.map(s => s.sessionId) || [];
+                console.log(`📊 [TRENDS]   QnALists ${idx + 1}: userId=${recordUserId}, chapterId=${recordChapterId}, sessions=${sessionsCount}, sessionIds=[${sessionIds.join(', ')}]`);
             });
         }
 
@@ -167,20 +192,48 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
         // Get chat data with date filtering
         const chatQuery = { userId };
-        if (includeRecent || includeBasic || includeDetailed || includeScoreboard) {
+        console.log(`📊 [TRENDS] Chat query:`, JSON.stringify(chatQuery, null, 2));
+        console.log(`📊 [TRENDS] Include flags: recent=${includeRecent}, basic=${includeBasic}, detailed=${includeDetailed}, scoreboard=${includeScoreboard}, trends=${includeTrends}`);
+        
+        if (includeRecent || includeBasic || includeDetailed || includeScoreboard || includeTrends) {
             var userChats = await Chat.find(chatQuery)
                 .populate('chapterId', 'title')
                 .sort({ updatedAt: -1 });
             
+            console.log(`📊 [TRENDS] Found ${userChats?.length || 0} chats before date filtering`);
+            
             // Filter chat sessions by date (check last session's endTime or updatedAt)
             if (dateStart || dateEnd) {
+                console.log(`📊 [TRENDS] Applying date filter: start=${dateStart}, end=${dateEnd}`);
                 userChats = userChats.filter(chat => {
-                    if (!chat.sessions || chat.sessions.length === 0) return false;
+                    if (!chat.sessions || chat.sessions.length === 0) {
+                        console.log(`📊 [TRENDS] ⏭️ Filtering out chat - no sessions`);
+                        return false;
+                    }
                     const lastSession = chat.sessions[chat.sessions.length - 1];
                     const sessionDate = lastSession.endTime || lastSession.updatedAt || lastSession.createdAt;
-                    return isDateInRange(sessionDate, dateStart, dateEnd);
+                    const inRange = isDateInRange(sessionDate, dateStart, dateEnd);
+                    if (!inRange) {
+                        console.log(`📊 [TRENDS] ⏭️ Filtering out chat - session date ${sessionDate} outside range`);
+                    }
+                    return inRange;
+                });
+                console.log(`📊 [TRENDS] Found ${userChats?.length || 0} chats after date filtering`);
+            }
+            
+            // Log all chats found
+            if (userChats && userChats.length > 0) {
+                console.log(`📊 [TRENDS] Chat documents found:`);
+                userChats.forEach((chat, idx) => {
+                    const chapterId = chat.chapterId?._id?.toString() || 'NO_CHAPTER_ID';
+                    const sessionsCount = chat.sessions?.length || 0;
+                    const lastSession = chat.sessions?.[chat.sessions.length - 1];
+                    const lastSessionId = lastSession?.sessionId || 'NO_SESSION';
+                    console.log(`📊 [TRENDS]   Chat ${idx + 1}: chapterId=${chapterId}, sessions=${sessionsCount}, lastSessionId=${lastSessionId}`);
                 });
             }
+        } else {
+            console.log(`📊 [TRENDS] ⚠️ userChats not fetched - no include flags set`);
         }
 
         // Get user info if needed
@@ -1123,43 +1176,92 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                             let foundMatch = false;
                             
                             // Find matching QnALists record and session
-                            console.log(`📊 [TRENDS] Searching ${qnaRecords.length} QnALists records for chapterId: ${chapterIdStr}, sessionId: ${session.sessionId}`);
+                            console.log(`📊 [TRENDS] 🔍 MATCHING ATTEMPT:`);
+                            console.log(`📊 [TRENDS]   Chat session values:`, {
+                                chapterId: chapterIdStr,
+                                chapterIdType: typeof chapterIdStr,
+                                sessionId: session.sessionId,
+                                sessionIdType: typeof session.sessionId
+                            });
+                            console.log(`📊 [TRENDS]   Searching ${qnaRecords.length} QnALists records`);
                             
                             for (const qnaRecord of qnaRecords) {
                                 const qnaChapterId = qnaRecord.chapterId?._id?.toString();
+                                const qnaUserId = qnaRecord.userId?.toString();
+                                
+                                console.log(`📊 [TRENDS]   QnALists record:`, {
+                                    recordId: qnaRecord._id?.toString(),
+                                    userId: qnaUserId,
+                                    userIdType: typeof qnaUserId,
+                                    chapterId: qnaChapterId,
+                                    chapterIdType: typeof qnaChapterId,
+                                    sessionsCount: qnaRecord.sessions?.length || 0
+                                });
                                 
                                 if (!qnaChapterId) {
-                                    console.log(`📊 [TRENDS] ⚠️ QnALists record has no chapterId`);
+                                    console.log(`📊 [TRENDS]   ⚠️ QnALists record has no chapterId - SKIPPING`);
                                     continue;
                                 }
                                 
-                                if (qnaChapterId === chapterIdStr) {
-                                    console.log(`📊 [TRENDS] ✅ Found QnALists record with matching chapterId: ${chapterIdStr}`);
-                                    console.log(`📊 [TRENDS] QnALists record has ${qnaRecord.sessions?.length || 0} sessions`);
+                                // Log comparison details
+                                const chapterIdMatch = qnaChapterId === chapterIdStr;
+                                console.log(`📊 [TRENDS]   📋 ChapterId comparison:`, {
+                                    qnaChapterId: qnaChapterId,
+                                    chatChapterId: chapterIdStr,
+                                    match: chapterIdMatch,
+                                    qnaType: typeof qnaChapterId,
+                                    chatType: typeof chapterIdStr,
+                                    qnaLength: qnaChapterId?.length,
+                                    chatLength: chapterIdStr?.length
+                                });
+                                
+                                if (chapterIdMatch) {
+                                    console.log(`📊 [TRENDS]   ✅ ChapterId MATCH! Now checking sessionId...`);
+                                    console.log(`📊 [TRENDS]   QnALists record has ${qnaRecord.sessions?.length || 0} sessions`);
                                     
-                                    const matchingSession = qnaRecord.sessions?.find(s => s.sessionId === session.sessionId);
+                                    // Log all sessionIds in QnALists
+                                    const qnaSessionIds = qnaRecord.sessions?.map(s => ({
+                                        sessionId: s.sessionId,
+                                        sessionIdType: typeof s.sessionId,
+                                        status: s.sessionStatus
+                                    })) || [];
+                                    console.log(`📊 [TRENDS]   Available QnALists sessionIds:`, JSON.stringify(qnaSessionIds, null, 2));
+                                    
+                                    const matchingSession = qnaRecord.sessions?.find(s => {
+                                        const match = s.sessionId === session.sessionId;
+                                        console.log(`📊 [TRENDS]     Comparing: QnA sessionId=${s.sessionId} (${typeof s.sessionId}) === Chat sessionId=${session.sessionId} (${typeof session.sessionId}) => ${match}`);
+                                        return match;
+                                    });
                                     
                                     if (matchingSession) {
-                                        console.log(`📊 [TRENDS] ✅ Found matching session in QnALists! sessionId: ${session.sessionId}`);
+                                        console.log(`📊 [TRENDS]   ✅✅✅ SESSION MATCH FOUND! sessionId: ${session.sessionId}`);
                                         foundMatch = true;
                                         
                                         const answeredQuestions = matchingSession.qnaDetails?.filter(q => q.status === 1) || [];
-                                        console.log(`📊 [TRENDS] Matching session has ${answeredQuestions.length} answered questions`);
+                                        console.log(`📊 [TRENDS]   Matching session has ${answeredQuestions.length} answered questions`);
                                         
                                         sessionMarksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
                                         sessionMarksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
                                         sessionScore = sessionMarksAvailable > 0 ? (sessionMarksEarned / sessionMarksAvailable) * 100 : 0;
                                         scoreSource = 'qnalists_calculated';
                                         
-                                        console.log(`📊 [TRENDS] ✅ Calculated score from QnALists: ${sessionScore}% (${sessionMarksEarned}/${sessionMarksAvailable})`);
+                                        console.log(`📊 [TRENDS]   ✅ Calculated score from QnALists: ${sessionScore}% (${sessionMarksEarned}/${sessionMarksAvailable})`);
                                         break;
                                     } else {
-                                        console.log(`📊 [TRENDS] ❌ No matching sessionId in QnALists. Available sessionIds:`, 
-                                            qnaRecord.sessions?.map(s => s.sessionId) || []
-                                        );
+                                        console.log(`📊 [TRENDS]   ❌ No matching sessionId in QnALists.`);
+                                        console.log(`📊 [TRENDS]   📋 SessionId comparison details:`, {
+                                            chatSessionId: session.sessionId,
+                                            chatSessionIdType: typeof session.sessionId,
+                                            qnaSessionIds: qnaRecord.sessions?.map(s => ({
+                                                value: s.sessionId,
+                                                type: typeof s.sessionId,
+                                                strictEqual: s.sessionId === session.sessionId,
+                                                looseEqual: s.sessionId == session.sessionId
+                                            })) || []
+                                        });
                                     }
                                 } else {
-                                    console.log(`📊 [TRENDS] ⚠️ QnALists record chapterId (${qnaChapterId}) doesn't match Chat chapterId (${chapterIdStr})`);
+                                    console.log(`📊 [TRENDS]   ❌ ChapterId NO MATCH - moving to next QnALists record`);
                                 }
                             }
                             
