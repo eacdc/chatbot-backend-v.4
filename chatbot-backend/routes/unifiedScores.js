@@ -911,40 +911,86 @@ router.get("/:userId", authenticateUser, async (req, res) => {
             });
 
             // Get quiz time from Chat collection's LAST SESSION totalTime field
-            // Group by chapter and aggregate
+            // Process ALL chats, not just those with matching qnaRecords
             if (userChats) {
                 for (const chat of userChats) {
-                    if (!chat.chapterId) continue;
+                    if (!chat.chapterId || !chat.sessions || chat.sessions.length === 0) continue;
                     
                     const lastSession = getChatLastSession(chat);
-                    if (lastSession && lastSession.totalTime) {
-                        const sessionDate = lastSession.endTime || lastSession.updatedAt || lastSession.createdAt;
-                        if (!isDateInRange(sessionDate, dateStart, dateEnd)) continue;
+                    if (!lastSession || !lastSession.totalTime) continue;
+                    
+                    const sessionDate = lastSession.endTime || lastSession.updatedAt || lastSession.createdAt;
+                    if (!isDateInRange(sessionDate, dateStart, dateEnd)) continue;
 
-                        const chapterIdStr = chat.chapterId._id.toString();
-                        
-                        // Find the chapter's book and subject
-                        let chapterBookId = null;
-                        let chapterSubject = null;
-                        let chapterTitle = null;
-                        for (const record of qnaRecords) {
-                            if (record.chapterId && record.chapterId._id.toString() === chapterIdStr) {
-                                chapterBookId = record.bookId?._id.toString();
-                                chapterSubject = record.bookId?.subject;
-                                chapterTitle = record.chapterId?.title;
-                                break;
+                    const chapterIdStr = chat.chapterId._id.toString();
+                    
+                    // Find the chapter's book and subject from qnaRecords OR chat.populated chapterId
+                    let chapterBookId = null;
+                    let chapterSubject = null;
+                    
+                    // Try to find from qnaRecords first
+                    for (const record of qnaRecords) {
+                        if (record.chapterId && record.chapterId._id.toString() === chapterIdStr) {
+                            chapterBookId = record.bookId?._id.toString();
+                            chapterSubject = record.bookId?.subject;
+                            break;
+                        }
+                    }
+                    
+                    // If not found, try to get from populated chapterId (if available)
+                    if (!chapterSubject && chat.chapterId && chat.chapterId.bookId) {
+                        try {
+                            const chapter = await Chapter.findById(chapterIdStr).populate('bookId');
+                            if (chapter && chapter.bookId) {
+                                chapterBookId = chapter.bookId._id.toString();
+                                chapterSubject = chapter.bookId.subject;
                             }
+                        } catch (err) {
+                            // Ignore error, continue without subject/book info
                         }
+                    }
 
-                        // Add to subject trends
-                        if (chapterSubject && subjectTrends[chapterSubject]) {
-                            subjectTrends[chapterSubject].quizTimeMs += lastSession.totalTime;
+                    // Add to subject trends (create if doesn't exist)
+                    if (chapterSubject) {
+                        if (!subjectTrends[chapterSubject]) {
+                            subjectTrends[chapterSubject] = {
+                                subject: chapterSubject,
+                                marksEarned: 0,
+                                marksAvailable: 0,
+                                questionsAnswered: 0,
+                                quizzes: 0,
+                                quizTimeMs: 0,
+                                learningTimeMs: 0
+                            };
                         }
+                        subjectTrends[chapterSubject].quizTimeMs += lastSession.totalTime;
+                    }
 
-                        // Add to book trends
-                        if (chapterBookId && bookTrends[chapterBookId]) {
-                            bookTrends[chapterBookId].quizTimeMs += lastSession.totalTime;
+                    // Add to book trends (create if doesn't exist)
+                    if (chapterBookId) {
+                        if (!bookTrends[chapterBookId]) {
+                            // Get book title
+                            let bookTitle = 'Unknown Book';
+                            try {
+                                const book = await Book.findById(chapterBookId);
+                                if (book) bookTitle = book.title;
+                            } catch (err) {
+                                // Ignore
+                            }
+                            
+                            bookTrends[chapterBookId] = {
+                                bookId: chapterBookId,
+                                bookTitle: bookTitle,
+                                subject: chapterSubject || 'Unknown',
+                                marksEarned: 0,
+                                marksAvailable: 0,
+                                questionsAnswered: 0,
+                                quizzes: 0,
+                                quizTimeMs: 0,
+                                learningTimeMs: 0
+                            };
                         }
+                        bookTrends[chapterBookId].quizTimeMs += lastSession.totalTime;
                     }
                 }
             }
@@ -957,21 +1003,35 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     
                     const chapterIdStr = chat.chapterId._id.toString();
                     
-                    // Find chapter info
+                    // Find chapter info from qnaRecords or populated chapterId
                     let chapterBookId = null;
                     let chapterSubject = null;
-                    let chapterTitle = null;
+                    let chapterTitle = chat.chapterId.title || 'Unknown Chapter';
+                    
+                    // Try to find from qnaRecords first
                     for (const record of qnaRecords) {
                         if (record.chapterId && record.chapterId._id.toString() === chapterIdStr) {
                             chapterBookId = record.bookId?._id.toString();
                             chapterSubject = record.bookId?.subject;
-                            chapterTitle = record.chapterId?.title;
+                            chapterTitle = record.chapterId?.title || chapterTitle;
                             break;
                         }
                     }
                     
-                    if (!chapterTitle) {
-                        chapterTitle = chat.chapterId.title || 'Unknown Chapter';
+                    // If not found, try to get from populated chapterId
+                    if (!chapterSubject && chat.chapterId && chat.chapterId.bookId) {
+                        try {
+                            const chapter = await Chapter.findById(chapterIdStr).populate('bookId');
+                            if (chapter) {
+                                chapterTitle = chapter.title || chapterTitle;
+                                if (chapter.bookId) {
+                                    chapterBookId = chapter.bookId._id.toString();
+                                    chapterSubject = chapter.bookId.subject;
+                                }
+                            }
+                        } catch (err) {
+                            // Ignore error
+                        }
                     }
 
                     // Initialize chapter if not exists
@@ -987,38 +1047,47 @@ router.get("/:userId", authenticateUser, async (req, res) => {
 
                     // Process each session in this chat
                     for (const session of chat.sessions) {
+                        // Skip if no totalTime (session not completed)
+                        if (!session.totalTime && session.sessionStatus !== 'closed') continue;
+                        
                         const sessionDate = session.endTime || session.updatedAt || session.createdAt;
                         if (!isDateInRange(sessionDate, dateStart, dateEnd)) continue;
 
-                        // Get score from QnALists for this session
+                        // Get score - prefer session.scorePercentage, fallback to QnALists calculation
                         let sessionScore = 0;
-                        let sessionMarksEarned = 0;
-                        let sessionMarksAvailable = 0;
                         
-                        // Find matching QnALists record and session
-                        for (const qnaRecord of qnaRecords) {
-                            if (qnaRecord.chapterId && qnaRecord.chapterId._id.toString() === chapterIdStr) {
-                                const matchingSession = qnaRecord.sessions?.find(s => s.sessionId === session.sessionId);
-                                if (matchingSession) {
-                                    const answeredQuestions = matchingSession.qnaDetails?.filter(q => q.status === 1) || [];
-                                    sessionMarksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
-                                    sessionMarksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
-                                    sessionScore = sessionMarksAvailable > 0 ? (sessionMarksEarned / sessionMarksAvailable) * 100 : 0;
-                                    break;
+                        // First try: use session's scorePercentage if available
+                        if (session.scorePercentage !== undefined && session.scorePercentage !== null) {
+                            sessionScore = session.scorePercentage;
+                        } else {
+                            // Fallback: calculate from QnALists
+                            let sessionMarksEarned = 0;
+                            let sessionMarksAvailable = 0;
+                            
+                            // Find matching QnALists record and session
+                            for (const qnaRecord of qnaRecords) {
+                                if (qnaRecord.chapterId && qnaRecord.chapterId._id.toString() === chapterIdStr) {
+                                    const matchingSession = qnaRecord.sessions?.find(s => s.sessionId === session.sessionId);
+                                    if (matchingSession) {
+                                        const answeredQuestions = matchingSession.qnaDetails?.filter(q => q.status === 1) || [];
+                                        sessionMarksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
+                                        sessionMarksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
+                                        sessionScore = sessionMarksAvailable > 0 ? (sessionMarksEarned / sessionMarksAvailable) * 100 : 0;
+                                        break;
+                                    }
                                 }
                             }
                         }
 
-                        // If no matching QnALists session, use session's scorePercentage
-                        if (sessionMarksAvailable === 0 && session.scorePercentage) {
-                            sessionScore = session.scorePercentage;
-                        }
+                        // Use totalTime from session (convert ms to hours)
+                        const totalTimeMs = session.totalTime || 0;
+                        const totalHours = parseFloat((totalTimeMs / (60 * 60 * 1000)).toFixed(2));
 
                         chapterSessionTrends[chapterIdStr].sessions.push({
                             sessionId: session.sessionId,
                             sessionStatus: session.sessionStatus,
                             score: parseFloat(sessionScore.toFixed(2)),
-                            totalHours: parseFloat((session.totalTime / (60 * 60 * 1000)).toFixed(2)),
+                            totalHours: totalHours,
                             startTime: session.startTime,
                             endTime: session.endTime,
                             createdAt: session.createdAt,
