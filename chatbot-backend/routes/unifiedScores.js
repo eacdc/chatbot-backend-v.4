@@ -844,75 +844,253 @@ router.get("/:userId", authenticateUser, async (req, res) => {
         }
 
         // ================================================================
-        // PERFORMANCE TRENDS - Uses LAST SESSION data only
+        // PERFORMANCE TRENDS - Enhanced with Book/Chapter/Subject-wise trends
         // ================================================================
         if (includeTrends) {
-            const monthlyData = {};
-            const weeklyData = {};
-            const dailyData = {};
+            // Subject-wise trends
+            const subjectTrends = {};
+            
+            // Book-wise trends
+            const bookTrends = {};
+            
+            // Chapter-wise trends
+            const chapterTrends = {};
 
+            // Process QnA records for subject/book/chapter trends
             qnaRecords.forEach(record => {
-                const { qnaDetails } = getLastSessionData(record);
+                const { qnaDetails, session } = getLastSessionData(record);
                 const answeredQuestions = qnaDetails.filter(q => q.status === 1);
                 
-                if (answeredQuestions.length > 0) {
-                    const date = new Date(record.updatedAt);
-                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                    const weekKey = getWeekKey(date);
-                    const dayKey = date.toDateString();
+                if (answeredQuestions.length === 0 || !record.bookId || !record.chapterId) return;
 
-                    const marksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
-                    const marksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
+                const subjectName = record.bookId.subject || 'Unknown';
+                const bookId = record.bookId._id.toString();
+                const bookTitle = record.bookId.title || 'Unknown Book';
+                const chapterId = record.chapterId._id.toString();
+                const chapterTitle = record.chapterId.title || 'Unknown Chapter';
+                
+                const marksEarned = answeredQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
+                const marksAvailable = answeredQuestions.reduce((sum, q) => sum + (q.questionMarks || 0), 0);
+                const scorePercentage = marksAvailable > 0 ? (marksEarned / marksAvailable) * 100 : 0;
 
-                    // Monthly data
-                    if (!monthlyData[monthKey]) {
-                        monthlyData[monthKey] = { questionsAnswered: 0, marksEarned: 0, marksAvailable: 0, quizzes: 0 };
-                    }
-                    monthlyData[monthKey].questionsAnswered += answeredQuestions.length;
-                    monthlyData[monthKey].marksEarned += marksEarned;
-                    monthlyData[monthKey].marksAvailable += marksAvailable;
-                    monthlyData[monthKey].quizzes++;
-
-                    // Weekly data
-                    if (!weeklyData[weekKey]) {
-                        weeklyData[weekKey] = { questionsAnswered: 0, marksEarned: 0, marksAvailable: 0, quizzes: 0 };
-                    }
-                    weeklyData[weekKey].questionsAnswered += answeredQuestions.length;
-                    weeklyData[weekKey].marksEarned += marksEarned;
-                    weeklyData[weekKey].marksAvailable += marksAvailable;
-                    weeklyData[weekKey].quizzes++;
-
-                    // Daily data (last 30 days only)
-                    const thirtyDaysAgo = new Date();
-                    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                    if (date >= thirtyDaysAgo) {
-                        if (!dailyData[dayKey]) {
-                            dailyData[dayKey] = { questionsAnswered: 0, marksEarned: 0, marksAvailable: 0, quizzes: 0 };
-                        }
-                        dailyData[dayKey].questionsAnswered += answeredQuestions.length;
-                        dailyData[dayKey].marksEarned += marksEarned;
-                        dailyData[dayKey].marksAvailable += marksAvailable;
-                        dailyData[dayKey].quizzes++;
-                    }
+                // Subject-wise aggregation
+                if (!subjectTrends[subjectName]) {
+                    subjectTrends[subjectName] = {
+                        subject: subjectName,
+                        marksEarned: 0,
+                        marksAvailable: 0,
+                        questionsAnswered: 0,
+                        quizzes: 0,
+                        quizTimeMs: 0,
+                        learningTimeMs: 0
+                    };
                 }
+                subjectTrends[subjectName].marksEarned += marksEarned;
+                subjectTrends[subjectName].marksAvailable += marksAvailable;
+                subjectTrends[subjectName].questionsAnswered += answeredQuestions.length;
+                subjectTrends[subjectName].quizzes++;
+
+                // Book-wise aggregation
+                if (!bookTrends[bookId]) {
+                    bookTrends[bookId] = {
+                        bookId: bookId,
+                        bookTitle: bookTitle,
+                        subject: subjectName,
+                        marksEarned: 0,
+                        marksAvailable: 0,
+                        questionsAnswered: 0,
+                        quizzes: 0,
+                        quizTimeMs: 0,
+                        learningTimeMs: 0
+                    };
+                }
+                bookTrends[bookId].marksEarned += marksEarned;
+                bookTrends[bookId].marksAvailable += marksAvailable;
+                bookTrends[bookId].questionsAnswered += answeredQuestions.length;
+                bookTrends[bookId].quizzes++;
+
+                // Chapter-wise aggregation
+                const chapterKey = `${chapterId}`;
+                if (!chapterTrends[chapterKey]) {
+                    chapterTrends[chapterKey] = {
+                        chapterId: chapterId,
+                        chapterTitle: chapterTitle,
+                        bookId: bookId,
+                        bookTitle: bookTitle,
+                        subject: subjectName,
+                        marksEarned: 0,
+                        marksAvailable: 0,
+                        questionsAnswered: 0,
+                        quizzes: 0,
+                        quizTimeMs: 0,
+                        learningTimeMs: 0
+                    };
+                }
+                chapterTrends[chapterKey].marksEarned += marksEarned;
+                chapterTrends[chapterKey].marksAvailable += marksAvailable;
+                chapterTrends[chapterKey].questionsAnswered += answeredQuestions.length;
+                chapterTrends[chapterKey].quizzes++;
             });
 
-            // Format trend data
-            const formatTrendData = (data) => {
-                return Object.entries(data).map(([period, stats]) => ({
-                    period,
-                    questionsAnswered: stats.questionsAnswered,
-                    quizzes: stats.quizzes,
-                    avgScore: stats.marksAvailable > 0 ? parseFloat(((stats.marksEarned / stats.marksAvailable) * 100).toFixed(2)) : 0,
-                    marksEarned: parseFloat(stats.marksEarned.toFixed(2)),
-                    marksAvailable: parseFloat(stats.marksAvailable.toFixed(2))
-                })).sort((a, b) => a.period.localeCompare(b.period));
+            // Get quiz time from Chat sessions (grouped by chapter)
+            if (userChats) {
+                for (const chat of userChats) {
+                    if (!chat.chapterId) continue;
+                    
+                    const lastSession = getChatLastSession(chat);
+                    if (lastSession && lastSession.totalTime) {
+                        const sessionDate = lastSession.endTime || lastSession.updatedAt || lastSession.createdAt;
+                        if (!isDateInRange(sessionDate, dateStart, dateEnd)) continue;
+
+                        const chapterIdStr = chat.chapterId._id.toString();
+                        
+                        // Find the chapter's book and subject
+                        let chapterBookId = null;
+                        let chapterSubject = null;
+                        for (const record of qnaRecords) {
+                            if (record.chapterId && record.chapterId._id.toString() === chapterIdStr) {
+                                chapterBookId = record.bookId?._id.toString();
+                                chapterSubject = record.bookId?.subject;
+                                break;
+                            }
+                        }
+
+                        // Add to chapter trends
+                        if (chapterTrends[chapterIdStr]) {
+                            chapterTrends[chapterIdStr].quizTimeMs += lastSession.totalTime;
+                        }
+
+                        // Add to book trends
+                        if (chapterBookId && bookTrends[chapterBookId]) {
+                            bookTrends[chapterBookId].quizTimeMs += lastSession.totalTime;
+                        }
+
+                        // Add to subject trends
+                        if (chapterSubject && subjectTrends[chapterSubject]) {
+                            subjectTrends[chapterSubject].quizTimeMs += lastSession.totalTime;
+                        }
+                    }
+                }
+            }
+
+            // Get learning time from Session collection (grouped by subject/book/chapter if available)
+            try {
+                const learningQuery = { 
+                    userId: userId,
+                    status: "closed",
+                    sessionType: "Learning",
+                    timeTaken: { $ne: null }
+                };
+                
+                if (dateStart || dateEnd) {
+                    learningQuery.updatedAt = {};
+                    if (dateStart) learningQuery.updatedAt.$gte = dateStart;
+                    if (dateEnd) learningQuery.updatedAt.$lte = dateEnd;
+                }
+                
+                const learningSessions = await Session.find(learningQuery);
+                
+                // Distribute learning time (if session has subject/book/chapter info, use it; otherwise distribute evenly)
+                // For now, we'll add to all subjects/books/chapters proportionally
+                // If you have subject/book/chapter in Session model, use that instead
+                learningSessions.forEach(session => {
+                    const timeMs = (session.timeTaken || 0) * 60 * 1000; // Convert minutes to ms
+                    
+                    // If session has subject info, add to that subject
+                    // Otherwise, distribute evenly across all subjects
+                    if (session.subject && subjectTrends[session.subject]) {
+                        subjectTrends[session.subject].learningTimeMs += timeMs;
+                    } else {
+                        // Distribute evenly across all subjects
+                        const subjectCount = Object.keys(subjectTrends).length;
+                        if (subjectCount > 0) {
+                            const timePerSubject = timeMs / subjectCount;
+                            Object.keys(subjectTrends).forEach(subj => {
+                                subjectTrends[subj].learningTimeMs += timePerSubject;
+                            });
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error("Error fetching learning sessions for trends:", err);
+            }
+
+            // Format subject-wise trends
+            const formatSubjectTrends = () => {
+                return Object.values(subjectTrends).map(data => ({
+                    subject: data.subject,
+                    score: data.marksAvailable > 0 ? parseFloat(((data.marksEarned / data.marksAvailable) * 100).toFixed(2)) : 0,
+                    totalQuizHours: parseFloat((data.quizTimeMs / (60 * 60 * 1000)).toFixed(2)),
+                    totalLearningHours: parseFloat((data.learningTimeMs / (60 * 60 * 1000)).toFixed(2)),
+                    marksEarned: parseFloat(data.marksEarned.toFixed(2)),
+                    marksAvailable: parseFloat(data.marksAvailable.toFixed(2)),
+                    questionsAnswered: data.questionsAnswered,
+                    quizzes: data.quizzes
+                })).sort((a, b) => b.score - a.score);
+            };
+
+            // Format book-wise trends (filterable by subject)
+            const formatBookTrends = (filterSubject = null) => {
+                let books = Object.values(bookTrends);
+                
+                // Filter by subject if provided
+                if (filterSubject) {
+                    books = books.filter(b => b.subject === filterSubject);
+                }
+                
+                return books.map(data => ({
+                    bookId: data.bookId,
+                    bookTitle: data.bookTitle,
+                    subject: data.subject,
+                    score: data.marksAvailable > 0 ? parseFloat(((data.marksEarned / data.marksAvailable) * 100).toFixed(2)) : 0,
+                    totalQuizHours: parseFloat((data.quizTimeMs / (60 * 60 * 1000)).toFixed(2)),
+                    totalLearningHours: parseFloat((data.learningTimeMs / (60 * 60 * 1000)).toFixed(2)),
+                    marksEarned: parseFloat(data.marksEarned.toFixed(2)),
+                    marksAvailable: parseFloat(data.marksAvailable.toFixed(2)),
+                    questionsAnswered: data.questionsAnswered,
+                    quizzes: data.quizzes
+                })).sort((a, b) => b.score - a.score);
+            };
+
+            // Format chapter-wise trends (filterable by subject and book)
+            const formatChapterTrends = (filterSubject = null, filterBookId = null) => {
+                let chapters = Object.values(chapterTrends);
+                
+                // Filter by subject if provided
+                if (filterSubject) {
+                    chapters = chapters.filter(c => c.subject === filterSubject);
+                }
+                
+                // Filter by book if provided
+                if (filterBookId) {
+                    chapters = chapters.filter(c => c.bookId === filterBookId);
+                }
+                
+                return chapters.map(data => ({
+                    chapterId: data.chapterId,
+                    chapterTitle: data.chapterTitle,
+                    bookId: data.bookId,
+                    bookTitle: data.bookTitle,
+                    subject: data.subject,
+                    score: data.marksAvailable > 0 ? parseFloat(((data.marksEarned / data.marksAvailable) * 100).toFixed(2)) : 0,
+                    totalQuizHours: parseFloat((data.quizTimeMs / (60 * 60 * 1000)).toFixed(2)),
+                    totalLearningHours: parseFloat((data.learningTimeMs / (60 * 60 * 1000)).toFixed(2)),
+                    marksEarned: parseFloat(data.marksEarned.toFixed(2)),
+                    marksAvailable: parseFloat(data.marksAvailable.toFixed(2)),
+                    questionsAnswered: data.questionsAnswered,
+                    quizzes: data.quizzes
+                })).sort((a, b) => b.score - a.score);
             };
 
             response.data.trends = {
-                monthly: formatTrendData(monthlyData),
-                weekly: formatTrendData(weeklyData),
-                daily: formatTrendData(dailyData)
+                subjectWise: formatSubjectTrends(),
+                bookWise: formatBookTrends(subject), // Filter by subject query param if provided
+                chapterWise: formatChapterTrends(subject, bookId), // Filter by subject and book query params if provided
+                filters: {
+                    appliedSubject: subject || null,
+                    appliedBook: bookId || null,
+                    note: "Book-wise trends can be filtered by subject. Chapter-wise trends can be filtered by subject and book."
+                }
             };
         }
 
