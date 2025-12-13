@@ -297,6 +297,44 @@ router.post("/send", async (req, res) => {
     }
 });
 
+// Helper function to detect if message is a greeting or non-question
+function isGreetingOrNonQuestion(message) {
+    const normalizedMessage = message.toLowerCase().trim();
+    
+    // Common greetings
+    const greetings = [
+        'hi', 'hello', 'hey', 'hi there', 'hello there', 'hey there',
+        'good morning', 'good afternoon', 'good evening', 'good night',
+        'namaste', 'namaskar', 'salam', 'salaam',
+        'bye', 'goodbye', 'see you', 'tata', 'bye bye',
+        'thanks', 'thank you', 'thankyou', 'thx',
+        'ok', 'okay', 'k', 'alright', 'all right',
+        'yes', 'yeah', 'yep', 'sure', 'fine',
+        'no', 'nope', 'nah',
+        'lets start', "let's start", 'start', 'begin',
+        'how are you', 'how r u', 'how are u',
+        'whats up', "what's up", 'sup', 'wassup'
+    ];
+    
+    // Check if it's a greeting
+    if (greetings.some(greeting => normalizedMessage === greeting || normalizedMessage.startsWith(greeting + ' '))) {
+        return { isGreeting: true, isNonQuestion: false };
+    }
+    
+    // Check if it's likely a question (contains question words or ends with ?)
+    const questionIndicators = ['?', 'what', 'why', 'how', 'when', 'where', 'who', 'which', 'explain', 'tell me', 'describe', 'define', 'what is', 'what are', 'can you', 'could you', 'would you'];
+    const hasQuestionIndicator = questionIndicators.some(indicator => 
+        normalizedMessage.includes(indicator) || normalizedMessage.endsWith('?')
+    );
+    
+    // If it doesn't look like a question and is short, it's probably a non-question
+    if (!hasQuestionIndicator && normalizedMessage.length < 50 && !normalizedMessage.match(/[a-z]{10,}/)) {
+        return { isGreeting: false, isNonQuestion: true };
+    }
+    
+    return { isGreeting: false, isNonQuestion: false };
+}
+
 // Chat Ask - Answer user questions from a chapter using its vector store ID
 router.post("/chat_ask", async (req, res) => {
     try {
@@ -344,16 +382,56 @@ router.post("/chat_ask", async (req, res) => {
             subject: chapter.bookId?.subject || "the subject"
         };
 
-        // Search vector store for answer - pass context as 4th parameter
-        const searchResult = await searchVectorStoreForAnswer(
-            chapter.vectorStoreId, 
-            message, 
-            {}, // options (empty object for default)
-            context // context as 4th parameter
-        );
+        // Check if message is a greeting or non-question
+        const messageCheck = isGreetingOrNonQuestion(message);
         
-        // Extract answer from search result (no need to parse JSON array for chat)
-        let answerText = searchResult.answer;
+        let answerText;
+        
+        if (messageCheck.isGreeting || messageCheck.isNonQuestion) {
+            // Handle greetings and non-questions with friendly responses
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o",
+                temperature: 0.8,
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are a friendly, warm, and encouraging teacher's assistant helping students with their doubts about "${context.chapterTitle}" in ${context.subject} for ${context.grade} grade. 
+                        
+Your personality:
+- Be very friendly, warm, and conversational (like talking to a friend)
+- Use simple, casual language (avoid formal phrases like "in the chapter text information")
+- Never mention chapter names in a formal way - just refer to the content naturally
+- Be encouraging and supportive
+- Respond in the same language the user uses
+- Keep responses brief and natural`
+                    },
+                    {
+                        role: "user",
+                        content: messageCheck.isGreeting 
+                            ? `The student sent: "${message}"
+                            
+Please respond warmly to their greeting and gently guide them towards asking questions about "${context.chapterTitle}". Be friendly and encouraging, like a helpful friend. Keep it brief and natural.`
+                            : `The student sent: "${message}"
+                            
+This doesn't seem to be a question about the chapter. Gently and kindly let them know that you're here to help clear their doubts about "${context.chapterTitle}" and encourage them to ask any questions they have. Be very friendly and supportive, not formal or strict.`
+                    }
+                ],
+                max_tokens: 150
+            });
+            
+            answerText = completion.choices[0].message.content;
+        } else {
+            // Search vector store for answer - pass context as 4th parameter
+            const searchResult = await searchVectorStoreForAnswer(
+                chapter.vectorStoreId, 
+                message, 
+                {}, // options (empty object for default)
+                context // context as 4th parameter
+            );
+            
+            // Extract answer from search result (no need to parse JSON array for chat)
+            answerText = searchResult.answer;
+        }
 
         // Save both user and assistant messages
         chatAsk.messages.push({ 
@@ -1486,20 +1564,22 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
             const chapterTitle = context.chapterTitle || "this chapter";
             const subject = context.subject || "the subject";
             
-            // Build system prompt with strict document-based answering
-            let systemPrompt = `You are a helpful, patient, and encouraging teacher who explains concepts clearly and at an appropriate level for ${grade} grade students. `;
+            // Build system prompt - friendly and conversational
+            let systemPrompt = `You are a friendly, warm, and encouraging teacher's assistant helping ${grade} grade students understand ${subject}. 
             
-            systemPrompt += `\n\nIMPORTANT: When the answer is not available in the retrieved documents:
-1. First, politely acknowledge that this question is not covered in "${chapterTitle}" (the current chapter) - it's outside the scope of this chapter
-2. Then, still provide a helpful, friendly teacher-like answer from your general knowledge to satisfy the student's curiosity
-3. Maintain a warm, encouraging, and educational tone throughout your response
-4. Use appropriate language complexity for ${grade} grade level
-5. Most Important: response in the same language user asked question in the very last message, for example if user asked the last question in bengali then reply this response entirely in bengali`;
+Your communication style:
+- Be very friendly and conversational (like talking to a friend, not formal)
+- Use simple, natural language - avoid phrases like "in the chapter text information" or formal chapter references
+- Never say things like "in the chapter" or quote chapter names formally - just explain naturally
+- Be warm, encouraging, and supportive
+- Use language appropriate for ${grade} grade level
+- Always respond in the same language the user asked the question in
+- Keep explanations clear and easy to understand`;
 
-            // Synthesize response using GPT-4 with strict document-based prompt
+            // Synthesize response using GPT-4 with friendly prompt
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o",
-                temperature: 0.4,
+                temperature: 0.7,
                 messages: [
                     {
                         role: "system",
@@ -1509,14 +1589,15 @@ async function searchVectorStoreForAnswer(vectorStoreId, userQuestion, options =
                         role: "user",
                         content: `The student asked: "${userQuestion}"
 
-This question is not covered in the chapter "${chapterTitle}" (${subject}). However, the student is curious and wants to know the answer.
+This question isn't covered in the material we're studying right now, but the student is curious!
 
 Please:
-1. First acknowledge that this topic is not part of "${chapterTitle}" - it's outside the scope of this chapter
-2. Then provide a helpful, friendly teacher-like explanation from your general knowledge
-3. Make sure your answer is appropriate for ${grade} grade level
+1. Gently let them know this topic isn't part of what we're currently studying, but in a friendly way
+2. Still help them by providing a clear, friendly explanation from your knowledge
+3. Keep it appropriate for ${grade} grade level
+4. Be warm and encouraging - like a helpful friend explaining something
 
-Structure your response to be warm, encouraging, and educational, as if you're a teacher helping a curious student.`
+Remember: Don't use formal phrases or quote chapter names. Just explain naturally and conversationally.`
                     }
                 ],
                 max_tokens: 800
@@ -1553,16 +1634,19 @@ Structure your response to be warm, encouraging, and educational, as if you're a
         const chapterTitle = context.chapterTitle || "this chapter";
         const subject = context.subject || "the subject";
         
-        // Build system prompt - strict document-based answering only
-        let systemPrompt = `You are a helpful, patient, and encouraging teacher who explains concepts clearly and at an appropriate level for ${grade} grade students. `;
+        // Build system prompt - friendly and conversational
+        let systemPrompt = `You are a friendly, warm, and encouraging teacher's assistant helping ${grade} grade students understand ${subject}. 
         
-        systemPrompt += `\n\nIMPORTANT: When the answer is not available in the retrieved documents:
-1. First, politely acknowledge that this question is not covered in "${chapterTitle}" (the current chapter) - it's outside the scope of this chapter
-2. Then, still provide a helpful, friendly teacher-like answer from your general knowledge to satisfy the student's curiosity
-3. Maintain a warm, encouraging, and educational tone throughout your response
-4. Use appropriate language complexity for ${grade} grade level`;
+Your communication style:
+- Be very friendly and conversational (like talking to a friend, not formal)
+- Use simple, natural language - avoid phrases like "in the chapter text information" or formal chapter references
+- Never say things like "in the chapter" or quote chapter names formally - just explain naturally using the information
+- Be warm, encouraging, and supportive
+- Use language appropriate for ${grade} grade level
+- Always respond in the same language the user asked the question in
+- Keep explanations clear and easy to understand`;
 
-        // Synthesize response using GPT-4 with strict document-based prompt
+        // Synthesize response using GPT-4 with friendly prompt
         const completion = await openai.chat.completions.create({
             model: "gpt-4o",
             temperature: 0.7,
@@ -1573,18 +1657,20 @@ Structure your response to be warm, encouraging, and educational, as if you're a
                 },
                 {
                     role: "user",
-                    content: `Based on the following information from "${chapterTitle}" (${subject}), please answer the student's question.
+                    content: `Here's some information that might help answer the student's question:
 
-Sources from "${chapterTitle}":
 ${textSources}
 
 Student's Question: ${userQuestion}
 
-Instructions:
-- If the answer is in the sources above, provide a clear, teacher-like explanation using only that information
-- If the answer is NOT in the sources above, acknowledge that this question is outside the scope of "${chapterTitle}" but still provide a helpful, friendly teacher-like answer from your general knowledge to satisfy the student's curiosity
-- Maintain a warm, encouraging, and educational tone
-- Use language appropriate for ${grade} grade level`
+Please answer their question:
+- If the answer is in the information above, explain it clearly and naturally using that information
+- If the answer isn't in the information above, gently let them know this topic isn't part of what we're currently studying, but still help them with a friendly explanation from your knowledge
+- Be warm, friendly, and encouraging - like a helpful friend explaining something
+- Keep it appropriate for ${grade} grade level
+- Don't use formal phrases or quote chapter names - just explain naturally
+
+Remember: Write as if you're talking to a friend, not writing a formal document.`
                 }
             ],
             max_tokens: 800
