@@ -1665,7 +1665,8 @@ Your communication style:
 - Be warm, encouraging, and supportive
 - Use language appropriate for ${grade} grade level
 - Always respond in the same language the user asked the question in
-- Keep explanations clear and easy to understand`;
+- Keep explanations clear and easy to understand
+- IMPORTANT: When answering a question, DO NOT start with greetings like "hey there", "hello", "hi", etc. - just answer the question directly and naturally`;
 
         // Synthesize response using GPT-4 with friendly prompt
         const completion = await openai.chat.completions.create({
@@ -1685,13 +1686,14 @@ ${textSources}
 Student's Question: ${userQuestion}
 
 Please answer their question:
+- Answer directly without any greetings (no "hey there", "hello", "hi", etc.) - just start answering
 - If the answer is in the information above, explain it clearly and naturally using that information
 - If the answer isn't in the information above, gently let them know this topic isn't part of what we're currently studying, but still help them with a friendly explanation from your knowledge
 - Be warm, friendly, and encouraging - like a helpful friend explaining something
 - Keep it appropriate for ${grade} grade level
 - Don't use formal phrases or quote chapter names - just explain naturally
 
-Remember: Write as if you're talking to a friend, not writing a formal document.`
+Remember: Write as if you're talking to a friend, not writing a formal document. DO NOT start with greetings - just answer the question directly.`
                 }
             ],
             max_tokens: 800
