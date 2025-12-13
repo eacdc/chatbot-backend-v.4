@@ -301,37 +301,56 @@ router.post("/send", async (req, res) => {
 function isGreetingOrNonQuestion(message) {
     const normalizedMessage = message.toLowerCase().trim();
     
-    // Common greetings
-    const greetings = [
-        'hi', 'hello', 'hey', 'hi there', 'hello there', 'hey there',
-        'good morning', 'good afternoon', 'good evening', 'good night',
-        'namaste', 'namaskar', 'salam', 'salaam',
-        'bye', 'goodbye', 'see you', 'tata', 'bye bye',
-        'thanks', 'thank you', 'thankyou', 'thx',
-        'ok', 'okay', 'k', 'alright', 'all right',
-        'yes', 'yeah', 'yep', 'sure', 'fine',
-        'no', 'nope', 'nah',
-        'lets start', "let's start", 'start', 'begin',
-        'how are you', 'how r u', 'how are u',
-        'whats up', "what's up", 'sup', 'wassup'
-    ];
-    
-    // Check if it's a greeting
-    if (greetings.some(greeting => normalizedMessage === greeting || normalizedMessage.startsWith(greeting + ' '))) {
-        return { isGreeting: true, isNonQuestion: false };
-    }
-    
-    // Check if it's likely a question (contains question words or ends with ?)
-    const questionIndicators = ['?', 'what', 'why', 'how', 'when', 'where', 'who', 'which', 'explain', 'tell me', 'describe', 'define', 'what is', 'what are', 'can you', 'could you', 'would you'];
+    // Check if it's likely a question first (questions should not be treated as greetings)
+    const questionIndicators = ['?', 'what', 'why', 'how', 'when', 'where', 'who', 'which', 'explain', 'tell me', 'describe', 'define', 'what is', 'what are', 'can you', 'could you', 'would you', 'what does', 'what do', 'is there', 'are there', 'does', 'do', 'did'];
     const hasQuestionIndicator = questionIndicators.some(indicator => 
         normalizedMessage.includes(indicator) || normalizedMessage.endsWith('?')
     );
     
-    // If it doesn't look like a question and is short, it's probably a non-question
-    if (!hasQuestionIndicator && normalizedMessage.length < 50 && !normalizedMessage.match(/[a-z]{10,}/)) {
+    // If it has question indicators, it's definitely a question
+    if (hasQuestionIndicator) {
+        return { isGreeting: false, isNonQuestion: false };
+    }
+    
+    // Exact match greetings (only match if the message is exactly or starts with these)
+    const exactGreetings = [
+        'hi', 'hello', 'hey', 
+        'good morning', 'good afternoon', 'good evening', 'good night',
+        'namaste', 'namaskar', 'salam', 'salaam',
+        'bye', 'goodbye', 'see you', 'tata', 'bye bye',
+        'thanks', 'thank you', 'thankyou', 'thx',
+        'lets start', "let's start", 'start', 'begin'
+    ];
+    
+    // Check for exact greeting matches (message must be exactly the greeting or start with it followed by punctuation/space)
+    const isExactGreeting = exactGreetings.some(greeting => {
+        if (normalizedMessage === greeting) return true;
+        if (normalizedMessage.startsWith(greeting + ' ') && normalizedMessage.length < greeting.length + 20) return true;
+        return false;
+    });
+    
+    if (isExactGreeting) {
+        return { isGreeting: true, isNonQuestion: false };
+    }
+    
+    // Check for casual responses (only if very short and no question indicators)
+    const casualResponses = ['ok', 'okay', 'k', 'alright', 'all right', 'yes', 'yeah', 'yep', 'sure', 'fine', 'no', 'nope', 'nah'];
+    if (casualResponses.includes(normalizedMessage) && normalizedMessage.length < 10) {
         return { isGreeting: false, isNonQuestion: true };
     }
     
+    // Check for social greetings (only if message is short and matches exactly)
+    const socialGreetings = ['how are you', 'how r u', 'how are u', 'whats up', "what's up", 'sup', 'wassup'];
+    if (socialGreetings.some(greeting => normalizedMessage === greeting || normalizedMessage === greeting + '?')) {
+        return { isGreeting: true, isNonQuestion: false };
+    }
+    
+    // If message is very short (less than 10 chars) and doesn't look like a question, treat as non-question
+    if (normalizedMessage.length < 10 && !hasQuestionIndicator && !normalizedMessage.match(/[a-z]{5,}/)) {
+        return { isGreeting: false, isNonQuestion: true };
+    }
+    
+    // Default: treat as a question/valid message
     return { isGreeting: false, isNonQuestion: false };
 }
 
@@ -386,6 +405,7 @@ router.post("/chat_ask", async (req, res) => {
         const messageCheck = isGreetingOrNonQuestion(message);
         
         let answerText;
+        let searchResult = null; // Initialize searchResult to avoid undefined errors
         
         if (messageCheck.isGreeting || messageCheck.isNonQuestion) {
             // Handle greetings and non-questions with friendly responses
@@ -403,14 +423,15 @@ Your personality:
 - Never mention chapter names in a formal way - just refer to the content naturally
 - Be encouraging and supportive
 - Respond in the same language the user uses
-- Keep responses brief and natural`
+- Keep responses brief and natural
+- Don't start every message with "hey there" - vary your greetings naturally`
                     },
                     {
                         role: "user",
                         content: messageCheck.isGreeting 
                             ? `The student sent: "${message}"
                             
-Please respond warmly to their greeting and gently guide them towards asking questions about "${context.chapterTitle}". Be friendly and encouraging, like a helpful friend. Keep it brief and natural.`
+Please respond warmly to their greeting and gently guide them towards asking questions about "${context.chapterTitle}". Be friendly and encouraging, like a helpful friend. Keep it brief and natural. Don't use the same greeting every time - be natural and varied.`
                             : `The student sent: "${message}"
                             
 This doesn't seem to be a question about the chapter. Gently and kindly let them know that you're here to help clear their doubts about "${context.chapterTitle}" and encourage them to ask any questions they have. Be very friendly and supportive, not formal or strict.`
@@ -422,7 +443,7 @@ This doesn't seem to be a question about the chapter. Gently and kindly let them
             answerText = completion.choices[0].message.content;
         } else {
             // Search vector store for answer - pass context as 4th parameter
-            const searchResult = await searchVectorStoreForAnswer(
+            searchResult = await searchVectorStoreForAnswer(
                 chapter.vectorStoreId, 
                 message, 
                 {}, // options (empty object for default)
@@ -453,8 +474,8 @@ This doesn't seem to be a question about the chapter. Gently and kindly let them
 
         res.json({ 
             response: answerText,
-            sources: searchResult.sources || [],
-            totalResults: searchResult.totalResults || 0
+            sources: searchResult?.sources || [],
+            totalResults: searchResult?.totalResults || 0
         });
 
     } catch (error) {
