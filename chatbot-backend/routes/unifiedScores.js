@@ -7,6 +7,7 @@ const Chapter = require("../models/Chapter");
 const Book = require("../models/Book");
 const User = require("../models/User");
 const Session = require("../models/Session");
+const Subscription = require("../models/Subscription");
 
 console.log("📊 Unified Scores API: Session-based scoring system loaded");
 
@@ -197,7 +198,14 @@ router.get("/:userId", authenticateUser, async (req, res) => {
         
         if (includeRecent || includeBasic || includeDetailed || includeScoreboard || includeTrends) {
             var userChats = await Chat.find(chatQuery)
-                .populate('chapterId', 'title')
+                .populate({
+                    path: 'chapterId',
+                    select: 'title bookId',
+                    populate: {
+                        path: 'bookId',
+                        select: 'bookCoverImgLink'
+                    }
+                })
                 .sort({ updatedAt: -1 });
             
             console.log(`📊 [TRENDS] Found ${userChats?.length || 0} chats before date filtering`);
@@ -616,6 +624,7 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                             chapterTitle: record.chapterId?.title || 'Unknown Chapter',
                             bookTitle: record.bookId?.title || 'Unknown Book',
                             subject: record.bookId?.subject || 'Unknown',
+                            bookCoverImgLink: record.bookId?.bookCoverImgLink || null,
                             questionsAnswered: answeredQuestions.length,
                             totalQuestions: qnaDetails.length,
                             marksEarned: parseFloat(marksEarned.toFixed(2)),
@@ -637,10 +646,14 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     const activityKey = `chat-${chat.chapterId._id}-${chat.updatedAt.toDateString()}`;
                     
                     if (!activityMap.has(activityKey)) {
+                        // Get book cover image from chapter's bookId
+                        const bookCoverImgLink = chat.chapterId?.bookId?.bookCoverImgLink || null;
+                        
                         activityMap.set(activityKey, {
                             type: 'chapter_visited',
                             chapterId: chat.chapterId._id,
                             chapterTitle: chat.chapterId.title || 'Unknown Chapter',
+                            bookCoverImgLink: bookCoverImgLink,
                             messageCount: lastSession ? lastSession.messages.length : 0,
                             sessionId: lastSession ? lastSession.sessionId : null,
                             sessionStatus: lastSession ? lastSession.sessionStatus : null,
@@ -792,6 +805,27 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                 longestStreak = Math.min(uniqueDates.length, 30);
             }
 
+            // Get total quizzes count from subscribed books
+            let totalQuizzes = 0;
+            try {
+                // Get all subscriptions for the user
+                const subscriptions = await Subscription.find({ userId: userId }).select('bookId');
+                const subscribedBookIds = subscriptions.map(sub => sub.bookId);
+                
+                // Count total chapters in all subscribed books
+                if (subscribedBookIds.length > 0) {
+                    totalQuizzes = await Chapter.countDocuments({ bookId: { $in: subscribedBookIds } });
+                }
+            } catch (err) {
+                console.error("Error fetching total quizzes from subscriptions:", err);
+                // Fallback to current calculation if subscription query fails
+                totalQuizzes = completedQuizzes.length + quizzesInProgress.length;
+            }
+
+            const completedCount = completedQuizzes.length;
+            const inProgressCount = quizzesInProgress.length;
+            const notStarted = Math.max(0, totalQuizzes - completedCount - inProgressCount);
+
             response.data.scoreboard = {
                 completedQuizzes: completedQuizzes.slice(0, 20),
                 quizzesInProgress: quizzesInProgress.slice(0, 20),
@@ -808,9 +842,10 @@ router.get("/:userId", authenticateUser, async (req, res) => {
                     lastActivityDate: recentActivities[0]?.updatedAt || null
                 },
                 summary: {
-                    totalQuizzes: completedQuizzes.length + quizzesInProgress.length,
-                    completedCount: completedQuizzes.length,
-                    inProgressCount: quizzesInProgress.length,
+                    totalQuizzes: totalQuizzes,
+                    completedCount: completedCount,
+                    inProgressCount: inProgressCount,
+                    notStarted: notStarted,
                     averageScore: completedQuizzes.length > 0 
                         ? parseFloat((completedQuizzes.reduce((sum, q) => sum + q.scorePercentage, 0) / completedQuizzes.length).toFixed(1))
                         : 0
