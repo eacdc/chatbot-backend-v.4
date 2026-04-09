@@ -547,6 +547,7 @@ router.post("/", authenticateUser, async (req, res) => {
   try {
     const { bookId: incomingBookId, couponCode } = req.body;
     const normalizedCouponCode = String(couponCode || "").trim().toUpperCase();
+    console.log("🎟️ Subscription request coupon code:", normalizedCouponCode || "[EMPTY]");
 
     // Get logged-in user's ID from middleware
     // FIXED: Changed req.user.id to req.user.userId to match how it's set in your auth middleware
