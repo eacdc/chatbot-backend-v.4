@@ -405,8 +405,9 @@ router.post("/register", async (req, res) => {
 // ✅ User Login
 router.post("/login", async (req, res) => {
     try {
-        const { username, password } = req.body;
-        console.log("🛠 Received login request:", { username, password: password ? password.trim() : 'undefined' });
+        const { username, email, password } = req.body;
+        const loginId = (username || email || "").trim();
+        console.log("🛠 Received login request:", { loginId, password: password ? password.trim() : 'undefined' });
         
         // Log the origin and referer of the request
         console.log("📌 Request Origin:", req.headers.origin);
@@ -427,15 +428,21 @@ router.post("/login", async (req, res) => {
             console.log("⚠️ Could not extract hostname from origin:", error.message);
         }
 
-        if (!username || !password) {
-            return res.status(400).json({ message: "Username and password are required" });
+        if (!loginId || !password) {
+            return res.status(400).json({ message: "Username/email and password are required" });
         }
 
-        // ✅ Find user by username
-        const user = await User.findOne({ username: username.trim() });
+        // ✅ Find user by username or email
+        const normalizedLoginId = loginId.toLowerCase();
+        const user = await User.findOne({
+            $or: [
+                { username: loginId },
+                { email: normalizedLoginId }
+            ]
+        });
         if (!user) {
             console.log("❌ User not found in DB");
-            return res.status(400).json({ message: "Invalid username or password" });
+            return res.status(400).json({ message: "Invalid username/email or password" });
         }
 
         // Allow JD publisher users to login from any URL
