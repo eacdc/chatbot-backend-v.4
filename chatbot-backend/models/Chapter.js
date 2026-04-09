@@ -297,6 +297,7 @@ chapterSchema.pre("save", async function (next) {
         console.log(`Successfully parsed question array format in prompt with ${parsedPrompt.length} questions`);
         
         // Make sure each question has the required fields with proper types and a unique questionId
+        // OpenAI returns "Tentative response from the book" - map to tentativeAnswer
         const formattedQuestions = parsedPrompt.map((q, index) => ({
           questionId: q.questionId || `QID-${this._id || new mongoose.Types.ObjectId()}-${index}-${Date.now()}`,
           Q: q.Q,
@@ -304,7 +305,7 @@ chapterSchema.pre("save", async function (next) {
           question_marks: parseInt(q.question_marks || 3, 10),
           subtopic: q.subtopic || "General",
           question_type: q.question_type || "multiple-choice",
-          tentativeAnswer: q.tentativeAnswer || "",
+          tentativeAnswer: q.tentativeAnswer || q["Tentative response from the book"] || "",
           difficultyLevel: q.difficultyLevel || "Medium"
         }));
         
@@ -335,7 +336,7 @@ chapterSchema.pre("save", async function (next) {
                 const cleanedJson = jsonStr.trim().replace(/,\s*$/, '');
                 const questionObj = JSON.parse(cleanedJson);
                 
-                // Validate and add with proper types
+                // Validate and add with proper types (OpenAI returns "Tentative response from the book")
                 if (questionObj.Q !== undefined && questionObj.question) {
                   structuredQuestions.push({
                     questionId: questionObj.questionId || `QID-${this._id || new mongoose.Types.ObjectId()}-${index}-${Date.now()}`,
@@ -344,7 +345,7 @@ chapterSchema.pre("save", async function (next) {
                     question_marks: parseInt(questionObj.question_marks || 3, 10),
                     subtopic: questionObj.subtopic || "General",
                     question_type: questionObj.question_type || "multiple-choice",
-                    tentativeAnswer: questionObj.tentativeAnswer || "",
+                    tentativeAnswer: questionObj.tentativeAnswer || questionObj["Tentative response from the book"] || "",
                     difficultyLevel: questionObj.difficultyLevel || "Medium"
                   });
                   successCount++;

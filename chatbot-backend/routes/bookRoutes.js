@@ -6,6 +6,7 @@ const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const authenticateAdmin = require("../middleware/adminAuthMiddleware");
 const authenticateUser = require("../middleware/authMiddleware"); // Add user authentication
 const cloudinary = require("cloudinary").v2;
@@ -43,6 +44,36 @@ const upload = multer({
     cb(null, true);
   }
 });
+
+const MAX_COUPONS_PER_REQUEST = 500;
+
+const createCouponCode = () => {
+  const token = crypto.randomBytes(6).toString("hex").toUpperCase();
+  return `CPN-${token.slice(0, 4)}-${token.slice(4, 8)}-${token.slice(8, 12)}`;
+};
+
+async function generateUniqueCouponCodes(quantity) {
+  const generatedCodes = new Set();
+  let attempts = 0;
+  const maxAttempts = quantity * 20;
+
+  while (generatedCodes.size < quantity && attempts < maxAttempts) {
+    attempts += 1;
+    const code = createCouponCode();
+    if (generatedCodes.has(code)) continue;
+
+    const existingCode = await Book.exists({ "coupons.code": code });
+    if (!existingCode) {
+      generatedCodes.add(code);
+    }
+  }
+
+  if (generatedCodes.size !== quantity) {
+    throw new Error("Unable to generate unique coupon codes. Please retry.");
+  }
+
+  return Array.from(generatedCodes);
+}
 
 // ================================================================
 // NEW SEARCH AND COLLECTION APIS
@@ -333,6 +364,60 @@ async function generateSearchSuggestions(query, limit = 5) {
 // ================================================================
 // EXISTING ROUTES (PRESERVED)
 // ================================================================
+
+// Generate coupons for a book (admin only)
+router.post("/:bookId/coupons/generate", authenticateAdmin, async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    const requestedQuantity = Number(req.body?.quantity);
+
+    if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
+      return res.status(400).json({ error: "quantity must be a positive integer" });
+    }
+
+    if (requestedQuantity > MAX_COUPONS_PER_REQUEST) {
+      return res.status(400).json({
+        error: `quantity cannot exceed ${MAX_COUPONS_PER_REQUEST} in a single request`
+      });
+    }
+
+    const book = await Book.findById(bookId).select("_id title");
+    if (!book) {
+      return res.status(404).json({ error: "Book not found" });
+    }
+
+    const couponCodes = await generateUniqueCouponCodes(requestedQuantity);
+    const couponDocs = couponCodes.map((code) => ({
+      code,
+      isUsed: false,
+      usedBy: null,
+      usedAt: null,
+      generatedAt: new Date()
+    }));
+
+    await Book.updateOne(
+      { _id: bookId },
+      { $push: { coupons: { $each: couponDocs } } }
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: `${couponCodes.length} coupon(s) generated successfully`,
+      data: {
+        bookId,
+        bookTitle: book.title,
+        quantity: couponCodes.length,
+        coupons: couponCodes
+      }
+    });
+  } catch (error) {
+    console.error("Error generating coupons:", error);
+    return res.status(500).json({
+      error: "Failed to generate coupons",
+      details: error.message
+    });
+  }
+});
 
 // Create a new book
 router.post("/", async (req, res) => {

@@ -45,6 +45,8 @@ export const API_ENDPOINTS = {
   
   // Chapter preparation endpoints
   PROCESS_TEXT_BATCH: `${API_URL}/api/chapters/process-text-batch`,
+  PROCESS_TEXT_BATCH_V2: `${API_URL}/api/chapters/process-text-batch-v2`,
+  PROCESS_TEXT_BATCH_V2_STREAM: `${API_URL}/api/chapters/process-text-batch-v2-stream`,
   ENHANCED_BATCH_PROCESS: `${API_URL}/api/chapters/enhanced-batch-process`,
   
   // Score and statistics endpoints
@@ -76,6 +78,7 @@ export const API_ENDPOINTS = {
   ADMIN_USERS: `${API_URL}/api/admin/users`,
   ADMIN_BOOKS: `${API_URL}/api/admin/books`,
   ADMIN_CHAPTERS: `${API_URL}/api/admin/chapters`,
+  GENERATE_BOOK_COUPONS: `${API_URL}/api/books/:bookId/coupons/generate`,
   
   // Prompt management
   GET_PROMPTS: `${API_URL}/api/prompts`,

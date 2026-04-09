@@ -1,0 +1,18 @@
+[
+  {
+    "_id": "67f39cc8a82a43ddaafe6a5f",
+    "email": "manu@cdcprinters.com",
+    "password": "$2b$10$7vMnuufJjKDXipYXLPEcheRM64w/o1R4s3/bEvv107afJpQplLpAm",
+    "role": "admin",
+    "status": "approved",
+    "__v": 0
+  },
+  {
+    "_id": "67ecde0e236a506b588711c3",
+    "email": "test2@gmail.com",
+    "password": "$2b$10$UoGtPAcL7bbJWQ3ofupPxucitn2Q3VR4R9FXaMsuqN624flhHdAUu",
+    "role": "admin",
+    "status": "approved",
+    "__v": 0
+  }
+]

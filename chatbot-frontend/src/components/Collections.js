@@ -324,11 +324,21 @@ export default function Collections() {
       return;
     }
 
+    const rawCouponCode = window.prompt("Enter coupon code to subscribe to this book");
+    if (rawCouponCode === null) {
+      return;
+    }
+    const couponCode = rawCouponCode.trim().toUpperCase();
+    if (!couponCode) {
+      showNotification("error", "Coupon code is required");
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await axios.post(
         API_ENDPOINTS.SUBSCRIPTIONS,
-        { bookId },
+        { bookId, couponCode },
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -341,6 +351,12 @@ export default function Collections() {
       
       if (error.response?.data?.error === "Already subscribed to this book") {
         showNotification("info", "You are already subscribed to this book");
+      } else if (error.response?.data?.error === "Coupon code has already been used") {
+        showNotification("error", "This coupon code is already used");
+      } else if (error.response?.data?.error === "Invalid coupon code for this book") {
+        showNotification("error", "Invalid coupon code for this book");
+      } else if (error.response?.data?.error === "Coupon code is required") {
+        showNotification("error", "Coupon code is required");
       } else {
         showNotification("error", error.response?.data?.error || "Subscription failed");
       }

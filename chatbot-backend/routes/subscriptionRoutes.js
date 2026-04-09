@@ -4,6 +4,7 @@ const Book = require("../models/Book");
 const User = require("../models/User");
 const Chat = require("../models/Chat");
 const QnALists = require("../models/QnALists");
+const mongoose = require("mongoose");
 const router = express.Router();
 const authenticateUser = require("../middleware/authMiddleware"); // Middleware to get logged-in user
 
@@ -544,7 +545,8 @@ router.get("/collection/summary", authenticateUser, async (req, res) => {
 // ✅ Subscribe to a book (Ensuring user details come from authentication)
 router.post("/", authenticateUser, async (req, res) => {
   try {
-    const { bookId } = req.body;
+    const { bookId: incomingBookId, couponCode } = req.body;
+    const normalizedCouponCode = String(couponCode || "").trim().toUpperCase();
 
     // Get logged-in user's ID from middleware
     // FIXED: Changed req.user.id to req.user.userId to match how it's set in your auth middleware
@@ -558,21 +560,62 @@ router.post("/", authenticateUser, async (req, res) => {
     
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Validate if the book exists
-    const book = await Book.findById(bookId);
+    // Validate if the book exists (supports Mongo _id or custom BOOK-xxxx bookId)
+    const bookLookupQuery = mongoose.Types.ObjectId.isValid(incomingBookId)
+      ? { $or: [{ _id: incomingBookId }, { bookId: incomingBookId }] }
+      : { bookId: incomingBookId };
+    const book = await Book.findOne(bookLookupQuery);
     if (!book) return res.status(404).json({ error: "Book not found" });
+    const resolvedBookObjectId = book._id;
+
+    if (!normalizedCouponCode) {
+      return res.status(400).json({ error: "Coupon code is required" });
+    }
 
     // Check if the user is already subscribed
-    const existingSubscription = await Subscription.findOne({ userId, bookId });
+    const existingSubscription = await Subscription.findOne({ userId, bookId: resolvedBookObjectId });
     if (existingSubscription) {
       return res.status(400).json({ error: "Already subscribed to this book" });
+    }
+
+    // Atomically consume coupon only if it belongs to this book and is not used
+    const consumedCouponBook = await Book.findOneAndUpdate(
+      {
+        _id: resolvedBookObjectId,
+        coupons: {
+          $elemMatch: { code: normalizedCouponCode, isUsed: false }
+        }
+      },
+      {
+        $set: {
+          "coupons.$.isUsed": true,
+          "coupons.$.usedBy": userId,
+          "coupons.$.usedAt": new Date()
+        }
+      },
+      { new: false }
+    );
+
+    if (!consumedCouponBook) {
+      const usedCoupon = await Book.findOne({
+        _id: resolvedBookObjectId,
+        coupons: {
+          $elemMatch: { code: normalizedCouponCode, isUsed: true }
+        }
+      }).select("_id");
+
+      if (usedCoupon) {
+        return res.status(400).json({ error: "Coupon code has already been used" });
+      }
+
+      return res.status(400).json({ error: "Invalid coupon code for this book" });
     }
 
     // Save new subscription with actual user details
     const newSubscription = new Subscription({
       userId,
       userName: user.fullname,
-      bookId,
+      bookId: resolvedBookObjectId,
       bookTitle: book.title,
       publisher: book.publisher,
       subject: book.subject,
@@ -580,7 +623,23 @@ router.post("/", authenticateUser, async (req, res) => {
       bookCoverImgLink: book.bookCoverImgLink
     });
 
-    await newSubscription.save();
+    try {
+      await newSubscription.save();
+    } catch (saveError) {
+      // Best-effort rollback to release coupon if subscription creation fails.
+      await Book.updateOne(
+        { _id: resolvedBookObjectId, "coupons.code": normalizedCouponCode, "coupons.usedBy": userId },
+        {
+          $set: {
+            "coupons.$.isUsed": false,
+            "coupons.$.usedBy": null,
+            "coupons.$.usedAt": null
+          }
+        }
+      );
+      throw saveError;
+    }
+
     res.status(201).json({ message: "Subscribed successfully!", subscription: newSubscription });
 
   } catch (err) {

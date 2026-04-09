@@ -18,6 +18,72 @@ const AddChapter = () => {
     vectorStoreId: ""
   });
 
+  const [categorizedQuestions, setCategorizedQuestions] = useState({
+    shortAnswerDescriptiveBelow75: [],
+    otherQuestionInvalid: [],
+    shortAnswerDescriptiveInvalid: [],
+    validQuestions: [] // Combined: shortAnswerDescriptiveAtOrAbove75 + otherQuestionValid
+  });
+
+  const [processingProgress, setProcessingProgress] = useState(null); // { stage, message, percent } when processing
+
+  // Helper: true if question type is Short answer or Descriptive (tentative answer applies)
+  const isShortAnswerOrDescriptive = (q) => {
+    const rawType = (q?.question_type || q?.["question type"] || "").toString().toLowerCase();
+    return rawType.includes("short answer") || rawType.includes("descriptive");
+  };
+
+  // Helper: get tentative answer as a string (OpenAI may return string or object with keys like "Most important part...")
+  const getTentativeAnswer = (q) => {
+    const raw = q["Tentative response from the book"] ?? q.tentativeAnswer ?? "";
+    if (typeof raw === "string") return raw;
+    if (raw && typeof raw === "object") {
+      return Object.entries(raw)
+        .map(([k, v]) => (v != null && v !== "" ? `${k}: ${v}` : null))
+        .filter(Boolean)
+        .join("\n") || JSON.stringify(raw);
+    }
+    return "";
+  };
+
+  // Normalize question for saving: tentativeAnswer only for short answer/descriptive; MCQ/True-False/Fill in blanks get none
+  const normalizeQuestionForSave = (q) => ({
+    ...q,
+    tentativeAnswer: isShortAnswerOrDescriptive(q) ? getTentativeAnswer(q) : ""
+  });
+
+  // Function to move a question from review box to valid questions (does not submit form)
+  const moveQuestionToValid = (question, sourceCategory) => {
+    // Remove from source category
+    const updatedSource = categorizedQuestions[sourceCategory].filter(
+      q => q !== question
+    );
+
+    // MCQ/True-False/Fill in Blanks - Invalid: do not carry over tentative answer when adding to valid
+    const questionToAdd =
+      sourceCategory === "otherQuestionInvalid"
+        ? { ...question, "Tentative response from the book": undefined, tentativeAnswer: "" }
+        : question;
+
+    // Add to valid questions
+    const updatedValid = [...categorizedQuestions.validQuestions, questionToAdd];
+
+    // Update state
+    setCategorizedQuestions({
+      ...categorizedQuestions,
+      [sourceCategory]: updatedSource,
+      validQuestions: updatedValid
+    });
+
+    // Update finalPrompt with normalized questions so backend gets tentativeAnswer
+    const normalizedForSave = updatedValid.map(normalizeQuestionForSave);
+    setChapterData({
+      ...chapterData,
+      finalPrompt: JSON.stringify(normalizedForSave),
+      questionCount: updatedValid.length
+    });
+  };
+
   // Fetch books for dropdown
   useEffect(() => {
     const fetchBooks = async () => {
@@ -69,117 +135,148 @@ const AddChapter = () => {
       return;
     }
 
-    if (!chapterData.subject) {
-      const selectedBook = books.find((book) => book._id === chapterData.bookId);
-      if (selectedBook && selectedBook.subject) {
-        // Update subject if it's not set but book is selected
-        setChapterData(prevData => ({
-          ...prevData,
-          subject: selectedBook.subject
-        }));
-      } else {
-        setError("Could not determine subject from selected book");
-        return;
-      }
+    if (!chapterData.title.trim()) {
+      setError("Please enter a chapter title");
+      return;
+    }
+
+    const selectedBook = books.find((book) => book._id === chapterData.bookId);
+    if (!selectedBook) {
+      setError("Selected book not found");
+      return;
     }
 
     setProcessingLoading(true);
+    setProcessingProgress({ stage: "starting", message: "Starting...", percent: 0 });
     setError("");
     setSuccessMessage("");
+    setCategorizedQuestions({
+      shortAnswerDescriptiveBelow75: [],
+      otherQuestionInvalid: [],
+      shortAnswerDescriptiveInvalid: [],
+      validQuestions: []
+    });
     
     try {
       const adminToken = localStorage.getItem("adminToken");
       if (!adminToken) {
         setError("Please log in as an admin to continue");
         setProcessingLoading(false);
+        setProcessingProgress(null);
         return;
       }
 
-      console.log("Processing text using batch processing");
-      console.log("Text length:", chapterData.rawText.length);
-      console.log("Subject:", chapterData.subject);
-      
-      // Use batch processing endpoint for text processing
-      const response = await adminAxiosInstance.post(API_ENDPOINTS.PROCESS_TEXT_BATCH, 
-        { 
+      const grade = selectedBook.grade || selectedBook.class || "7";
+      const title = selectedBook.title || "Book";
+      const chapter = chapterData.title;
+      const language = selectedBook.language || "English";
+
+      const response = await fetch(API_ENDPOINTS.PROCESS_TEXT_BATCH_V2_STREAM, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`
+        },
+        body: JSON.stringify({
           rawText: chapterData.rawText,
-          subject: chapterData.subject
+          grade,
+          title,
+          chapter,
+          language
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || errData.error || `HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let resultData = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const obj = JSON.parse(trimmed);
+            if (obj.type === "progress") {
+              setProcessingProgress({
+                stage: obj.stage || "",
+                message: obj.message || "",
+                percent: obj.percent != null ? obj.percent : 0
+              });
+            } else if (obj.type === "result" && obj.data) {
+              resultData = obj.data;
+            } else if (obj.type === "error") {
+              throw new Error(obj.error || "Processing failed");
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue;
+            throw e;
+          }
         }
-      );
-      
-      console.log("Processing response received:", response.status);
-      
-      if (response.data && response.data.success) {
-        // Check if response contains structured question data
-        if (response.data.isQuestionFormat && response.data.questionArray) {
-          console.log(`Received structured question data with ${response.data.totalQuestions} questions`);
-          
-          // Store the question array in finalPrompt as JSON string
-          setChapterData({
-            ...chapterData,
-            finalPrompt: response.data.combinedPrompt,
-            hasQuestionFormat: true,
-            questionCount: response.data.totalQuestions,
-            vectorStoreId: response.data.vectorStoreId || ""
-          });
-          
-          setSuccessMessage(`Text successfully processed! ${response.data.totalQuestions} questions extracted and ready to save.`);
-        } else if (response.data.combinedPrompt) {
-          // Regular text processing
-          setChapterData({
-            ...chapterData,
-            finalPrompt: response.data.combinedPrompt,
-            hasQuestionFormat: false,
-            vectorStoreId: response.data.vectorStoreId || ""
-          });
-          setSuccessMessage("Text successfully processed! Ready to save as chapter.");
-        } else {
-          setError("Processing did not complete successfully");
+      }
+      if (buffer.trim()) {
+        try {
+          const obj = JSON.parse(buffer.trim());
+          if (obj.type === "result" && obj.data) resultData = obj.data;
+          else if (obj.type === "error") throw new Error(obj.error || "Processing failed");
+        } catch (e) {
+          if (!(e instanceof SyntaxError)) throw e;
         }
-      } else if (response.data && response.data.processedText) {
-        // Handle response from regular process-text endpoint (for backward compatibility)
+      }
+
+      if (resultData && resultData.success && resultData.categorized) {
+        const { categorized, vectorStoreId } = resultData;
+        const validQuestions = [
+          ...(categorized.shortAnswerDescriptiveAtOrAbove75 || []),
+          ...(categorized.otherQuestionValid || [])
+        ];
+        setCategorizedQuestions({
+          shortAnswerDescriptiveBelow75: categorized.shortAnswerDescriptiveBelow75 || [],
+          otherQuestionInvalid: categorized.otherQuestionInvalid || [],
+          shortAnswerDescriptiveInvalid: categorized.shortAnswerDescriptiveInvalid || [],
+          validQuestions
+        });
+        const normalizedForSave = validQuestions.map(q => ({ ...q, tentativeAnswer: getTentativeAnswer(q) }));
         setChapterData({
           ...chapterData,
-          finalPrompt: response.data.processedText,
-          hasQuestionFormat: false,
-          vectorStoreId: response.data.vectorStoreId || ""
+          finalPrompt: JSON.stringify(normalizedForSave),
+          hasQuestionFormat: true,
+          questionCount: validQuestions.length,
+          vectorStoreId: vectorStoreId || ""
         });
-        setSuccessMessage("Text processed successfully! Ready to save as chapter.");
+        const totalInvalidOrLowScore =
+          (categorized.shortAnswerDescriptiveBelow75 || []).length +
+          (categorized.otherQuestionInvalid || []).length +
+          (categorized.shortAnswerDescriptiveInvalid || []).length;
+        setSuccessMessage(
+          `Text successfully processed! ${validQuestions.length} valid questions ready to save. ` +
+          `${totalInvalidOrLowScore} questions flagged for review.`
+        );
       } else {
-        setError("Text processing did not complete successfully");
+        setError("Processing did not complete successfully");
       }
     } catch (error) {
       console.error("Error in text processing:", error);
-      
-      // Error logging
-      if (error.response) {
-        console.error("Response status:", error.response.status);
-        console.error("Response data:", JSON.stringify(error.response.data));
-        
-        // Handle specific error cases
-        if (error.response.status === 401) {
-          setError("Authentication failed. Please log in again as an admin.");
-          return;
-        }
-        
-        if (error.response.status === 504) {
-          setError("Processing timed out. The text may be too complex. Please try again later or try processing in multiple sessions.");
-          return;
-        }
-        
-        if (error.response.status === 500) {
-          setError("Server error during processing. Please try again later.");
-          return;
-        }
-      } else if (error.request) {
-        console.error("No response received from server");
-        setError("No response received from server. Please check your connection and try again later.");
-        return;
+      if (error.message?.includes("401")) {
+        setError("Authentication failed. Please log in again as an admin.");
+      } else if (error.message?.includes("504")) {
+        setError("Processing timed out. The text may be too complex. Please try again later or try processing in multiple sessions.");
+      } else {
+        setError(error.message || "Failed during text processing. Please try again.");
       }
-      
-      setError(error.response?.data?.error || error.response?.data?.message || "Failed during text processing. Please try again.");
     } finally {
       setProcessingLoading(false);
+      setProcessingProgress(null);
     }
   };
 
@@ -248,6 +345,12 @@ const AddChapter = () => {
           subject: "",
           finalPrompt: "",
           vectorStoreId: ""
+        });
+        setCategorizedQuestions({
+          shortAnswerDescriptiveBelow75: [],
+          otherQuestionInvalid: [],
+          shortAnswerDescriptiveInvalid: [],
+          validQuestions: []
         });
       }
     } catch (error) {
@@ -422,26 +525,275 @@ const AddChapter = () => {
                       required
                     />
                   </div>
+
+                  {/* Progress bar and stage when processing */}
+                  {processingLoading && processingProgress && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-blue-900">
+                          {processingProgress.message}
+                        </span>
+                        <span className="text-sm font-semibold text-blue-700">
+                          {processingProgress.percent}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                        <div
+                          className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${Math.min(100, Math.max(0, processingProgress.percent))}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-blue-700">
+                        <span className={processingProgress.stage === "vector_store" ? "font-semibold underline" : ""}>
+                          Creating vector store
+                        </span>
+                        <span>•</span>
+                        <span className={processingProgress.stage === "normalizing" ? "font-semibold underline" : ""}>
+                          Normalizing text
+                        </span>
+                        <span>•</span>
+                        <span className={processingProgress.stage === "extracting_questions" ? "font-semibold underline" : ""}>
+                          Extracting questions
+                        </span>
+                        <span>•</span>
+                        <span className={processingProgress.stage === "extracting_answer_validation" ? "font-semibold underline" : ""}>
+                          Extracting answers & validation
+                        </span>
+                        <span>•</span>
+                        <span className={processingProgress.stage === "categorizing" ? "font-semibold underline" : ""}>
+                          Categorizing
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-medium text-gray-900">Final Prompt</h2>
-                    <div className="flex-shrink-0">
-                      <span className="text-sm text-gray-500">
-                        Processed text will appear here automatically
+                {/* Review Boxes - Show flagged questions */}
+                {(categorizedQuestions.shortAnswerDescriptiveBelow75.length > 0 ||
+                  categorizedQuestions.otherQuestionInvalid.length > 0 ||
+                  categorizedQuestions.shortAnswerDescriptiveInvalid.length > 0) && (
+                  <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-gray-900 mt-6">Questions Flagged for Review</h2>
+                    
+                    {/* Box 1: Short Answer/Descriptive - Below 75% Score */}
+                    {categorizedQuestions.shortAnswerDescriptiveBelow75.length > 0 && (
+                      <div className="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-300">
+                        <div className="flex items-center mb-3">
+                          <svg className="h-5 w-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                          </svg>
+                          <h3 className="text-md font-semibold text-yellow-900">
+                            Short Answer/Descriptive - Low Relevance Score (&lt; 75%)
+                          </h3>
+                          <span className="ml-auto bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                            {categorizedQuestions.shortAnswerDescriptiveBelow75.length} questions
                           </span>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto space-y-2">
+                          {categorizedQuestions.shortAnswerDescriptiveBelow75.map((q, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); moveQuestionToValid(q, 'shortAnswerDescriptiveBelow75'); }}
+                              className="w-full text-left bg-white hover:bg-yellow-100 p-3 rounded border border-yellow-300 flex items-start justify-between group transition-colors"
+                            >
+                              <div className="flex-1 pr-3">
+                                <p className="text-sm font-medium text-gray-900 mb-1">{q.question || 'No question text'}</p>
+                                {getTentativeAnswer(q) && (
+                                  <p className="text-xs text-gray-600 mb-2 mt-1 pl-2 border-l-2 border-yellow-400 italic">
+                                    Answer: {getTentativeAnswer(q)}
+                                  </p>
+                                )}
+                                <div className="flex gap-2 text-xs text-gray-600">
+                                  <span>Type: {q.question_type || q['question type'] || 'N/A'}</span>
+                                  {q.highestScore !== undefined && (
+                                    <span className="text-yellow-700 font-medium">Score: {(q.highestScore * 100).toFixed(1)}%</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex-shrink-0">
+                                <div className="bg-green-500 text-white rounded-full p-1 group-hover:bg-green-600 transition-colors">
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Box 2: Other Question Types - Invalid */}
+                    {categorizedQuestions.otherQuestionInvalid.length > 0 && (
+                      <div className="bg-orange-50 p-4 rounded-lg border-2 border-orange-300">
+                        <div className="flex items-center mb-3">
+                          <svg className="h-5 w-5 text-orange-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                          </svg>
+                          <h3 className="text-md font-semibold text-orange-900">
+                            MCQ/True-False/Fill in Blanks - Invalid
+                          </h3>
+                          <span className="ml-auto bg-orange-200 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">
+                            {categorizedQuestions.otherQuestionInvalid.length} questions
+                          </span>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto space-y-2">
+                          {categorizedQuestions.otherQuestionInvalid.map((q, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); moveQuestionToValid(q, 'otherQuestionInvalid'); }}
+                              className="w-full text-left bg-white hover:bg-orange-100 p-3 rounded border border-orange-300 flex items-start justify-between group transition-colors"
+                            >
+                              <div className="flex-1 pr-3">
+                                <p className="text-sm font-medium text-gray-900 mb-1">{q.question || 'No question text'}</p>
+                                {getTentativeAnswer(q) && (
+                                  <p className="text-xs text-gray-600 mb-2 mt-1 pl-2 border-l-2 border-orange-400 italic">
+                                    Answer: {getTentativeAnswer(q)}
+                                  </p>
+                                )}
+                                <div className="flex gap-2 text-xs text-gray-600">
+                                  <span>Type: {q.question_type || q['question type'] || 'N/A'}</span>
+                                  {q['Invalid reason'] && (
+                                    <span className="text-orange-700">Reason: {q['Invalid reason']}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex-shrink-0">
+                                <div className="bg-green-500 text-white rounded-full p-1 group-hover:bg-green-600 transition-colors">
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Box 3: Short Answer/Descriptive - Invalid */}
+                    {categorizedQuestions.shortAnswerDescriptiveInvalid.length > 0 && (
+                      <div className="bg-red-50 p-4 rounded-lg border-2 border-red-300">
+                        <div className="flex items-center mb-3">
+                          <svg className="h-5 w-5 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                          </svg>
+                          <h3 className="text-md font-semibold text-red-900">
+                            Short Answer/Descriptive - Invalid
+                          </h3>
+                          <span className="ml-auto bg-red-200 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
+                            {categorizedQuestions.shortAnswerDescriptiveInvalid.length} questions
+                          </span>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto space-y-2">
+                          {categorizedQuestions.shortAnswerDescriptiveInvalid.map((q, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); moveQuestionToValid(q, 'shortAnswerDescriptiveInvalid'); }}
+                              className="w-full text-left bg-white hover:bg-red-100 p-3 rounded border border-red-300 flex items-start justify-between group transition-colors"
+                            >
+                              <div className="flex-1 pr-3">
+                                <p className="text-sm font-medium text-gray-900 mb-1">{q.question || 'No question text'}</p>
+                                {getTentativeAnswer(q) && (
+                                  <p className="text-xs text-gray-600 mb-2 mt-1 pl-2 border-l-2 border-red-400 italic">
+                                    Answer: {getTentativeAnswer(q)}
+                                  </p>
+                                )}
+                                <div className="flex flex-col gap-1 text-xs text-gray-600">
+                                  <span>Type: {q.question_type || q['question type'] || 'N/A'}</span>
+                                  {q['Invalid reason'] && (
+                                    <span className="text-red-700">Reason: {q['Invalid reason']}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex-shrink-0">
+                                <div className="bg-green-500 text-white rounded-full p-1 group-hover:bg-green-600 transition-colors">
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <div className="bg-green-50 p-4 rounded-lg border-2 border-green-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                      </svg>
+                      <h2 className="text-lg font-semibold text-green-900">Valid Questions (Ready to Save)</h2>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <span className="bg-green-200 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                        {categorizedQuestions.validQuestions.length > 0 
+                          ? `${categorizedQuestions.validQuestions.length} questions`
+                          : "0 questions"
+                        }
+                      </span>
                     </div>
                   </div>
-                  <div>
-                    <textarea
-                      name="finalPrompt"
-                      placeholder="Processed text will appear here after clicking 'Process Text'..."
-                      value={chapterData.finalPrompt}
-                      onChange={handleChange}
-                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md h-64 transition-colors duration-200"
-                    />
-                  </div>
+                  
+                  {categorizedQuestions.validQuestions.length > 0 ? (
+                    <div className="space-y-3">
+                      {/* Visual list of questions */}
+                      <div className="max-h-96 overflow-y-auto space-y-2 bg-white p-3 rounded border border-green-200">
+                        {categorizedQuestions.validQuestions.map((q, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-green-50 p-3 rounded border border-green-200"
+                          >
+                            <div className="flex items-start gap-2">
+                              <span className="flex-shrink-0 bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                                {idx + 1}
+                              </span>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900 mb-1">{q.question || 'No question text'}</p>
+                                {isShortAnswerOrDescriptive(q) && getTentativeAnswer(q) && (
+                                  <p className="text-xs text-gray-600 mb-2 mt-1 pl-2 border-l-2 border-green-400 italic">
+                                    Answer: {getTentativeAnswer(q)}
+                                  </p>
+                                )}
+                                <div className="flex gap-3 text-xs text-gray-600">
+                                  <span>Type: {q.question_type || q['question type'] || 'N/A'}</span>
+                                  {q.highestScore !== undefined && (
+                                    <span className="text-green-700 font-medium">Score: {(q.highestScore * 100).toFixed(1)}%</span>
+                                  )}
+                                  {q.subtopic && (
+                                    <span>Subtopic: {q.subtopic}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Hidden textarea for form submission */}
+                      <textarea
+                        name="finalPrompt"
+                        value={chapterData.finalPrompt}
+                        onChange={handleChange}
+                        className="hidden"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-gray-500">
+                      <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="text-sm">No valid questions yet</p>
+                      <p className="text-xs mt-1">Process text or add questions from the review boxes above</p>
+                    </div>
+                  )}
                 </div>
               </div>
               

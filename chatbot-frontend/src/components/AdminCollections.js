@@ -14,6 +14,7 @@ export default function AdminCollections() {
   const [error, setError] = useState("");
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
   const [showChaptersModal, setShowChaptersModal] = useState(false);
+  const [generatedCouponsInfo, setGeneratedCouponsInfo] = useState(null);
   const navigate = useNavigate();
 
   // Handle book deletion
@@ -132,6 +133,51 @@ export default function AdminCollections() {
     setShowChaptersModal(false);
   };
 
+  const handleGenerateCoupons = async (book, event) => {
+    event.stopPropagation();
+
+    const quantityInput = window.prompt(`Enter coupon quantity for "${book.title}"`, "1");
+    if (quantityInput === null) return;
+
+    const quantity = Number(quantityInput);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setNotification({
+        show: true,
+        type: "error",
+        message: "Please enter a valid positive whole number"
+      });
+      setTimeout(() => setNotification({ show: false, type: "", message: "" }), 3000);
+      return;
+    }
+
+    try {
+      const response = await adminAxiosInstance.post(
+        API_ENDPOINTS.GENERATE_BOOK_COUPONS.replace(":bookId", book._id),
+        { quantity }
+      );
+
+      const couponData = response.data?.data || {};
+      setGeneratedCouponsInfo({
+        bookTitle: couponData.bookTitle || book.title,
+        coupons: couponData.coupons || []
+      });
+
+      setNotification({
+        show: true,
+        type: "success",
+        message: response.data?.message || "Coupons generated successfully"
+      });
+      setTimeout(() => setNotification({ show: false, type: "", message: "" }), 3000);
+    } catch (error) {
+      setNotification({
+        show: true,
+        type: "error",
+        message: error.response?.data?.error || "Failed to generate coupons"
+      });
+      setTimeout(() => setNotification({ show: false, type: "", message: "" }), 3000);
+    }
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4">
@@ -225,6 +271,50 @@ export default function AdminCollections() {
         isAdmin={true}
       />
 
+      {/* Generated coupons modal */}
+      {generatedCouponsInfo && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Generated Coupons</h2>
+                <p className="text-sm text-gray-600 mt-1">{generatedCouponsInfo.bookTitle}</p>
+              </div>
+              <button
+                onClick={() => setGeneratedCouponsInfo(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-sm text-gray-700 mb-3">
+              Total generated: <span className="font-semibold">{generatedCouponsInfo.coupons.length}</span>
+            </p>
+            <textarea
+              readOnly
+              value={generatedCouponsInfo.coupons.join("\n")}
+              className="w-full h-64 p-3 border border-gray-300 rounded-lg text-sm font-mono"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => navigator.clipboard?.writeText(generatedCouponsInfo.coupons.join("\n"))}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Copy Codes
+              </button>
+              <button
+                onClick={() => setGeneratedCouponsInfo(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-10">
           <div>
@@ -271,7 +361,7 @@ export default function AdminCollections() {
                   <div className="p-4 flex-1 flex flex-col">
                     <h2 className="font-bold text-lg text-gray-900 line-clamp-1">{book.title}</h2>
                     <p className="text-sm text-gray-600 mb-4">{book.publisher}</p>
-                    <div className="mt-auto flex gap-2">
+                    <div className="mt-auto flex gap-2 flex-wrap">
                       <button
                         className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                         onClick={() => fetchChapters(book._id)}
@@ -281,6 +371,13 @@ export default function AdminCollections() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
                         </svg>
                         View Chapters
+                      </button>
+                      <button
+                        className="inline-flex items-center justify-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200"
+                        onClick={(e) => handleGenerateCoupons(book, e)}
+                        disabled={loading}
+                      >
+                        Generate Coupon
                       </button>
                       <button
                         className="inline-flex items-center justify-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
