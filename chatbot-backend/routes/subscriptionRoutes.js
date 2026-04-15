@@ -569,48 +569,14 @@ router.post("/", authenticateUser, async (req, res) => {
     if (!book) return res.status(404).json({ error: "Book not found" });
     const resolvedBookObjectId = book._id;
 
-    if (!normalizedCouponCode) {
-      return res.status(400).json({ error: "Coupon code is required" });
-    }
-
     // Check if the user is already subscribed
     const existingSubscription = await Subscription.findOne({ userId, bookId: resolvedBookObjectId });
     if (existingSubscription) {
       return res.status(400).json({ error: "Already subscribed to this book" });
     }
 
-    // Atomically consume coupon only if it belongs to this book and is not used
-    const consumedCouponBook = await Book.findOneAndUpdate(
-      {
-        _id: resolvedBookObjectId,
-        coupons: {
-          $elemMatch: { code: normalizedCouponCode, isUsed: false }
-        }
-      },
-      {
-        $set: {
-          "coupons.$.isUsed": true,
-          "coupons.$.usedBy": userId,
-          "coupons.$.usedAt": new Date()
-        }
-      },
-      { new: false }
-    );
-
-    if (!consumedCouponBook) {
-      const usedCoupon = await Book.findOne({
-        _id: resolvedBookObjectId,
-        coupons: {
-          $elemMatch: { code: normalizedCouponCode, isUsed: true }
-        }
-      }).select("_id");
-
-      if (usedCoupon) {
-        return res.status(400).json({ error: "Coupon code has already been used" });
-      }
-
-      return res.status(400).json({ error: "Invalid coupon code for this book" });
-    }
+    // TEMPORARY TEST MODE:
+    // Coupon verification/consumption is bypassed so subscription can proceed immediately.
 
     // Save new subscription with actual user details
     const newSubscription = new Subscription({
@@ -624,23 +590,7 @@ router.post("/", authenticateUser, async (req, res) => {
       bookCoverImgLink: book.bookCoverImgLink
     });
 
-    try {
-      await newSubscription.save();
-    } catch (saveError) {
-      // Best-effort rollback to release coupon if subscription creation fails.
-      await Book.updateOne(
-        { _id: resolvedBookObjectId, "coupons.code": normalizedCouponCode, "coupons.usedBy": userId },
-        {
-          $set: {
-            "coupons.$.isUsed": false,
-            "coupons.$.usedBy": null,
-            "coupons.$.usedAt": null
-          }
-        }
-      );
-      throw saveError;
-    }
-
+    await newSubscription.save();
     res.status(201).json({ message: "Subscribed successfully!", subscription: newSubscription });
 
   } catch (err) {
