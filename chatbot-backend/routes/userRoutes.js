@@ -9,6 +9,7 @@ const cloudinary = require("cloudinary").v2;
 const { OAuth2Client } = require("google-auth-library");
 const User = require("../models/User");
 const OTP = require("../models/OTP");
+const ForgotPasswordResetToken = require("../models/ForgotPasswordResetToken");
 const { sendOTPEmail } = require("../services/emailService");
 const authenticateUser = require("../middleware/authMiddleware");
 require("dotenv").config();
@@ -16,6 +17,28 @@ require("dotenv").config();
 const router = express.Router();
 const MAX_USERNAMES_PER_EMAIL = 5;
 const googleAuthClient = new OAuth2Client();
+const RESET_TOKEN_TTL_SECONDS = 600;
+const RATE_LIMIT_BUCKETS = new Map();
+
+const consumeRateLimit = ({ key, maxAttempts, windowMs }) => {
+    const now = Date.now();
+    const existing = RATE_LIMIT_BUCKETS.get(key);
+    if (!existing || existing.resetAt <= now) {
+        RATE_LIMIT_BUCKETS.set(key, { count: 1, resetAt: now + windowMs });
+        return { allowed: true };
+    }
+
+    if (existing.count >= maxAttempts) {
+        return {
+            allowed: false,
+            retryAfterSeconds: Math.ceil((existing.resetAt - now) / 1000)
+        };
+    }
+
+    existing.count += 1;
+    RATE_LIMIT_BUCKETS.set(key, existing);
+    return { allowed: true };
+};
 
 const verifyGoogleIdToken = async (idToken) => {
     const ticket = await googleAuthClient.verifyIdToken({
@@ -1041,47 +1064,220 @@ router.delete("/delete-profile-picture", authenticateUser, async (req, res) => {
     }
 });
 
-const resetPasswordWithoutOtp = async (req, res) => {
+// ✅ Step 1: Forgot password Google verification
+router.post("/forgot-password/google-verify", async (req, res) => {
+    const requestId = crypto.randomBytes(8).toString("hex");
     try {
-        const { username, newPassword } = req.body;
+        const { idToken } = req.body;
+        const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+        const fingerprint = req.headers["x-device-fingerprint"] ? String(req.headers["x-device-fingerprint"]) : "";
 
-        if (!username || !newPassword) {
-            return res.status(400).json({ message: "Username and new password are required" });
+        const ipRate = consumeRateLimit({
+            key: `fp_google_verify_ip:${ip}`,
+            maxAttempts: 20,
+            windowMs: 10 * 60 * 1000
+        });
+        if (!ipRate.allowed) {
+            console.warn("🚫 [forgot-password/google-verify] rate-limited by IP", { requestId, ip });
+            return res.status(429).json({ message: "Too many attempts. Please try again later." });
         }
 
-        if (newPassword.trim().length < 6) {
-            return res.status(400).json({ message: "Password must be at least 6 characters long" });
+        if (!idToken) {
+            return res.status(400).json({ message: "idToken is required" });
+        }
+
+        let verified;
+        try {
+            verified = await verifyGoogleIdToken(idToken);
+        } catch (error) {
+            console.warn("⚠️ [forgot-password/google-verify] invalid Google token", { requestId, ip });
+            return res.status(400).json({ message: "Invalid or expired Google token" });
+        }
+
+        const emailRate = consumeRateLimit({
+            key: `fp_google_verify_email:${ip}:${verified.email}`,
+            maxAttempts: 12,
+            windowMs: 10 * 60 * 1000
+        });
+        if (!emailRate.allowed) {
+            console.warn("🚫 [forgot-password/google-verify] rate-limited by email", { requestId, email: verified.email, ip });
+            return res.status(429).json({ message: "Too many attempts. Please try again later." });
+        }
+
+        const users = await User.find({ email: verified.email }).select("username").sort({ username: 1 });
+        const usernames = users.map((u) => u.username);
+
+        // Generic-safe response when no users are linked.
+        if (!usernames.length) {
+            console.info("ℹ️ [forgot-password/google-verify] no linked usernames", {
+                requestId,
+                email: verified.email,
+                ip
+            });
+            return res.status(200).json({
+                message: "If an account exists, verification has been processed.",
+                email: verified.email,
+                usernames: []
+            });
+        }
+
+        const jti = crypto.randomUUID();
+        const nonce = crypto.randomBytes(16).toString("hex");
+        const resetAuthToken = jwt.sign(
+            {
+                email: verified.email,
+                purpose: "forgot_password",
+                jti,
+                nonce
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: RESET_TOKEN_TTL_SECONDS }
+        );
+
+        await ForgotPasswordResetToken.create({
+            jti,
+            email: verified.email,
+            purpose: "forgot_password",
+            deviceFingerprint: fingerprint || undefined,
+            expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_SECONDS * 1000)
+        });
+
+        console.info("✅ [forgot-password/google-verify] reset token issued", {
+            requestId,
+            email: verified.email,
+            usernameCount: usernames.length,
+            ip
+        });
+
+        return res.status(200).json({
+            message: "Google verification successful",
+            email: verified.email,
+            usernames,
+            resetAuthToken,
+            expiresIn: RESET_TOKEN_TTL_SECONDS
+        });
+    } catch (error) {
+        console.error("❌ [forgot-password/google-verify] failed", { requestId, error: error.message });
+        return res.status(500).json({ message: "Server error" });
+    }
+});
+
+// ✅ Step 2: Complete forgot password flow
+router.post("/forgot-password/complete", async (req, res) => {
+    const requestId = crypto.randomBytes(8).toString("hex");
+    try {
+        const { resetAuthToken, username, newPassword } = req.body;
+        const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+        const fingerprint = req.headers["x-device-fingerprint"] ? String(req.headers["x-device-fingerprint"]) : "";
+
+        const ipRate = consumeRateLimit({
+            key: `fp_complete_ip:${ip}`,
+            maxAttempts: 20,
+            windowMs: 10 * 60 * 1000
+        });
+        if (!ipRate.allowed) {
+            console.warn("🚫 [forgot-password/complete] rate-limited by IP", { requestId, ip });
+            return res.status(429).json({ message: "Too many attempts. Please try again later." });
+        }
+
+        if (!resetAuthToken || !username || !newPassword) {
+            return res.status(400).json({ message: "resetAuthToken, username and newPassword are required" });
+        }
+
+        const usernameRate = consumeRateLimit({
+            key: `fp_complete_user:${ip}:${username.trim().toLowerCase()}`,
+            maxAttempts: 12,
+            windowMs: 10 * 60 * 1000
+        });
+        if (!usernameRate.allowed) {
+            console.warn("🚫 [forgot-password/complete] rate-limited by username", { requestId, username, ip });
+            return res.status(429).json({ message: "Too many attempts. Please try again later." });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(resetAuthToken, process.env.JWT_SECRET);
+        } catch (error) {
+            console.warn("⚠️ [forgot-password/complete] invalid or expired reset token", { requestId, ip });
+            return res.status(401).json({ message: "Invalid resetAuthToken" });
+        }
+
+        if (decoded.purpose !== "forgot_password") {
+            console.warn("⚠️ [forgot-password/complete] wrong token purpose", { requestId, purpose: decoded.purpose });
+            return res.status(403).json({ message: "Invalid resetAuthToken purpose" });
+        }
+
+        const tokenRecord = await ForgotPasswordResetToken.findOne({ jti: decoded.jti });
+        if (!tokenRecord) {
+            console.warn("⚠️ [forgot-password/complete] token record missing", { requestId, jti: decoded.jti });
+            return res.status(401).json({ message: "Invalid resetAuthToken" });
+        }
+
+        if (tokenRecord.usedAt) {
+            console.warn("⚠️ [forgot-password/complete] token already used", { requestId, jti: decoded.jti });
+            return res.status(409).json({ message: "Reset token already used" });
+        }
+
+        if (tokenRecord.expiresAt.getTime() <= Date.now()) {
+            console.warn("⚠️ [forgot-password/complete] token expired", { requestId, jti: decoded.jti });
+            return res.status(401).json({ message: "Invalid resetAuthToken" });
+        }
+
+        // Optional device binding check.
+        if (tokenRecord.deviceFingerprint && tokenRecord.deviceFingerprint !== fingerprint) {
+            console.warn("⚠️ [forgot-password/complete] device fingerprint mismatch", { requestId, jti: decoded.jti });
+            return res.status(403).json({ message: "Invalid resetAuthToken" });
+        }
+
+        if (newPassword.trim().length < 8) {
+            return res.status(422).json({ message: "Password must be at least 8 characters long" });
         }
 
         const user = await User.findOne({ username: username.trim() });
-        if (!user) {
-            return res.status(404).json({ message: "No account found with this username" });
+        if (!user || !user.email || user.email.toLowerCase().trim() !== decoded.email) {
+            console.warn("⚠️ [forgot-password/complete] username-email mismatch", {
+                requestId,
+                username: username.trim(),
+                tokenEmail: decoded.email
+            });
+            return res.status(403).json({ message: "Invalid resetAuthToken" });
         }
 
-        // Save plain password; User model pre-save middleware hashes it.
         user.password = newPassword.trim();
         await user.save();
 
-        console.log("✅ Password reset successfully for user:", user.username);
-        return res.status(200).json({
-            message: "Password reset successfully! You can now login with your new password."
+        tokenRecord.usedAt = new Date();
+        await tokenRecord.save();
+
+        console.info("✅ [forgot-password/complete] password reset success", {
+            requestId,
+            username: user.username,
+            email: decoded.email
         });
+
+        return res.status(200).json({ message: "Password reset successfully. Please login again." });
     } catch (error) {
-        console.error("❌ Error resetting password:", error);
-        return res.status(500).json({ message: error.message || "Server error" });
+        console.error("❌ [forgot-password/complete] failed", { requestId, error: error.message });
+        return res.status(500).json({ message: "Server error" });
     }
-};
+});
 
-// ✅ Password reset (no OTP required)
-router.post("/forgot-password", resetPasswordWithoutOtp);
+// Legacy endpoints disabled in favor of secure 2-step flow.
+router.post("/forgot-password", async (req, res) => {
+    return res.status(410).json({
+        message: "Deprecated endpoint. Use /api/users/forgot-password/google-verify and /api/users/forgot-password/complete."
+    });
+});
 
-// ✅ Backward-compatible alias for older clients
-router.post("/reset-password", resetPasswordWithoutOtp);
+router.post("/reset-password", async (req, res) => {
+    return res.status(410).json({
+        message: "Deprecated endpoint. Use /api/users/forgot-password/complete with resetAuthToken."
+    });
+});
 
-// OTP resend is no longer required
 router.post("/resend-password-reset-otp", async (req, res) => {
-    return res.status(400).json({
-        message: "Password reset OTP verification is disabled. Please reset password directly with username and new password."
+    return res.status(410).json({
+        message: "Password reset OTP flow is deprecated. Use the secure Google-verified forgot-password flow."
     });
 });
 

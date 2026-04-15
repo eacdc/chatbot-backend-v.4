@@ -28,6 +28,15 @@ const authenticateUser = async (req, res, next) => {
         return res.status(404).json({ error: "User not found" });
       }
 
+      // Invalidate old JWTs after password reset/change.
+      if (
+        user.passwordChangedAt &&
+        decoded.iat &&
+        decoded.iat * 1000 < new Date(user.passwordChangedAt).getTime()
+      ) {
+        return res.status(401).json({ error: "Session expired. Please login again." });
+      }
+
       // Attach the decoded token info to the request
       req.user = decoded;
       
