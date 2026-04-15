@@ -55,78 +55,40 @@ router.get('/google', (req, res, next) => {
 
 router.get('/google/callback', (req, res, next) => {
   if (!isStrategyAvailable('google')) {
-    return res.status(503).json({ 
-      success: false,
-      message: "Google OAuth is not configured. Please contact administrator." 
-    });
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    return res.redirect(`${frontendUrl}/auth-callback?error=google_not_configured`);
   }
-  passport.authenticate('google', { session: false, failureRedirect: '/login' })(req, res, next);
+  passport.authenticate('google', {
+    session: false,
+    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?error=google_auth_failed`
+  })(req, res, next);
 }, async (req, res) => {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     try {
-        console.log('🔐 Google OAuth callback received:', req.user);
-        
-        if (!req.user) {
-            console.log('❌ No user found in callback');
-            return res.status(401).json({
-                success: false,
-                message: "Google authentication failed"
-            });
+        if (!req.user || !req.user.email) {
+            console.log('❌ No Google profile email in callback');
+            return res.redirect(`${frontendUrl}/auth-callback?error=google_auth_failed`);
         }
 
-        console.log('🔑 Generating JWT token...');
-        console.log('🔑 JWT_SECRET available:', !!process.env.JWT_SECRET);
+        const { email } = req.user;
+        console.log('✅ Google identity verified for email:', email);
 
-        // Generate JWT token
-        const token = jwt.sign(
-            { 
-                userId: req.user._id, 
-                name: req.user.fullname, 
-                role: req.user.role, 
-                grade: req.user.grade,
-                authProvider: req.user.authProvider
-            },
+        // Issue a short-lived signed token that proves Google verified this email.
+        // The frontend uses it to fetch accounts and register new users securely.
+        const googleVerifiedToken = jwt.sign(
+            { googleVerifiedEmail: email, type: 'google_verified' },
             process.env.JWT_SECRET,
-            { expiresIn: "7d" }
+            { expiresIn: '15m' }
         );
 
-        console.log('✅ JWT token generated successfully');
-        console.log('🔗 Token length:', token.length);
-
-        // Return JSON response with user details and token
-        res.status(200).json({
-            success: true,
-            message: "Google authentication successful",
-            token: token,
-            user: {
-                _id: req.user._id,
-                username: req.user.username,
-                fullname: req.user.fullname,
-                email: req.user.email,
-                phone: req.user.phone,
-                role: req.user.role,
-                grade: req.user.grade,
-                publisher: req.user.publisher,
-                authProvider: req.user.authProvider,
-                isEmailVerified: req.user.isEmailVerified,
-                googleId: req.user.googleId,
-                facebookId: req.user.facebookId,
-                createdAt: req.user.createdAt,
-                updatedAt: req.user.updatedAt
-            },
-            authInfo: {
-                provider: 'google',
-                tokenExpiresIn: '7d',
-                tokenType: 'Bearer'
-            }
-        });
+        console.log('✅ Google verified token issued, redirecting to account selector');
+        res.redirect(
+            `${frontendUrl}/auth-callback?googleToken=${encodeURIComponent(googleVerifiedToken)}&provider=google`
+        );
 
     } catch (error) {
         console.error('❌ Google OAuth callback error:', error);
-        res.status(500).json({
-            success: false,
-            message: "Server error during Google authentication",
-            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-        });
+        res.redirect(`${frontendUrl}/auth-callback?error=server_error`);
     }
 });
 
@@ -141,22 +103,18 @@ router.get('/facebook', (req, res, next) => {
 });
 
 router.get('/facebook/callback', (req, res, next) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   if (!isStrategyAvailable('facebook')) {
-    return res.status(503).json({ 
-      success: false,
-      message: "Facebook OAuth is not configured. Please contact administrator." 
-    });
+    return res.redirect(`${frontendUrl}/auth-callback?error=facebook_not_configured`);
   }
-  passport.authenticate('facebook', { session: false, failureRedirect: '/login' })(req, res, next);
+  passport.authenticate('facebook', { session: false, failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth-callback?error=facebook_auth_failed` })(req, res, next);
 }, async (req, res) => {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     try {
         console.log('🔐 Facebook OAuth callback received:', req.user);
         
         if (!req.user) {
-            return res.status(401).json({
-                success: false,
-                message: "Facebook authentication failed"
-            });
+            return res.redirect(`${frontendUrl}/auth-callback?error=facebook_auth_failed`);
         }
 
         // Generate JWT token
@@ -172,41 +130,14 @@ router.get('/facebook/callback', (req, res, next) => {
             { expiresIn: "7d" }
         );
 
-        // Return JSON response with user details and token
-        res.status(200).json({
-            success: true,
-            message: "Facebook authentication successful",
-            token: token,
-            user: {
-                _id: req.user._id,
-                username: req.user.username,
-                fullname: req.user.fullname,
-                email: req.user.email,
-                phone: req.user.phone,
-                role: req.user.role,
-                grade: req.user.grade,
-                publisher: req.user.publisher,
-                authProvider: req.user.authProvider,
-                isEmailVerified: req.user.isEmailVerified,
-                googleId: req.user.googleId,
-                facebookId: req.user.facebookId,
-                createdAt: req.user.createdAt,
-                updatedAt: req.user.updatedAt
-            },
-            authInfo: {
-                provider: 'facebook',
-                tokenExpiresIn: '7d',
-                tokenType: 'Bearer'
-            }
-        });
+        console.log('✅ JWT token generated, redirecting to frontend');
+
+        // Redirect to frontend auth-callback page with token in query params
+        res.redirect(`${frontendUrl}/auth-callback?token=${encodeURIComponent(token)}&provider=facebook`);
 
     } catch (error) {
         console.error('❌ Facebook OAuth callback error:', error);
-        res.status(500).json({
-            success: false,
-            message: "Server error during Facebook authentication",
-            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-        });
+        res.redirect(`${frontendUrl}/auth-callback?error=server_error`);
     }
 });
 

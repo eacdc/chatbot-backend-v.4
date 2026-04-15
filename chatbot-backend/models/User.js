@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs"); // For hashing passwords
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true, trim: true }, // ✅ Primary identifier
     fullname: { type: String, required: true },
-    email: { type: String, required: false, unique: true, sparse: true, lowercase: true, trim: true }, // Optional field with unique sparse indexing
+    email: { type: String, required: false, sparse: true, lowercase: true, trim: true }, // Optional field with sparse indexing
     phone: { type: String, required: true },
     grade: { type: String, required: true, default: "1" }, // Grade level for filtering content
     publisher: { type: String, required: false, trim: true }, // Publisher preference for filtering content

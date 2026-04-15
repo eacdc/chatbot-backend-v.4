@@ -12,67 +12,26 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         callbackURL: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/social-auth/google/callback`
     }, async (accessToken, refreshToken, profile, done) => {
         try {
-            console.log('🔐 Google profile received:', {
+            const email = profile.emails?.[0]?.value;
+            console.log('🔐 Google profile verified:', {
                 id: profile.id,
                 displayName: profile.displayName,
-                email: profile.emails?.[0]?.value
+                email
             });
 
-            // Check if user already exists with this Google ID
-            let user = await User.findOne({ googleId: profile.id });
-            
-            if (user) {
-                console.log('✅ Existing Google user found:', user.username);
-                return done(null, user);
-            }
-
-            // Check if user exists with the same email
-            if (profile.emails && profile.emails[0]) {
-                user = await User.findOne({ email: profile.emails[0].value.toLowerCase() });
-                
-                if (user) {
-                    // Link existing user with Google account
-                    user.googleId = profile.id;
-                    user.authProvider = 'google';
-                    user.isEmailVerified = true;
-                    await user.save();
-                    console.log('✅ Existing user linked with Google:', user.username);
-                    return done(null, user);
-                }
-            }
-
-            // Create new user with Google data
-            const email = profile.emails?.[0]?.value;
             if (!email) {
-                return done(new Error('Email is required for registration'), null);
+                return done(new Error('Google account has no email address'), null);
             }
 
-            // Generate unique username
-            let username = profile.displayName.replace(/\s+/g, '').toLowerCase();
-            let counter = 1;
-            let finalUsername = username;
-            
-            while (await User.findOne({ username: finalUsername })) {
-                finalUsername = `${username}${counter}`;
-                counter++;
-            }
-
-            const newUser = new User({
-                username: finalUsername,
-                fullname: profile.displayName,
-                email: email.toLowerCase(),
-                phone: '0000000000', // Default phone, user can update later
-                role: 'student', // Default role, user can update later
-                grade: '1', // Default grade, user can update later
+            // Only verify the Google identity and return the email.
+            // User lookup and login happen in the route callback so that
+            // the user can select a username and authenticate with a password.
+            return done(null, {
+                email: email.toLowerCase().trim(),
                 googleId: profile.id,
-                authProvider: 'google',
-                isEmailVerified: true,
+                fullname: profile.displayName,
                 profilePicture: profile.photos?.[0]?.value
             });
-
-            await newUser.save();
-            console.log('✅ New Google user created:', newUser.username);
-            return done(null, newUser);
 
         } catch (error) {
             console.error('❌ Google OAuth error:', error);
