@@ -6,6 +6,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const cloudinary = require("cloudinary").v2;
+const { OAuth2Client } = require("google-auth-library");
 const User = require("../models/User");
 const OTP = require("../models/OTP");
 const { sendOTPEmail } = require("../services/emailService");
@@ -14,6 +15,28 @@ require("dotenv").config();
 
 const router = express.Router();
 const MAX_USERNAMES_PER_EMAIL = 5;
+const googleAuthClient = new OAuth2Client();
+
+const verifyGoogleIdToken = async (idToken) => {
+    const ticket = await googleAuthClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload?.email ? payload.email.toLowerCase().trim() : "";
+
+    if (!email || !payload?.email_verified) {
+        throw new Error("Unverified Google email");
+    }
+
+    return {
+        email,
+        emailVerified: payload.email_verified,
+        name: payload.name,
+        googleUserId: payload.sub
+    };
+};
 
 // Validate Cloudinary configuration
 const isCloudinaryConfigured = () => {
@@ -1163,6 +1186,105 @@ router.post("/register-google-verified", async (req, res) => {
             return res.status(400).json({ message: "Username already taken" });
         }
         res.status(500).json({ message: error.message || "Server error" });
+    }
+});
+
+// ✅ Mobile: Fetch accounts using Google-issued idToken
+router.post("/accounts-by-google-idtoken", async (req, res) => {
+    try {
+        const { idToken } = req.body;
+        if (!idToken) {
+            return res.status(400).json({ message: "idToken is required" });
+        }
+
+        let verified;
+        try {
+            verified = await verifyGoogleIdToken(idToken);
+        } catch (error) {
+            return res.status(400).json({ message: "Invalid or expired Google token" });
+        }
+
+        const users = await User.find({ email: verified.email })
+            .select("username fullname role grade profilePicture")
+            .sort({ username: 1 });
+
+        return res.status(200).json({
+            email: verified.email,
+            users: users.map((u) => ({
+                username: u.username,
+                fullname: u.fullname,
+                role: u.role,
+                grade: u.grade,
+                profilePicture: u.profilePicture || null
+            }))
+        });
+    } catch (error) {
+        console.error("❌ Error in accounts-by-google-idtoken:", error);
+        return res.status(500).json({ message: error.message || "Server error" });
+    }
+});
+
+// ✅ Mobile: Register account using Google-issued idToken
+router.post("/register-google-idtoken", async (req, res) => {
+    try {
+        const { idToken, username, fullname, phone, role, grade, password, publisher } = req.body;
+
+        if (!idToken) {
+            return res.status(400).json({ message: "idToken is required" });
+        }
+
+        if (!username || !fullname || !phone || !role || !password) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        let verified;
+        try {
+            verified = await verifyGoogleIdToken(idToken);
+        } catch (error) {
+            return res.status(400).json({ message: "Invalid or expired Google token" });
+        }
+
+        const email = verified.email;
+
+        // Enforce max usernames per email
+        const usersWithEmailCount = await User.countDocuments({ email });
+        if (usersWithEmailCount >= MAX_USERNAMES_PER_EMAIL) {
+            return res.status(400).json({ message: `Maximum ${MAX_USERNAMES_PER_EMAIL} usernames allowed for this email` });
+        }
+
+        // Enforce unique username
+        const existingUser = await User.findOne({ username: username.trim() });
+        if (existingUser) {
+            return res.status(400).json({ message: "Username already taken" });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters long" });
+        }
+
+        const newUser = new User({
+            username: username.trim(),
+            fullname: fullname.trim(),
+            email,
+            phone: phone.trim(),
+            role: role.trim(),
+            grade: grade || "1",
+            publisher: publisher ? publisher.trim() : undefined,
+            password: password.trim(),
+            authProvider: "email",
+            isEmailVerified: true
+        });
+
+        await newUser.save();
+        console.log("✅ Google idToken user registered:", newUser.username);
+
+        return res.status(201).json({ message: "Account created successfully! You can now sign in." });
+    } catch (error) {
+        console.error("❌ Error in register-google-idtoken:", error);
+        if (error.code === 11000 && error.keyPattern?.username) {
+            return res.status(400).json({ message: "Username already taken" });
+        }
+        return res.status(500).json({ message: error.message || "Server error" });
     }
 });
 
